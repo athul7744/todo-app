@@ -7,13 +7,13 @@ import { PowerSyncProvider } from "@/components/powersync-provider";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "To-Do PWA",
-  description: "Offline-capable local-first to-do list",
+  title: "Tasks.",
+  description: "A modern, offline-first task manager",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "To-Do PWA",
+    title: "Tasks.",
   },
 };
 
