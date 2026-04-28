@@ -124,7 +124,7 @@ export default function Home() {
             <div className="bg-primary/10 p-2 rounded-lg">
               <ListTodo className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight hidden sm:block">Tasks</h1>
+            <h1 className="text-2xl font-bold tracking-tight hidden sm:block">Tasks<span className="text-primary">.</span></h1>
           </div>
           
           <div className="flex items-center gap-2 md:gap-4">

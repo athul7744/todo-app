@@ -1,7 +1,7 @@
 {
-  "name": "To-Do PWA",
-  "short_name": "Tasks",
-  "description": "Offline-capable local-first to-do list",
+  "name": "Tasks.",
+  "short_name": "Tasks.",
+  "description": "A modern, offline-first task manager",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
