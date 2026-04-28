@@ -14,24 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tag } from "@/lib/powersync/AppSchema";
 import { cn } from "@/lib/utils";
-
-const TAG_COLORS = [
-  "bg-red-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-green-500",
-  "bg-emerald-500",
-  "bg-teal-500",
-  "bg-cyan-500",
-  "bg-blue-500",
-  "bg-indigo-500",
-  "bg-violet-500",
-  "bg-purple-500",
-  "bg-fuchsia-500",
-  "bg-pink-500",
-  "bg-rose-500",
-  "bg-slate-500",
-];
+import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/colors";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
   const db = usePowerSync();
@@ -58,9 +42,11 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
   };
 
   const handleDeleteTag = async (id: string) => {
-    // Note: If a tag is deleted, tasks that reference it as a JSON string will still have the ID.
-    // In a full production app, you might want to cascade or cleanup JSON arrays, but for now we just delete the tag.
     await db.execute(`DELETE FROM tags WHERE id = ?`, [id]);
+  };
+
+  const handleUpdateTagColor = async (id: string, color: string) => {
+    await db.execute(`UPDATE tags SET color = ?, updated_at = datetime('now') WHERE id = ?`, [color, id]);
   };
 
   return (
@@ -102,7 +88,7 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
                   onClick={() => setNewTagColor(color)}
                   className={cn(
                     "h-6 w-6 rounded-full cursor-pointer transition-transform hover:scale-110",
-                    color,
+                    getTagDotClass(color),
                     newTagColor === color ? "ring-2 ring-offset-2 ring-primary ring-offset-background scale-110" : ""
                   )}
                   aria-label={`Select color ${color}`}
@@ -120,8 +106,25 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
                 tags.map(tag => (
                   <div key={tag.id} className="flex items-center justify-between group rounded-md border px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <div className={cn("h-3 w-3 rounded-full", tag.color)} />
-                      <span className="text-sm font-medium">{tag.name}</span>
+                      <Popover>
+                        <PopoverTrigger className={cn("h-4 w-4 rounded-full cursor-pointer hover:scale-110 transition-transform ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", getTagDotClass(tag.color || 'slate'))} title="Change color" />
+                        <PopoverContent className="w-[200px] p-2" align="start">
+                          <div className="flex flex-wrap gap-2">
+                            {TAG_COLORS.map(color => (
+                              <button
+                                key={color}
+                                onClick={() => handleUpdateTagColor(tag.id, color)}
+                                className={cn(
+                                  "h-5 w-5 rounded-full cursor-pointer transition-transform hover:scale-110",
+                                  getTagDotClass(color),
+                                  tag.color === color ? "ring-2 ring-offset-1 ring-primary ring-offset-background scale-110" : ""
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <span className={cn("text-xs font-medium px-2 py-0.5 rounded-sm", getTagColorClasses(tag.color || 'slate'))}>{tag.name}</span>
                     </div>
                     <Button 
                       variant="ghost" 
