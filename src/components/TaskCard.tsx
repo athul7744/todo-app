@@ -128,12 +128,16 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   };
 
   const trashTask = async (t: Task) => {
+    // For the parent task, use optimisticState; for subtasks, use their own state
+    const currentState = t.id === task.id ? optimisticState : (optimisticSubtaskStates[t.id] || t.state);
     setIsDeleting(true);
     setTimeout(async () => {
-      if (t.state === 'trashed') {
+      if (currentState === 'trashed') {
+        // Permanently delete
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
         if (!t.parent_id) await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
       } else {
+        // Move to trash
         await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE id = ?`, [t.id]);
         if (!t.parent_id) await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
       }
@@ -171,9 +175,11 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   return (
     <div className={cn(
-      "group relative flex flex-col bg-card rounded-xl border border-border shadow-sm transition-all duration-300 hover:shadow-md mb-4 overflow-hidden break-inside-avoid",
+      "group relative flex flex-col rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md mb-4 overflow-hidden break-inside-avoid",
+      optimisticState === 'trashed'
+        ? "bg-rose-50/80 dark:bg-rose-950/30 border-rose-300/60 dark:border-rose-800/50"
+        : "bg-card border-border",
       optimisticState === 'completed' ? "opacity-60 bg-muted/50" : "",
-      optimisticState === 'trashed' ? "opacity-50 border-rose-200/50 dark:border-rose-900/50" : "",
       isDeleting ? "opacity-0 scale-95" : "opacity-100 scale-100"
     )}>
       {/* Main Task Header */}
