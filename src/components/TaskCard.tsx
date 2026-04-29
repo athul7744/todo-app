@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Task, Tag } from "@/lib/powersync/AppSchema";
 import { usePowerSync, useQuery } from "@powersync/react";
-import { Check, CheckCircle2, Trash2, Calendar as CalendarIcon, Plus, CornerDownRight } from "lucide-react";
+import { Check, CheckCircle2, Trash2, Calendar as CalendarIcon, Plus, CornerDownRight, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -144,6 +144,13 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     }, 150);
   };
 
+  const restoreTask = async () => {
+    await db.execute(`UPDATE tasks SET state = 'pending', updated_at = datetime('now') WHERE id = ?`, [task.id]);
+    if (!task.parent_id) {
+      await db.execute(`UPDATE tasks SET state = 'pending', updated_at = datetime('now') WHERE parent_id = ?`, [task.id]);
+    }
+  };
+
   const handleCreateInlineTag = async () => {
     const newId = uuidv4();
     const userId = await getCurrentUserId();
@@ -172,19 +179,20 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   // --- Derived UI State ---
 
   const dueDateInfo = getDueDateInfo(dueDate);
+  const isTrashed = optimisticState === 'trashed';
 
   return (
     <div className={cn(
       "group relative flex flex-col rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md mb-4 overflow-hidden break-inside-avoid",
       optimisticState === 'trashed'
-        ? "bg-rose-50/80 dark:bg-rose-950/30 border-rose-300/60 dark:border-rose-800/50"
+        ? "bg-rose-50/40 dark:bg-rose-950/15 border-rose-200/40 dark:border-rose-800/30"
         : "bg-card border-border",
       optimisticState === 'completed' ? "opacity-60 bg-muted/50" : "",
       isDeleting ? "opacity-0 scale-95" : "opacity-100 scale-100"
     )}>
       {/* Main Task Header */}
       <div className="flex items-start gap-3 p-4">
-        {!isNew && (
+        {!isNew && !isTrashed && (
           <button
             onClick={() => toggleTaskState(task)}
             className={cn(
@@ -204,12 +212,14 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             ref={autoResizeTextarea}
             maxLength={250}
             rows={1}
-            className={`bg-transparent text-[15px] font-semibold focus:outline-none placeholder:text-muted-foreground/50 w-full resize-none overflow-hidden block min-h-[24px] ${task.state === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
+            className={`bg-transparent text-[15px] font-semibold focus:outline-none placeholder:text-muted-foreground/50 w-full resize-none overflow-hidden block min-h-[24px] ${task.state === 'completed' || isTrashed ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
             placeholder="Task Title..."
             value={title}
-            onChange={(e) => { autoResizeTextarea(e.target); setTitle(e.target.value); }}
-            onBlur={() => { if (!isNew) handleUpdate("title", title); }}
+            readOnly={isTrashed}
+            onChange={(e) => { if (!isTrashed) { autoResizeTextarea(e.target); setTitle(e.target.value); } }}
+            onBlur={() => { if (!isNew && !isTrashed) handleUpdate("title", title); }}
             onKeyDown={(e) => {
+              if (isTrashed) return;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 if (isNew) handleSaveNew(); else e.currentTarget.blur();
@@ -218,7 +228,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             autoFocus={isNew}
           />
           
-          {/* Metadata Row */}
+          {/* Metadata Row — hidden for trashed tasks */}
+          {!isTrashed && (
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5 pb-0.5">
             {/* Due Date Picker */}
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -297,6 +308,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
               </PopoverContent>
             </Popover>
           </div>
+          )}
 
           {/* Selected Tags */}
           {selectedTagIds.length > 0 && (
@@ -314,32 +326,40 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
           )}
         </div>
 
-        {/* Actions: Priority + Trash */}
+        {/* Actions: Priority + Restore + Trash */}
         <div className="flex items-center gap-1 ml-auto pl-1 h-6">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="focus:outline-none rounded-full ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-              <div 
-                className={cn(
-                  "h-3 w-3 rounded-full shadow-sm ring-2 ring-offset-1 ring-offset-background transition-colors",
-                  PRIORITY_COLORS[priority]?.bg || PRIORITY_COLORS.medium.bg,
-                  PRIORITY_COLORS[priority]?.ring || PRIORITY_COLORS.medium.ring
-                )} 
-                title={`Priority: ${priority}`}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-32">
-              {PRIORITY_LEVELS.map((p) => (
-                <DropdownMenuItem 
-                  key={p} 
-                  onClick={() => { setPriority(p); if (!isNew) handleUpdate("priority", p); }}
-                  className="flex items-center gap-2 cursor-pointer capitalize"
-                >
-                  <div className={cn("h-2.5 w-2.5 rounded-full", PRIORITY_COLORS[p].bg)} />
-                  {p}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!isTrashed && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="focus:outline-none rounded-full ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <div 
+                  className={cn(
+                    "h-3 w-3 rounded-full shadow-sm ring-2 ring-offset-1 ring-offset-background transition-colors",
+                    PRIORITY_COLORS[priority]?.bg || PRIORITY_COLORS.medium.bg,
+                    PRIORITY_COLORS[priority]?.ring || PRIORITY_COLORS.medium.ring
+                  )} 
+                  title={`Priority: ${priority}`}
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {PRIORITY_LEVELS.map((p) => (
+                  <DropdownMenuItem 
+                    key={p} 
+                    onClick={() => { setPriority(p); if (!isNew) handleUpdate("priority", p); }}
+                    className="flex items-center gap-2 cursor-pointer capitalize"
+                  >
+                    <div className={cn("h-2.5 w-2.5 rounded-full", PRIORITY_COLORS[p].bg)} />
+                    {p}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {isTrashed && !isNew && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-emerald-600 -mt-1 shrink-0 transition-colors" onClick={restoreTask} title="Restore task">
+              <Undo2 className="h-4 w-4" />
+            </Button>
+          )}
 
           {!isNew && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-destructive -mt-1 -mr-1 shrink-0 transition-colors" onClick={() => trashTask(task)}>
@@ -357,61 +377,69 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             return (
               <div key={st.id} className={cn("flex items-center gap-2 group/subtask", currentState === 'completed' ? "opacity-60" : "")}>
                 <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 ml-1 mt-0.5" />
-                <button 
-                  onClick={() => toggleTaskState(st)}
-                  className={cn(
-                    "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
-                    currentState === 'completed' 
-                      ? "bg-emerald-500 border-emerald-500 text-white" 
-                      : "border-muted-foreground/30 hover:border-emerald-500/50"
-                  )}
-                >
-                  {currentState === 'completed' && <Check className="h-2.5 w-2.5 stroke-[3]" />}
-                </button>
+                {!isTrashed && (
+                  <button 
+                    onClick={() => toggleTaskState(st)}
+                    className={cn(
+                      "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
+                      currentState === 'completed' 
+                        ? "bg-emerald-500 border-emerald-500 text-white" 
+                        : "border-muted-foreground/30 hover:border-emerald-500/50"
+                    )}
+                  >
+                    {currentState === 'completed' && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                  </button>
+                )}
                 
                 <textarea
                   ref={autoResizeTextarea}
                   maxLength={250}
                   rows={1}
-                  className={`bg-transparent text-[13px] focus:outline-none flex-1 resize-none overflow-hidden block min-h-[20px] pt-0.5 ${currentState === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
+                  className={`bg-transparent text-[13px] focus:outline-none flex-1 resize-none overflow-hidden block min-h-[20px] pt-0.5 ${currentState === 'completed' || isTrashed ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
                   defaultValue={st.title || ""}
-                  onChange={(e) => autoResizeTextarea(e.target)}
-                  onBlur={(e) => db.execute(`UPDATE tasks SET title = ?, updated_at = datetime('now') WHERE id = ?`, [e.target.value, st.id])}
+                  readOnly={isTrashed}
+                  onChange={(e) => { if (!isTrashed) autoResizeTextarea(e.target); }}
+                  onBlur={(e) => { if (!isTrashed) db.execute(`UPDATE tasks SET title = ?, updated_at = datetime('now') WHERE id = ?`, [e.target.value, st.id]); }}
                   onKeyDown={(e) => {
+                    if (isTrashed) return;
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
                   }}
                 />
                 
-                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0" onClick={() => trashTask(st)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                {!isTrashed && (
+                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0" onClick={() => trashTask(st)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             );
           })}
           
-          {/* Add Subtask */}
-          <div className="flex items-start gap-3 mt-1 p-1">
-            <Plus className="h-3.5 w-3.5 text-primary ml-1.5 shrink-0 mt-0.5" />
-            <textarea
-              maxLength={250}
-              rows={1}
-              placeholder="Add subtask... (press Enter)"
-              className="bg-transparent text-[13px] focus:outline-none flex-1 text-muted-foreground placeholder:text-muted-foreground/50 resize-none overflow-hidden block min-h-[20px]"
-              value={newSubtaskTitle}
-              onChange={(e) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-                setNewSubtaskTitle(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAddSubtask(e as any);
-                  e.currentTarget.style.height = 'auto';
-                }
-              }}
-            />
-          </div>
+          {/* Add Subtask — hidden for trashed */}
+          {!isTrashed && (
+            <div className="flex items-start gap-3 mt-1 p-1">
+              <Plus className="h-3.5 w-3.5 text-primary ml-1.5 shrink-0 mt-0.5" />
+              <textarea
+                maxLength={250}
+                rows={1}
+                placeholder="Add subtask... (press Enter)"
+                className="bg-transparent text-[13px] focus:outline-none flex-1 text-muted-foreground placeholder:text-muted-foreground/50 resize-none overflow-hidden block min-h-[20px]"
+                value={newSubtaskTitle}
+                onChange={(e) => {
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                  setNewSubtaskTitle(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddSubtask(e as any);
+                    e.currentTarget.style.height = 'auto';
+                  }
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
