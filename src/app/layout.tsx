@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   title: "Tasks.",
   description: "A modern, offline-first task manager",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon-192x192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
