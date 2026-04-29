@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { SyncIndicator } from "@/components/SyncIndicator";
 
 export default function Home() {
   const db = usePowerSync();
@@ -135,6 +136,9 @@ export default function Home() {
               <ListTodo className="h-6 w-6 text-primary" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight hidden sm:block">Tasks<span className="text-primary">.</span></h1>
+            <div className="ml-2 hidden sm:flex">
+              <SyncIndicator />
+            </div>
           </div>
           
           <div className="flex items-center gap-2 md:gap-4">
