@@ -1,7 +1,7 @@
 "use client";
 
 import { usePowerSync, useQuery } from '@powersync/react';
-import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -14,11 +14,21 @@ import { getTagColorClasses, getTagDotClass } from '@/lib/colors';
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const db = usePowerSync();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  };
   
   const [filterStates, setFilterStates] = useState<string[]>(['pending']);
   const [filterPriorities, setFilterPriorities] = useState<string[]>([]);
@@ -145,6 +155,16 @@ export default function Home() {
                 {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
             )}
+
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout}
+              className="rounded-full text-muted-foreground hover:text-destructive"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
