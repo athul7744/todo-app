@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
 import { getTagColorClasses, TAG_COLORS, getTagDotClass } from "@/lib/colors";
+import { createClient } from "@/lib/supabase/client";
 
 interface TaskCardProps {
   task: Task;
@@ -84,8 +85,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       return;
     }
     setIsSaving(true);
-    const { data: sessionData } = await (db as any).currentConnector?.client?.auth?.getSession() || { data: { session: null } };
-    const userId = sessionData?.session?.user?.id || "local-user";
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || "";
     
     await db.execute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
@@ -98,8 +100,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (e.key === 'Enter' && newSubtaskTitle.trim()) {
       const newSubtaskId = uuidv4();
       const title = newSubtaskTitle.trim();
-      const { data: sessionData } = await (db as any).currentConnector?.client?.auth?.getSession() || { data: { session: null } };
-      const userId = sessionData?.session?.user?.id || "local-user";
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || "";
       
       setNewSubtaskTitle("");
       
@@ -315,8 +318,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                           className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent flex items-center gap-2"
                           onClick={async () => {
                             const newId = uuidv4();
-                            const { data: sessionData } = await (db as any).currentConnector?.client?.auth?.getSession() || { data: { session: null } };
-                            const userId = sessionData?.session?.user?.id || "local-user";
+                            const supabase = createClient();
+                            const { data: { user } } = await supabase.auth.getUser();
+                            const userId = user?.id || "";
                             const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
                             
                             await db.execute(
