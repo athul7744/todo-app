@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
 import { getTagColorClasses, TAG_COLORS, getTagDotClass } from "@/lib/colors";
-import { createClient } from "@/lib/supabase/client";
+import { getCurrentUserId, PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo, autoResizeTextarea } from "@/lib/tasks";
 
 interface TaskCardProps {
   task: Task;
@@ -31,7 +31,6 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const [title, setTitle] = React.useState(task.title || "");
   const [priority, setPriority] = React.useState(task.priority || "medium");
   
-  // Use proper Date object for Shadcn Calendar
   const [dueDate, setDueDate] = React.useState<Date | undefined>(
     task.due_date ? new Date(task.due_date) : undefined
   );
@@ -41,25 +40,21 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   // Tags Logic
   const { data: allTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>(() => {
-    try {
-      return JSON.parse(task.tags || "[]");
-    } catch {
-      return [];
-    }
+    try { return JSON.parse(task.tags || "[]"); } catch { return []; }
   });
   const [isTagSelectorOpen, setIsTagSelectorOpen] = React.useState(false);
   const [tagSearchQuery, setTagSearchQuery] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
   
+  // Optimistic UI state
   const [optimisticSubtasks, setOptimisticSubtasks] = React.useState<Task[]>([]);
   const [optimisticState, setOptimisticState] = React.useState(task.state);
   const [optimisticSubtaskStates, setOptimisticSubtaskStates] = React.useState<Record<string, string>>({});
   const [isDeleting, setIsDeleting] = React.useState(false);
 
-  React.useEffect(() => {
-    setOptimisticState(task.state);
-  }, [task.state]);
+  React.useEffect(() => { setOptimisticState(task.state); }, [task.state]);
 
+  // Sync optimistic subtasks with real data
   React.useEffect(() => {
     if (optimisticSubtasks.length > 0 && subtasks.length > 0) {
       setOptimisticSubtasks(prev => {
@@ -74,21 +69,17 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id))
   ];
 
+  // --- Task Actions ---
+
   const handleUpdate = async (field: string, value: string | null) => {
-    if (isNew) return; // Wait until explicitly saved
+    if (isNew) return;
     await db.execute(`UPDATE tasks SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`, [value, task.id]);
   };
 
   const handleSaveNew = async () => {
-    if (!title.trim()) {
-      onNewCancel?.();
-      return;
-    }
+    if (!title.trim()) { onNewCancel?.(); return; }
     setIsSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || "";
-    
+    const userId = await getCurrentUserId();
     await db.execute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'pending', ?, ?, datetime('now'), datetime('now'))`,
@@ -99,26 +90,19 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const handleAddSubtask = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newSubtaskTitle.trim()) {
       const newSubtaskId = uuidv4();
-      const title = newSubtaskTitle.trim();
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id || "";
+      const subtaskTitle = newSubtaskTitle.trim();
+      const userId = await getCurrentUserId();
       
       setNewSubtaskTitle("");
-      
       setOptimisticSubtasks(prev => [...prev, {
-        id: newSubtaskId,
-        parent_id: task.id,
-        title: title,
-        priority: 'low',
-        state: 'pending',
-        tags: "[]",
+        id: newSubtaskId, parent_id: task.id, title: subtaskTitle,
+        priority: 'low', state: 'pending', tags: "[]",
       } as Task]);
 
       await db.execute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
          VALUES (?, ?, ?, ?, 'low', 'pending', datetime('now'), datetime('now'))`,
-        [newSubtaskId, userId, task.id, title]
+        [newSubtaskId, userId, task.id, subtaskTitle]
       );
     }
   };
@@ -129,16 +113,15 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (!t.parent_id) {
       setOptimisticState(newState);
       if (newState === 'completed') {
-        const subtaskUpdates: Record<string, string> = {};
-        subtasks.forEach(st => subtaskUpdates[st.id] = 'completed');
-        setOptimisticSubtaskStates(prev => ({ ...prev, ...subtaskUpdates }));
+        const updates: Record<string, string> = {};
+        subtasks.forEach(st => updates[st.id] = 'completed');
+        setOptimisticSubtaskStates(prev => ({ ...prev, ...updates }));
       }
     } else {
       setOptimisticSubtaskStates(prev => ({ ...prev, [t.id]: newState }));
     }
 
     await db.execute(`UPDATE tasks SET state = ?, updated_at = datetime('now') WHERE id = ?`, [newState, t.id]);
-    
     if (newState === 'completed' && !t.parent_id) {
       await db.execute(`UPDATE tasks SET state = 'completed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
     }
@@ -146,70 +129,45 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   const trashTask = async (t: Task) => {
     setIsDeleting(true);
-    // Give a tiny delay for the fade-out animation
     setTimeout(async () => {
       if (t.state === 'trashed') {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
-        if (!t.parent_id) {
-          await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
-        }
+        if (!t.parent_id) await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
       } else {
         await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE id = ?`, [t.id]);
-        if (!t.parent_id) {
-          await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
-        }
+        if (!t.parent_id) await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
       }
     }, 150);
   };
 
-  // Date Logic
-  let pillBg = "bg-muted/50";
-  let pillText = "text-muted-foreground";
-  let dateText = "No due date";
-  let showPill = false;
-  
-  if (dueDate) {
-    showPill = true;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const due = new Date(dueDate);
-    due.setHours(0, 0, 0, 0);
+  const handleCreateInlineTag = async () => {
+    const newId = uuidv4();
+    const userId = await getCurrentUserId();
+    const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
     
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    await db.execute(
+      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+      [newId, userId, tagSearchQuery.trim(), randomColor]
+    );
     
-    if (diffDays < 0) {
-      pillBg = "bg-red-500/20 dark:bg-red-900/40";
-      pillText = "text-red-700 dark:text-red-400 font-bold";
-      dateText = "Overdue";
-    } else if (diffDays === 0) {
-      pillBg = "bg-red-500/10 dark:bg-red-500/20";
-      pillText = "text-red-600 dark:text-red-400 font-bold";
-      dateText = "Due Today";
-    } else if (diffDays <= 2) {
-      pillBg = "bg-orange-500/10 dark:bg-orange-500/20";
-      pillText = "text-orange-600 dark:text-orange-400 font-semibold";
-      dateText = `Due in ${diffDays} Days`;
-    } else {
-      pillBg = "bg-green-500/10 dark:bg-green-500/20";
-      pillText = "text-green-600 dark:text-green-400 font-medium";
-      dateText = `Due in ${diffDays} Days`;
-    }
-  }
-
-  const priorityColors: Record<string, { bg: string, ring: string }> = {
-    low: { bg: "bg-blue-500", ring: "ring-blue-500/30" },
-    medium: { bg: "bg-yellow-500", ring: "ring-yellow-500/30" },
-    high: { bg: "bg-orange-500", ring: "ring-orange-500/30" },
-    urgent: { bg: "bg-red-600", ring: "ring-red-600/30" },
+    const newTags = [...selectedTagIds, newId];
+    setSelectedTagIds(newTags);
+    if (!isNew) await handleUpdate("tags", JSON.stringify(newTags));
+    setTagSearchQuery("");
   };
 
-  const handleResize = (textarea: HTMLTextAreaElement | null) => {
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
+  const handleToggleTag = async (tagId: string) => {
+    const isSelected = selectedTagIds.includes(tagId);
+    const newTags = isSelected
+      ? selectedTagIds.filter(id => id !== tagId)
+      : [...selectedTagIds, tagId];
+    setSelectedTagIds(newTags);
+    if (!isNew) await handleUpdate("tags", JSON.stringify(newTags));
   };
+
+  // --- Derived UI State ---
+
+  const dueDateInfo = getDueDateInfo(dueDate);
 
   return (
     <div className={cn(
@@ -235,35 +193,26 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
         )}
         
         <div className="flex flex-col flex-1 gap-2 min-w-0">
-          {/* Title Textarea */}
+          {/* Title */}
           <textarea
-            ref={handleResize}
+            ref={autoResizeTextarea}
             maxLength={250}
             rows={1}
             className={`bg-transparent text-[15px] font-semibold focus:outline-none placeholder:text-muted-foreground/50 w-full resize-none overflow-hidden block min-h-[24px] ${task.state === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
             placeholder="Task Title..."
             value={title}
-            onChange={(e) => {
-              handleResize(e.target);
-              setTitle(e.target.value);
-            }}
-            onBlur={() => {
-              if (!isNew) handleUpdate("title", title);
-            }}
+            onChange={(e) => { autoResizeTextarea(e.target); setTitle(e.target.value); }}
+            onBlur={() => { if (!isNew) handleUpdate("title", title); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (isNew) {
-                  handleSaveNew();
-                } else {
-                  e.currentTarget.blur();
-                }
+                if (isNew) handleSaveNew(); else e.currentTarget.blur();
               }
             }}
             autoFocus={isNew}
           />
           
-          {/* Metadata Row: Date and Pill */}
+          {/* Metadata Row */}
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5 pb-0.5">
             {/* Due Date Picker */}
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -290,10 +239,10 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
               </PopoverContent>
             </Popover>
 
-            {/* Dynamic Due Date Pill */}
-            {showPill && (
-              <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${pillBg} ${pillText} whitespace-nowrap shrink-0`}>
-                {dateText}
+            {/* Due Date Pill */}
+            {dueDateInfo.show && (
+              <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0`}>
+                {dueDateInfo.label}
               </span>
             )}
 
@@ -316,28 +265,10 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                       {tagSearchQuery.trim() ? (
                         <div 
                           className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent flex items-center gap-2"
-                          onClick={async () => {
-                            const newId = uuidv4();
-                            const supabase = createClient();
-                            const { data: { user } } = await supabase.auth.getUser();
-                            const userId = user?.id || "";
-                            const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-                            
-                            await db.execute(
-                              `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-                              [newId, userId, tagSearchQuery.trim(), randomColor]
-                            );
-                            
-                            const newTags = [...selectedTagIds, newId];
-                            setSelectedTagIds(newTags);
-                            if (!isNew) {
-                              await handleUpdate("tags", JSON.stringify(newTags));
-                            }
-                            setTagSearchQuery("");
-                          }}
+                          onClick={handleCreateInlineTag}
                         >
                           <Plus className="h-3.5 w-3.5" />
-                          Create "{tagSearchQuery}"
+                          Create &quot;{tagSearchQuery}&quot;
                         </div>
                       ) : "No tags found."}
                     </CommandEmpty>
@@ -345,21 +276,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                       {allTags.map((tag: Tag) => {
                         const isSelected = selectedTagIds.includes(tag.id);
                         return (
-                          <CommandItem
-                            key={tag.id}
-                            onSelect={async () => {
-                              let newTags = [...selectedTagIds];
-                              if (isSelected) {
-                                newTags = newTags.filter(id => id !== tag.id);
-                              } else {
-                                newTags.push(tag.id);
-                              }
-                              setSelectedTagIds(newTags);
-                              if (!isNew) {
-                                await handleUpdate("tags", JSON.stringify(newTags));
-                              }
-                            }}
-                          >
+                          <CommandItem key={tag.id} onSelect={() => handleToggleTag(tag.id)}>
                             <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
                               <CheckCircle2 className="h-3 w-3" />
                             </div>
@@ -375,16 +292,14 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             </Popover>
           </div>
 
-          {/* Render Selected Tags */}
+          {/* Selected Tags */}
           {selectedTagIds.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-0.5">
               {selectedTagIds.map(tagId => {
                 const tag = allTags.find((t: Tag) => t.id === tagId);
                 if (!tag) return null;
-                const dynamicClasses = getTagColorClasses(tag.color || 'slate');
-                
                 return (
-                  <Badge key={tag.id} variant="secondary" className={cn("px-1.5 py-0 h-5 text-[10px] font-medium gap-1 rounded-sm shadow-none", dynamicClasses)}>
+                  <Badge key={tag.id} variant="secondary" className={cn("px-1.5 py-0 h-5 text-[10px] font-medium gap-1 rounded-sm shadow-none", getTagColorClasses(tag.color || 'slate'))}>
                     {tag.name}
                   </Badge>
                 );
@@ -393,31 +308,27 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
           )}
         </div>
 
-        {/* Actions Container: Priority Signal and Trash */}
+        {/* Actions: Priority + Trash */}
         <div className="flex items-center gap-1 ml-auto pl-1 h-6">
-          {/* Priority Traffic Signal */}
           <DropdownMenu>
             <DropdownMenuTrigger className="focus:outline-none rounded-full ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               <div 
                 className={cn(
                   "h-3 w-3 rounded-full shadow-sm ring-2 ring-offset-1 ring-offset-background transition-colors",
-                  priorityColors[priority]?.bg || priorityColors.medium.bg,
-                  priorityColors[priority]?.ring || priorityColors.medium.ring
+                  PRIORITY_COLORS[priority]?.bg || PRIORITY_COLORS.medium.bg,
+                  PRIORITY_COLORS[priority]?.ring || PRIORITY_COLORS.medium.ring
                 )} 
                 title={`Priority: ${priority}`}
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              {Object.keys(priorityColors).map((p) => (
+              {PRIORITY_LEVELS.map((p) => (
                 <DropdownMenuItem 
                   key={p} 
-                  onClick={() => {
-                    setPriority(p);
-                    if (!isNew) handleUpdate("priority", p);
-                  }}
+                  onClick={() => { setPriority(p); if (!isNew) handleUpdate("priority", p); }}
                   className="flex items-center gap-2 cursor-pointer capitalize"
                 >
-                  <div className={cn("h-2.5 w-2.5 rounded-full", priorityColors[p].bg)} />
+                  <div className={cn("h-2.5 w-2.5 rounded-full", PRIORITY_COLORS[p].bg)} />
                   {p}
                 </DropdownMenuItem>
               ))}
@@ -436,37 +347,32 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       {!isNew && (
         <div className="bg-muted/20 border-t border-border p-3 pl-4 flex flex-col gap-1.5">
           {combinedSubtasks.map((st: any) => {
-            const currentSubtaskState = optimisticSubtaskStates[st.id] || st.state;
+            const currentState = optimisticSubtaskStates[st.id] || st.state;
             return (
-              <div key={st.id} className={cn("flex items-center gap-2 group/subtask", currentSubtaskState === 'completed' ? "opacity-60" : "")}>
+              <div key={st.id} className={cn("flex items-center gap-2 group/subtask", currentState === 'completed' ? "opacity-60" : "")}>
                 <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 ml-1 mt-0.5" />
                 <button 
                   onClick={() => toggleTaskState(st)}
                   className={cn(
                     "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
-                    currentSubtaskState === 'completed' 
+                    currentState === 'completed' 
                       ? "bg-emerald-500 border-emerald-500 text-white" 
                       : "border-muted-foreground/30 hover:border-emerald-500/50"
                   )}
                 >
-                  {currentSubtaskState === 'completed' && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                  {currentState === 'completed' && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                 </button>
                 
                 <textarea
-                  ref={handleResize}
+                  ref={autoResizeTextarea}
                   maxLength={250}
                   rows={1}
-                  className={`bg-transparent text-[13px] focus:outline-none flex-1 resize-none overflow-hidden block min-h-[20px] pt-0.5 ${currentSubtaskState === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
+                  className={`bg-transparent text-[13px] focus:outline-none flex-1 resize-none overflow-hidden block min-h-[20px] pt-0.5 ${currentState === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}
                   defaultValue={st.title || ""}
-                  onChange={(e) => {
-                    handleResize(e.target);
-                  }}
+                  onChange={(e) => autoResizeTextarea(e.target)}
                   onBlur={(e) => db.execute(`UPDATE tasks SET title = ?, updated_at = datetime('now') WHERE id = ?`, [e.target.value, st.id])}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      e.currentTarget.blur();
-                    }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
                   }}
                 />
                 
@@ -477,7 +383,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             );
           })}
           
-          {/* Add Subtask Input */}
+          {/* Add Subtask */}
           <div className="flex items-start gap-3 mt-1 p-1">
             <Plus className="h-3.5 w-3.5 text-primary ml-1.5 shrink-0 mt-0.5" />
             <textarea
@@ -495,7 +401,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleAddSubtask(e as any);
-                  e.currentTarget.style.height = 'auto'; // reset height on clear
+                  e.currentTarget.style.height = 'auto';
                 }
               }}
             />
@@ -503,7 +409,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
         </div>
       )}
 
-      {/* Explicit Save/Cancel for Drafts */}
+      {/* Save/Cancel for Drafts */}
       {isNew && (
         <div className="bg-muted/10 border-t border-border p-2 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onNewCancel} disabled={isSaving}>Cancel</Button>

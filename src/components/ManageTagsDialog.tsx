@@ -16,7 +16,7 @@ import { Tag } from "@/lib/powersync/AppSchema";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { createClient } from "@/lib/supabase/client";
+import { getCurrentUserId } from "@/lib/tasks";
 
 export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
   const db = usePowerSync();
@@ -30,9 +30,7 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
     if (!newTagName.trim()) return;
 
     const newId = uuidv4();
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || "";
+    const userId = await getCurrentUserId();
 
     await db.execute(
       `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
