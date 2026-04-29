@@ -45,14 +45,18 @@ export default function Home() {
   const { data: allTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
 
   // Dynamic Query Builder
-  let query = `SELECT * FROM tasks WHERE state != 'trashed'`;
+  let query = `SELECT * FROM tasks WHERE 1=1`;
   const args: any[] = [];
   const parentConditions: string[] = [];
 
+  // If state filters are selected, use them; otherwise exclude trashed by default
   if (filterStates.length > 0) {
     const placeholders = filterStates.map(() => '?').join(',');
     parentConditions.push(`state IN (${placeholders})`);
     args.push(...filterStates);
+  } else {
+    // No state filter selected — hide trashed by default
+    query += ` AND state != 'trashed'`;
   }
 
   if (filterPriorities.length > 0) {
