@@ -71,6 +71,6 @@ export const config = {
      * - swe-worker-*.js (serwist workers)
      * - workbox-*.js
      */
-    '/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|icon-.*\\.png|manifest\\.json|sw\\.js|swe-worker-.*\\.js|workbox-.*\\.js).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|icon-.*\\.png|manifest\\.json|robots\\.txt|sw\\.js|swe-worker-.*\\.js|workbox-.*\\.js).*)',
   ],
 }
