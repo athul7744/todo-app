@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   title: "Tasks.",
   description: "A modern, offline-first task manager",
   manifest: "/manifest.json",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
   icons: {
     icon: "/icon.svg",
     apple: "/icon-192x192.png",
