@@ -128,19 +128,28 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   };
 
   const trashTask = async (t: Task) => {
-    // For the parent task, use optimisticState; for subtasks, use their own state
-    const currentState = t.id === task.id ? optimisticState : (optimisticSubtaskStates[t.id] || t.state);
-    if (currentState === 'trashed') {
-      // Permanently delete — animate out
+    const isSubtask = !!t.parent_id;
+    
+    if (isSubtask) {
+      // Subtasks are deleted directly as per user request
+      // Optimistically remove from our local list if it was a new unsynced subtask
+      setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
+      await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
+      return;
+    }
+
+    // Parent task logic
+    if (optimisticState === 'trashed') {
+      // Permanently delete — animate out the entire card
       setIsDeleting(true);
       setTimeout(async () => {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
-        if (!t.parent_id) await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
+        await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
       }, 150);
     } else {
       // Move to trash — no animation, card stays visible if trashed filter is active
       await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE id = ?`, [t.id]);
-      if (!t.parent_id) await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
+      await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
     }
   };
 
