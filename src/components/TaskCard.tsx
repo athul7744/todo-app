@@ -30,13 +30,13 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const db = usePowerSync();
   const [title, setTitle] = React.useState(task.title || "");
   const [priority, setPriority] = React.useState(task.priority || "medium");
-  
+
   const [dueDate, setDueDate] = React.useState<Date | undefined>(
     task.due_date ? new Date(task.due_date) : undefined
   );
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = React.useState("");
-  
+
   // Tags Logic
   const { data: allTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>(() => {
@@ -45,7 +45,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const [isTagSelectorOpen, setIsTagSelectorOpen] = React.useState(false);
   const [tagSearchQuery, setTagSearchQuery] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
-  
+
   // Optimistic UI state
   const [optimisticSubtasks, setOptimisticSubtasks] = React.useState<Task[]>([]);
   const [optimisticState, setOptimisticState] = React.useState(task.state);
@@ -65,8 +65,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   }, [subtasks, optimisticSubtasks.length]);
 
   const combinedSubtasks = [
-    ...subtasks,
-    ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id))
+    ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id)),
+    ...subtasks
   ];
 
   // --- Task Actions ---
@@ -92,12 +92,12 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       const newSubtaskId = uuidv4();
       const subtaskTitle = newSubtaskTitle.trim();
       const userId = await getCurrentUserId();
-      
+
       setNewSubtaskTitle("");
-      setOptimisticSubtasks(prev => [...prev, {
+      setOptimisticSubtasks(prev => [{
         id: newSubtaskId, parent_id: task.id, title: subtaskTitle,
         priority: 'low', state: 'pending', tags: "[]",
-      } as Task]);
+      } as Task, ...prev]);
 
       await db.execute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
@@ -109,7 +109,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   const toggleTaskState = async (t: Task) => {
     const newState = t.state === 'completed' ? 'pending' : 'completed';
-    
+
     if (!t.parent_id) {
       setOptimisticState(newState);
       if (newState === 'completed') {
@@ -129,8 +129,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   const trashTask = async (t: Task) => {
     const isSubtask = !!t.parent_id;
-    
+
     if (isSubtask) {
+      // TODO: Review this
       // Subtasks are deleted directly as per user request
       // Optimistically remove from our local list if it was a new unsynced subtask
       setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
@@ -164,12 +165,12 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     const newId = uuidv4();
     const userId = await getCurrentUserId();
     const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-    
+
     await db.execute(
       `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
       [newId, userId, tagSearchQuery.trim(), randomColor]
     );
-    
+
     const newTags = [...selectedTagIds, newId];
     setSelectedTagIds(newTags);
     if (!isNew) await handleUpdate("tags", JSON.stringify(newTags));
@@ -206,15 +207,15 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             onClick={() => toggleTaskState(task)}
             className={cn(
               "h-5 w-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
-              optimisticState === 'completed' 
-                ? "bg-emerald-500 border-emerald-500 text-white" 
+              optimisticState === 'completed'
+                ? "bg-emerald-500 border-emerald-500 text-white"
                 : "border-muted-foreground/30 hover:border-emerald-500/50"
             )}
           >
             {optimisticState === 'completed' && <Check className="h-3.5 w-3.5 stroke-[3]" />}
           </button>
         )}
-        
+
         <div className="flex flex-col flex-1 gap-2 min-w-0">
           {/* Title */}
           <textarea
@@ -236,87 +237,87 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
             }}
             autoFocus={isNew}
           />
-          
+
           {/* Metadata Row — hidden for trashed tasks */}
           {!isTrashed && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-0.5 pb-0.5">
-            {/* Due Date Picker */}
-            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-              <PopoverTrigger
-                className={cn(
-                  "flex items-center h-6 px-1.5 justify-start text-left font-normal text-xs hover:bg-accent hover:text-accent-foreground rounded-md transition-colors -ml-1.5 shrink-0 whitespace-nowrap",
-                  !dueDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={(date) => {
-                    setDueDate(date);
-                    if (!isNew) handleUpdate("due_date", date ? date.toISOString() : null);
-                    setIsCalendarOpen(false);
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-
-            {/* Due Date Pill */}
-            {dueDateInfo.show && (
-              <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0`}>
-                {dueDateInfo.label}
-              </span>
-            )}
-
-            {/* Tag Selector */}
-            <Popover open={isTagSelectorOpen} onOpenChange={setIsTagSelectorOpen}>
-              <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground shrink-0 rounded-md">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Tag
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
-                  <CommandInput 
-                    placeholder="Search tags..." 
-                    className="h-9" 
-                    value={tagSearchQuery}
-                    onValueChange={setTagSearchQuery}
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5 pb-0.5">
+              {/* Due Date Picker */}
+              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                <PopoverTrigger
+                  className={cn(
+                    "flex items-center h-6 px-1.5 justify-start text-left font-normal text-xs hover:bg-accent hover:text-accent-foreground rounded-md transition-colors -ml-1.5 shrink-0 whitespace-nowrap",
+                    !dueDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                  {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={(date) => {
+                      setDueDate(date);
+                      if (!isNew) handleUpdate("due_date", date ? date.toISOString() : null);
+                      setIsCalendarOpen(false);
+                    }}
+                    initialFocus
                   />
-                  <CommandList>
-                    <CommandEmpty>
-                      {tagSearchQuery.trim() ? (
-                        <div 
-                          className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent flex items-center gap-2"
-                          onClick={handleCreateInlineTag}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Create &quot;{tagSearchQuery}&quot;
-                        </div>
-                      ) : "No tags found."}
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {allTags.map((tag: Tag) => {
-                        const isSelected = selectedTagIds.includes(tag.id);
-                        return (
-                          <CommandItem key={tag.id} onSelect={() => handleToggleTag(tag.id)}>
-                            <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
-                              <CheckCircle2 className="h-3 w-3" />
-                            </div>
-                            <div className={cn("h-3 w-3 rounded-full mr-2", getTagDotClass(tag.color || 'slate'))} />
-                            <span>{tag.name}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Due Date Pill */}
+              {dueDateInfo.show && (
+                <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0`}>
+                  {dueDateInfo.label}
+                </span>
+              )}
+
+              {/* Tag Selector */}
+              <Popover open={isTagSelectorOpen} onOpenChange={setIsTagSelectorOpen}>
+                <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground shrink-0 rounded-md">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Tag
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search tags..."
+                      className="h-9"
+                      value={tagSearchQuery}
+                      onValueChange={setTagSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {tagSearchQuery.trim() ? (
+                          <div
+                            className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent flex items-center gap-2"
+                            onClick={handleCreateInlineTag}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Create &quot;{tagSearchQuery}&quot;
+                          </div>
+                        ) : "No tags found."}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {allTags.map((tag: Tag) => {
+                          const isSelected = selectedTagIds.includes(tag.id);
+                          return (
+                            <CommandItem key={tag.id} onSelect={() => handleToggleTag(tag.id)}>
+                              <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                <CheckCircle2 className="h-3 w-3" />
+                              </div>
+                              <div className={cn("h-3 w-3 rounded-full mr-2", getTagDotClass(tag.color || 'slate'))} />
+                              <span>{tag.name}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           )}
 
           {/* Selected Tags */}
@@ -340,19 +341,19 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
           {!isTrashed && (
             <DropdownMenu>
               <DropdownMenuTrigger className="focus:outline-none rounded-full ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                <div 
+                <div
                   className={cn(
                     "h-3 w-3 rounded-full shadow-sm ring-2 ring-offset-1 ring-offset-background transition-colors",
                     PRIORITY_COLORS[priority]?.bg || PRIORITY_COLORS.medium.bg,
                     PRIORITY_COLORS[priority]?.ring || PRIORITY_COLORS.medium.ring
-                  )} 
+                  )}
                   title={`Priority: ${priority}`}
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-32">
                 {PRIORITY_LEVELS.map((p) => (
-                  <DropdownMenuItem 
-                    key={p} 
+                  <DropdownMenuItem
+                    key={p}
                     onClick={() => { setPriority(p); if (!isNew) handleUpdate("priority", p); }}
                     className="flex items-center gap-2 cursor-pointer capitalize"
                   >
@@ -387,19 +388,19 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
               <div key={st.id} className={cn("flex items-center gap-2 group/subtask", currentState === 'completed' ? "opacity-60" : "")}>
                 <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 ml-1 mt-0.5" />
                 {!isTrashed && (
-                  <button 
+                  <button
                     onClick={() => toggleTaskState(st)}
                     className={cn(
                       "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
-                      currentState === 'completed' 
-                        ? "bg-emerald-500 border-emerald-500 text-white" 
+                      currentState === 'completed'
+                        ? "bg-emerald-500 border-emerald-500 text-white"
                         : "border-muted-foreground/30 hover:border-emerald-500/50"
                     )}
                   >
                     {currentState === 'completed' && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                   </button>
                 )}
-                
+
                 <textarea
                   ref={autoResizeTextarea}
                   maxLength={250}
@@ -414,7 +415,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
                   }}
                 />
-                
+
                 {!isTrashed && (
                   <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all shrink-0" onClick={() => trashTask(st)}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -423,7 +424,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
               </div>
             );
           })}
-          
+
           {/* Add Subtask — hidden for trashed */}
           {!isTrashed && (
             <div className="flex items-start gap-3 mt-1 p-1">
