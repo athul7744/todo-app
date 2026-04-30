@@ -1,7 +1,7 @@
 "use client";
 
 import { usePowerSync, useQuery } from '@powersync/react';
-import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut, MoreVertical } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -14,6 +14,7 @@ import { getTagColorClasses, getTagDotClass } from '@/lib/colors';
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { SyncIndicator } from "@/components/SyncIndicator";
@@ -135,20 +136,63 @@ export default function Home() {
         
         {/* Title & Actions */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+
+          {/* === MOBILE HEADER === */}
+          <div className="flex items-center justify-between w-full sm:hidden">
+            {/* Left: Sync */}
+            <div className="flex items-center w-16">
+              <SyncIndicator />
+            </div>
+            {/* Center: Branding */}
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/10 p-1.5 rounded-lg">
+                <ListTodo className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight">Tasks<span className="text-primary">.</span></h1>
+            </div>
+            {/* Right: Three-dot menu */}
+            <div className="flex items-center justify-end w-16">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-full h-8 w-8 hover:bg-accent transition-colors focus:outline-none">
+                    <MoreVertical className="h-5 w-5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <ManageTagsDialog>
+                    <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground">
+                      <TagIcon className="h-4 w-4" />
+                      Manage Tags
+                    </div>
+                  </ManageTagsDialog>
+                  {mounted && (
+                    <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                      {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* === DESKTOP HEADER === */}
+          <div className="hidden sm:flex items-center gap-2">
             <div className="bg-primary/10 p-2 rounded-lg">
               <ListTodo className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight hidden sm:block">Tasks<span className="text-primary">.</span></h1>
+            <h1 className="text-2xl font-bold tracking-tight">Tasks<span className="text-primary">.</span></h1>
             <div className="ml-2 flex">
               <SyncIndicator />
             </div>
           </div>
           
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="hidden sm:flex items-center gap-2 md:gap-4">
             <ManageTagsDialog />
             
-            <Button onClick={handleAddNewTask} className="gap-2 rounded-full shadow-sm hidden sm:inline-flex">
+            <Button onClick={handleAddNewTask} className="gap-2 rounded-full shadow-sm">
               <Plus className="h-4 w-4" />
               <span>Add Task</span>
             </Button>
