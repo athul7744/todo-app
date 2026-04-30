@@ -399,7 +399,7 @@ export default function Home() {
       {/* Mobile Floating Action Button */}
       <Button 
         onClick={handleAddNewTask} 
-        className="fixed bottom-6 right-6 sm:hidden h-14 w-14 rounded-full shadow-lg z-30"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:hidden h-14 w-14 rounded-full shadow-lg z-30"
         size="icon"
       >
         <Plus className="h-6 w-6" />

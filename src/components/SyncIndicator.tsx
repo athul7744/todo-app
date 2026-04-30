@@ -2,7 +2,7 @@
 
 import { useStatus } from "@powersync/react";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, CloudUpload, Check } from "lucide-react";
+import { Wifi, WifiOff, CloudUpload, CloudDownload } from "lucide-react";
 
 /**
  * A small sync status indicator light for the header.
@@ -20,7 +20,7 @@ export function SyncIndicator() {
 
   let dotColor = "bg-emerald-500"; // synced
   let label = "Synced";
-  let Icon = Check;
+  let Icon: React.ElementType | null = null;
 
   if (!isConnected) {
     dotColor = "bg-rose-500";
@@ -28,8 +28,13 @@ export function SyncIndicator() {
     Icon = WifiOff;
   } else if (isSyncing) {
     dotColor = "bg-amber-500";
-    label = isUploading ? "Syncing..." : "Downloading...";
-    Icon = CloudUpload;
+    if (isUploading) {
+      label = "Uploading...";
+      Icon = CloudUpload;
+    } else {
+      label = "Downloading...";
+      Icon = CloudDownload;
+    }
   }
 
   return (
@@ -40,7 +45,7 @@ export function SyncIndicator() {
           <div className={cn("absolute h-2 w-2 rounded-full animate-ping", dotColor, "opacity-75")} />
         )}
       </div>
-      <Icon className="h-3 w-3" />
+      {Icon && <Icon className="h-3 w-3" />}
       <span className="hidden sm:inline">{label}</span>
     </div>
   );
