@@ -74,7 +74,7 @@ export default function Home() {
     query += ` AND (parent_id IS NOT NULL OR (${parentConditions.join(' AND ')}))`;
   }
 
-  query += ` ORDER BY CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, due_date ASC, created_at DESC`;
+  query += ` ORDER BY CASE WHEN parent_id IS NOT NULL THEN created_at END ASC, CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, due_date ASC, created_at DESC`;
   
   const { data: allTasks } = useQuery(query, args);
 
@@ -140,7 +140,7 @@ export default function Home() {
               <ListTodo className="h-6 w-6 text-primary" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight hidden sm:block">Tasks<span className="text-primary">.</span></h1>
-            <div className="ml-2 hidden sm:flex">
+            <div className="ml-2 flex">
               <SyncIndicator />
             </div>
           </div>
@@ -148,9 +148,9 @@ export default function Home() {
           <div className="flex items-center gap-2 md:gap-4">
             <ManageTagsDialog />
             
-            <Button onClick={handleAddNewTask} className="gap-2 rounded-full shadow-sm">
+            <Button onClick={handleAddNewTask} className="gap-2 rounded-full shadow-sm hidden sm:inline-flex">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Task</span>
+              <span>Add Task</span>
             </Button>
             
             {mounted && (
@@ -395,6 +395,15 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Mobile Floating Action Button */}
+      <Button 
+        onClick={handleAddNewTask} 
+        className="fixed bottom-6 right-6 sm:hidden h-14 w-14 rounded-full shadow-lg z-30"
+        size="icon"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 }
