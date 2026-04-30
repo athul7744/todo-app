@@ -65,8 +65,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   }, [subtasks, optimisticSubtasks.length]);
 
   const combinedSubtasks = [
-    ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id)),
-    ...subtasks
+    ...subtasks,
+    ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id))
   ];
 
   // --- Task Actions ---
@@ -94,10 +94,10 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       const userId = await getCurrentUserId();
 
       setNewSubtaskTitle("");
-      setOptimisticSubtasks(prev => [{
+      setOptimisticSubtasks(prev => [...prev, {
         id: newSubtaskId, parent_id: task.id, title: subtaskTitle,
         priority: 'low', state: 'pending', tags: "[]",
-      } as Task, ...prev]);
+      } as Task]);
 
       await db.execute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
