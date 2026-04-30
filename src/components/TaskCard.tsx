@@ -432,7 +432,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
               <textarea
                 maxLength={250}
                 rows={1}
-                placeholder="Add subtask... (press Enter)"
+                placeholder="Add subtask"
                 className="bg-transparent text-[13px] focus:outline-none flex-1 text-muted-foreground placeholder:text-muted-foreground/50 resize-none overflow-hidden block min-h-[20px]"
                 value={newSubtaskTitle}
                 onChange={(e) => {

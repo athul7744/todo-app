@@ -58,10 +58,10 @@ export function SyncIndicator() {
   } else if (isSyncing) {
     dotColor = "bg-amber-500";
     if (isUploading) {
-      label = "Uploading...";
+      label = "Uploading";
       Icon = CloudUpload;
     } else {
-      label = "Downloading...";
+      label = "Downloading";
       Icon = CloudDownload;
     }
   } else if (showSyncedFlash) {
