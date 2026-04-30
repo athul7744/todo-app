@@ -6,7 +6,8 @@ export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: {
     dbFilename: 'todo-app.sqlite'
-  }
+  },
+  crudUploadThrottleMs: 1000 // Batch rapid writes — wait 1s after last change before uploading
 });
 
 let isInitialized = false;
