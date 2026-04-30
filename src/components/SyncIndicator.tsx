@@ -1,25 +1,54 @@
 "use client";
 
 import { useStatus } from "@powersync/react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, CloudUpload, CloudDownload } from "lucide-react";
+import { WifiOff, CloudUpload, CloudDownload } from "lucide-react";
 
 /**
- * A small sync status indicator light for the header.
- * - Green dot + check: connected and synced
- * - Orange pulsing dot + upload icon: uploading changes
- * - Red dot + wifi-off: offline, edits stored locally
+ * Formats a date as a relative time string like "just now", "2m ago", "1h ago"
  */
+function formatRelativeTime(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 10) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export function SyncIndicator() {
   const status = useStatus();
+  const [showSyncedFlash, setShowSyncedFlash] = useState(false);
+  const [, forceUpdate] = useState(0);
+  const wasSyncingRef = useRef(false);
 
   const isConnected = status.connected;
   const isUploading = status.dataFlowStatus?.uploading ?? false;
   const isDownloading = status.dataFlowStatus?.downloading ?? false;
   const isSyncing = isUploading || isDownloading;
+  const lastSyncedAt = status.lastSyncedAt;
 
-  let dotColor = "bg-emerald-500"; // synced
-  let label = "Synced";
+  // Detect sync completion → flash "Synced" for 2s
+  useEffect(() => {
+    if (wasSyncingRef.current && !isSyncing && isConnected) {
+      setShowSyncedFlash(true);
+      const timer = setTimeout(() => setShowSyncedFlash(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    wasSyncingRef.current = isSyncing;
+  }, [isSyncing, isConnected]);
+
+  // Tick every 30s to update relative time
+  useEffect(() => {
+    const interval = setInterval(() => forceUpdate((n) => n + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  let dotColor = "bg-emerald-500";
+  let label = lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Connected";
   let Icon: React.ElementType | null = null;
 
   if (!isConnected) {
@@ -35,6 +64,8 @@ export function SyncIndicator() {
       label = "Downloading...";
       Icon = CloudDownload;
     }
+  } else if (showSyncedFlash) {
+    label = "Synced";
   }
 
   return (
@@ -46,7 +77,7 @@ export function SyncIndicator() {
         )}
       </div>
       {Icon && <Icon className="h-3 w-3" />}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </div>
   );
 }
