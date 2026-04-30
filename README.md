@@ -31,6 +31,45 @@ A modern, offline-first task manager built as a Progressive Web App (PWA). Manag
 
 ---
 
+## Architecture & Offline Sync
+
+This app utilizes a multi-layer architecture to provide a seamless offline-first experience:
+
+1. **Backend (Supabase)**:
+   - **Postgres Database**: Serves as the source of truth in the cloud.
+   - **Authentication**: Securely manages user sessions.
+   - **Realtime (via PowerSync)**: Tracks data changes and pushes updates.
+
+2. **Sync Engine (PowerSync)**:
+   - **Local SQLite**: The app reads and writes directly to a high-performance SQLite database stored locally in the browser (via WASM).
+   - **Bidirectional Sync**: Automatically streams changes from Supabase to local SQLite and pushes local edits back to Supabase when online.
+   - **Conflict Resolution**: Handled on the server; the client follows a "last write wins" optimistic approach by default.
+
+3. **Application Layer (PWA & Next.js)**:
+   - **Service Worker (Serwist)**: Caches the app's HTML, JS, CSS, and WASM files. This allows the UI and the local database logic to load even without an internet connection.
+   - **Optimistic UI**: React components interact with the local SQLite DB, which responds instantly. The UI doesn't wait for cloud confirmation, resulting in zero latency.
+
+### Data Flow
+```mermaid
+graph LR
+    User([User]) <--> UI[Next.js UI]
+    UI <--> SQLite[(Local SQLite)]
+    SQLite <--> PS[PowerSync Sync Engine]
+    PS <--> SB[(Supabase / Postgres)]
+    
+    subgraph Browser
+        UI
+        SQLite
+        PS
+    end
+    
+    subgraph Cloud
+        SB
+    end
+```
+
+---
+
 ## Setup Guide
 
 ### 1. Supabase Project
