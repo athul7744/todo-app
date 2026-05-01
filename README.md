@@ -108,7 +108,11 @@ CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags;
    ```bash
    supabase --experimental \
      --project-ref <your-project-ref> \
-     postgres-config update --config max_slot_wal_keep_size=256MB
+     postgres-config update --config max_slot_wal_keep_size=1GB
+
+   supabase --experimental \
+     --project-ref <your-project-ref> \
+     postgres-config update --config max_wal_size=1GB
    ```
 
 ### 2. PowerSync
