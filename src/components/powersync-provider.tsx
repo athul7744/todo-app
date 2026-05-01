@@ -2,19 +2,26 @@
 
 import React, { useEffect, useState } from 'react';
 import { PowerSyncContext } from '@powersync/react';
-import { db, initPowerSync } from '@/lib/powersync/db';
+import { db, initLocal, connectCloud } from '@/lib/powersync/db';
 
 export function PowerSyncProvider({ children }: { children: React.ReactNode }) {
-  const [initialized, setInitialized] = useState(false);
+  const [localReady, setLocalReady] = useState(false);
 
   useEffect(() => {
-    initPowerSync()
-      .then(() => setInitialized(true))
-      .catch((err) => console.error("Failed to initialize PowerSync:", err));
+    // Phase 1: Open local DB (fast, ~50ms) → render UI with cached data
+    initLocal()
+      .then(() => {
+        setLocalReady(true);
+        // Phase 2: Connect to cloud in background — doesn't block UI
+        connectCloud().catch((err) =>
+          console.error("PowerSync cloud connect failed:", err)
+        );
+      })
+      .catch((err) => console.error("Failed to initialize local DB:", err));
   }, []);
 
-  if (!initialized) {
-    return <div className="flex flex-col items-center justify-center min-h-screen text-muted-foreground animate-pulse">Initializing local database...</div>;
+  if (!localReady) {
+    return <div className="flex flex-col items-center justify-center min-h-screen text-muted-foreground animate-pulse">Loading...</div>;
   }
 
   return (

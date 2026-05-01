@@ -6,17 +6,26 @@ export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: {
     dbFilename: 'todo-app.sqlite'
-  },
-  crudUploadThrottleMs: 1000 // Batch rapid writes — wait 1s after last change before uploading
+  }
 });
 
-let isInitialized = false;
+let isLocalReady = false;
+let isCloudConnected = false;
 
-export const initPowerSync = async () => {
-  if (isInitialized || typeof window === 'undefined') return;
-  isInitialized = true;
-  
+/** Phase 1: Open local SQLite — fast, no network. UI can render after this. */
+export const initLocal = async () => {
+  if (isLocalReady || typeof window === 'undefined') return;
+  isLocalReady = true;
   await db.init();
+};
+
+/** Phase 2: Connect to PowerSync cloud — runs in background, doesn't block UI. */
+export const connectCloud = async () => {
+  if (isCloudConnected || typeof window === 'undefined') return;
+  isCloudConnected = true;
   const connector = new SupabaseConnector();
-  await db.connect(connector);
+  await db.connect(connector, {
+    crudUploadThrottleMs: 2000,
+    retryDelayMs: 5000
+  });
 };
