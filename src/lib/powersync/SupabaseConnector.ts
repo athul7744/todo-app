@@ -1,25 +1,29 @@
-import { PowerSyncBackendConnector, AbstractPowerSyncDatabase, UpdateType } from '@powersync/web';
+import { PowerSyncBackendConnector, AbstractPowerSyncDatabase, UpdateType, CrudEntry } from '@powersync/web';
 import { createClient } from '../supabase/client';
 
-const UPLOAD_DEBOUNCE_MS = 2000;
+/** Response codes that indicate a permanent/fatal error — discard the transaction. */
+const FATAL_RESPONSE_CODES = [/^22/, /^23/, /^42/];
+
+const log = {
+  info: (...args: any[]) => console.log(`[PowerSync]`, ...args),
+  warn: (...args: any[]) => console.warn(`[PowerSync]`, ...args),
+  error: (...args: any[]) => console.error(`[PowerSync]`, ...args),
+};
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
   client = createClient();
 
-  private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private _pendingUpload: Promise<void> | null = null;
-  private _pendingResolve: (() => void) | null = null;
-
   async fetchCredentials() {
+    log.info("Fetching credentials...");
     const { data: { session }, error } = await this.client.auth.getSession();
     
     if (error) {
-      console.error("PowerSync fetchCredentials error:", error);
+      log.error("fetchCredentials error:", error.message);
       return null;
     }
 
     if (!session) {
-      console.warn("PowerSync fetchCredentials: No session available");
+      log.warn("fetchCredentials: No session available");
       return null;
     }
 
@@ -28,6 +32,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       throw new Error("NEXT_PUBLIC_POWERSYNC_URL is not set");
     }
 
+    log.info("Credentials obtained, token expires at:", new Date(session.expires_at! * 1000).toLocaleTimeString());
     return {
       endpoint,
       token: session.access_token,
@@ -35,73 +40,78 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     };
   }
 
+  /**
+   * Pre-sorted Batch Strategy:
+   * Groups all operations by type and table, then executes bulk calls.
+   * PUT → batch upsert per table
+   * DELETE → batch delete per table
+   * PATCH → individual updates (can't be batched easily)
+   */
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
-    // Debounce: wait 2s after the last call before actually uploading.
-    // If uploadData is called again within 2s (new edit), restart the timer.
+    // getCrudBatch returns ALL pending CRUD ops as a single batch
+    const batch = await database.getCrudBatch();
+    if (!batch) return;
 
-    // Clear any existing timer — this resets the debounce window
-    if (this._debounceTimer) {
-      clearTimeout(this._debounceTimer);
-      this._debounceTimer = null;
+    const putOps: { [table: string]: any[] } = {};
+    const deleteOps: { [table: string]: string[] } = {};
+    const patchOps: CrudEntry[] = [];
+
+    for (const op of batch.crud) {
+      switch (op.op) {
+        case UpdateType.PUT:
+          if (!putOps[op.table]) putOps[op.table] = [];
+          putOps[op.table].push({ ...op.opData, id: op.id });
+          break;
+        case UpdateType.PATCH:
+          patchOps.push(op);
+          break;
+        case UpdateType.DELETE:
+          if (!deleteOps[op.table]) deleteOps[op.table] = [];
+          deleteOps[op.table].push(op.id);
+          break;
+      }
     }
 
-    // If there's already a pending debounce promise, piggyback on it
-    if (this._pendingUpload) {
-      // Restart the timer but return the same promise
-      this._pendingUpload = new Promise<void>((resolve) => {
-        this._pendingResolve = resolve;
-        this._debounceTimer = setTimeout(() => {
-          this._debounceTimer = null;
-          this._pendingUpload = null;
-          this._drainQueue(database).then(resolve);
-        }, UPLOAD_DEBOUNCE_MS);
-      });
-      return this._pendingUpload;
-    }
+    try {
+      // Execute bulk PUTs (upsert) per table
+      for (const table of Object.keys(putOps)) {
+        const records = putOps[table];
+        log.info(`BATCH PUT ${table}: ${records.length} record(s)`);
+        const { error } = await this.client.from(table).upsert(records);
+        if (error) throw new Error(`PUT ${table} failed: ${error.message}`);
+      }
 
-    // First call — create the debounce promise
-    this._pendingUpload = new Promise<void>((resolve) => {
-      this._pendingResolve = resolve;
-      this._debounceTimer = setTimeout(() => {
-        this._debounceTimer = null;
-        this._pendingUpload = null;
-        this._drainQueue(database).then(resolve);
-      }, UPLOAD_DEBOUNCE_MS);
-    });
+      // Execute bulk DELETEs per table
+      for (const table of Object.keys(deleteOps)) {
+        const ids = deleteOps[table];
+        log.info(`BATCH DELETE ${table}: ${ids.length} record(s)`);
+        const { error } = await this.client.from(table).delete().in('id', ids);
+        if (error) throw new Error(`DELETE ${table} failed: ${error.message}`);
+      }
 
-    return this._pendingUpload;
-  }
+      // Execute PATCH operations individually (partial updates can't be easily batched)
+      for (const op of patchOps) {
+        log.info(`PATCH ${op.table}/${op.id}`, Object.keys(op.opData || {}).join(", "));
+        const { error } = await this.client.from(op.table).update(op.opData || {}).eq('id', op.id);
+        if (error) throw new Error(`PATCH ${op.table}/${op.id} failed: ${error.message}`);
+      }
 
-  private async _drainQueue(database: AbstractPowerSyncDatabase): Promise<void> {
-    let transaction;
-    while ((transaction = await database.getNextCrudTransaction())) {
-      try {
-        for (const op of transaction.crud) {
-          const table = op.table;
-          const opData = op.opData || {};
+      await batch.complete();
 
-          switch (op.op) {
-            case UpdateType.PUT: {
-              const { error } = await this.client.from(table).upsert({ ...opData, id: op.id });
-              if (error) throw new Error(error.message);
-              break;
-            }
-            case UpdateType.PATCH: {
-              const { error } = await this.client.from(table).update(opData).eq('id', op.id);
-              if (error) throw new Error(error.message);
-              break;
-            }
-            case UpdateType.DELETE: {
-              const { error } = await this.client.from(table).delete().eq('id', op.id);
-              if (error) throw new Error(error.message);
-              break;
-            }
-          }
-        }
-        await transaction.complete();
-      } catch (ex) {
-        console.error("PowerSync Upload Error:", ex);
-        break;
+      const total = Object.values(putOps).reduce((s, r) => s + r.length, 0)
+        + Object.values(deleteOps).reduce((s, r) => s + r.length, 0)
+        + patchOps.length;
+      log.info(`Upload complete — ${total} op(s) batched`);
+
+    } catch (ex: any) {
+      if (typeof ex?.code === 'string' && FATAL_RESPONSE_CODES.some(regex => regex.test(ex.code))) {
+        // Fatal error — discard batch to unblock the queue
+        log.error("Fatal upload error — discarding batch:", ex.message || ex);
+        await batch.complete();
+      } else {
+        // Retryable error — throw to trigger retry after delay
+        log.error("Upload error (will retry):", ex.message || ex);
+        throw ex;
       }
     }
   }
