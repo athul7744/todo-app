@@ -7,7 +7,13 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
     const { data: { session }, error } = await this.client.auth.getSession();
     
-    if (error || !session) {
+    if (error) {
+      console.error("PowerSync fetchCredentials error:", error);
+      return null;
+    }
+
+    if (!session) {
+      console.warn("PowerSync fetchCredentials: No session available");
       return null;
     }
 
@@ -55,7 +61,6 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       await transaction.complete();
     } catch (ex) {
       console.error("PowerSync Upload Error:", ex);
-      // PowerSync will automatically retry the transaction later
     }
   }
 }
