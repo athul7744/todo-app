@@ -128,3 +128,68 @@
     @apply font-sans;
   }
 }
+
+/* ── Smooth Transitions ── */
+
+/* Fade-slide in for task cards and subtasks */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade out for deleting elements */
+@keyframes fadeSlideOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* Gentle pulse for syncing indicator */
+@keyframes gentlePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Utility classes */
+.animate-fade-slide-in {
+  animation: fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-slide-out {
+  animation: fadeSlideOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-gentle-pulse {
+  animation: gentlePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Stagger children animations */
+.animate-stagger > * {
+  animation: fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.animate-stagger > *:nth-child(7) { animation-delay: 240ms; }
+.animate-stagger > *:nth-child(8) { animation-delay: 280ms; }
+.animate-stagger > *:nth-child(9) { animation-delay: 320ms; }
+.animate-stagger > *:nth-child(10) { animation-delay: 360ms; }
+
+/* Smooth all property transitions by default on interactive elements */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
