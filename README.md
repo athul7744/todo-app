@@ -1,85 +1,71 @@
 # Tasks.
 
-A modern, offline-first task manager built as a Progressive Web App (PWA). Manage your tasks with subtasks, priorities, tags, and due dates — all with a buttery smooth, optimistic UI that works seamlessly offline.
+A modern, offline-first task manager PWA. Manage tasks with subtasks, priorities, tags, and due dates — all with an optimistic UI that works offline.
 
 ## Features
 
-- **Offline-First Architecture**: Built on [PowerSync](https://powersync.co/) and SQLite for instant local-first reactivity with background cloud sync via Supabase.
-- **PWA Ready**: Installable on any device, works fully offline with service worker caching via `@serwist/next`.
-- **Optimistic UI**: All interactions — task creation, subtask additions, state changes, and deletions — update instantly with smooth transitions and zero jank.
-- **Smart Filtering**: Flat, pill-based multi-select filters for State (Pending, Completed, Trashed), Priority (Low, Medium, High, Urgent), and Tags.
-- **Masonry Layout**: Responsive multi-column CSS masonry grid that adapts from 1 to 3 columns based on screen width.
-- **Subtasks**: Inline subtask creation with optimistic rendering. Completed subtasks stay visible with a strikethrough style.
-- **Tagging System**: Create tags inline from task cards, assign random colors, and manage tag colors via a dedicated dialog with a visual palette picker.
-- **Dynamic Due Dates**: Color-coded "Overdue", "Due Today", and countdown pills that update automatically.
-- **Priorities**: Four priority levels with color-coded traffic-light indicators (Low → Blue, Medium → Amber, High → Orange, Urgent → Red).
-- **Pagination**: 10 tasks per page with chevron-based navigation.
-- **Sync Indicator**: Real-time sync status light — green (synced), orange (syncing), red (offline).
-- **Trash & Restore**: Trashed tasks are locked from editing with a subtle rose tint. Restore or permanently delete.
-- **Auth Gate**: Supabase email/password authentication protects the app on public deployments.
-- **Dark/Light Mode**: Full theme support with matte-pastel color palette tuned for both modes.
+- **Offline-First** — Reads/writes to local SQLite via [PowerSync](https://powersync.co/), syncs to Supabase in the background
+- **PWA** — Installable, works fully offline with service worker caching
+- **Optimistic UI** — All interactions update instantly with smooth animations, no jank
+- **Cross-Device Sync** — Edits from any client (title, tags, priority, due date, state) reflect in real-time
+- **Smart Filters** — Pill-based multi-select for state, priority, and tags
+- **Subtasks** — Inline creation with optimistic rendering and stable sort order
+- **Tags** — Create inline from cards, manage colors via palette picker dialog
+- **Due Dates** — Color-coded overdue/today/countdown pills
+- **Priorities** — Four levels with color indicators (Low → Blue, Medium → Amber, High → Orange, Urgent → Red)
+- **Trash & Restore** — Soft-delete with locked editing, permanent delete, or restore
+- **Responsive** — Masonry grid (1–3 columns), mobile header with overflow menu and FAB
+- **Sync Indicator** — Status dot (green/amber/red) with upload/download icons and relative timestamps
+- **Dark/Light Mode** — Full theme support
+- **Auth Gate** — Supabase email/password authentication
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
 - **Database/Sync**: PowerSync (Local SQLite) + Supabase (Cloud Postgres)
-- **Auth**: Supabase Auth (email/password)
-- **Styling**: Tailwind CSS
-- **Components**: Shadcn/UI & Lucide React Icons
-- **PWA**: `@serwist/next`
-- **Date Handling**: `date-fns`
+- **Auth**: Supabase Auth
+- **Styling**: Tailwind CSS + Shadcn/UI + Lucide Icons
+- **PWA**: Serwist
 
 ---
 
-## Architecture & Offline Sync
+## Architecture
 
-This app utilizes a multi-layer architecture to provide a seamless offline-first experience:
-
-1. **Backend (Supabase)**:
-   - **Postgres Database**: Serves as the source of truth in the cloud.
-   - **Authentication**: Securely manages user sessions.
-   - **Realtime (via PowerSync)**: Tracks data changes and pushes updates.
-
-2. **Sync Engine (PowerSync)**:
-   - **Local SQLite**: The app reads and writes directly to a high-performance SQLite database stored locally in the browser (via WASM).
-   - **Bidirectional Sync**: Automatically streams changes from Supabase to local SQLite and pushes local edits back to Supabase when online.
-   - **Conflict Resolution**: Handled on the server; the client follows a "last write wins" optimistic approach by default.
-
-3. **Application Layer (PWA & Next.js)**:
-   - **Service Worker (Serwist)**: Caches the app's HTML, JS, CSS, and WASM files. This allows the UI and the local database logic to load even without an internet connection.
-   - **Optimistic UI**: React components interact with the local SQLite DB, which responds instantly. The UI doesn't wait for cloud confirmation, resulting in zero latency.
-
-### Data Flow
 ```mermaid
 graph LR
     User([User]) <--> UI[Next.js UI]
     UI <--> SQLite[(Local SQLite)]
     SQLite <--> PS[PowerSync Sync Engine]
     PS <--> SB[(Supabase / Postgres)]
-    
+
     subgraph Browser
         UI
         SQLite
         PS
     end
-    
+
     subgraph Cloud
         SB
     end
 ```
 
+**How it works:**
+1. The app reads/writes directly to a local SQLite database (via WASM in the browser)
+2. PowerSync streams changes bidirectionally between local SQLite and Supabase Postgres
+3. The service worker caches all app assets so the UI and database logic load without internet
+4. CRUD uploads are throttled (2s debounce) to batch rapid edits into fewer network calls
+
 ---
 
-## Setup Guide
+## Setup
 
-### 1. Supabase Project
+### 1. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **Settings → API** and note your **Project URL** and **Publishable API Key**
-3. Go to **SQL Editor** and run:
+2. Note your **Project URL** and **Publishable API Key** from **Settings → API**
+3. Run in **SQL Editor**:
 
 ```sql
--- Tasks table
 CREATE TABLE public.tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -93,7 +79,6 @@ CREATE TABLE public.tasks (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Tags table
 CREATE TABLE public.tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -102,11 +87,9 @@ CREATE TABLE public.tags (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Enable RLS
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
 CREATE POLICY "Users can CRUD own tasks" ON public.tasks
   FOR ALL USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
@@ -115,17 +98,24 @@ CREATE POLICY "Users can CRUD own tags" ON public.tags
   FOR ALL USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Publication for PowerSync
 CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags;
 ```
 
 4. Go to **Authentication → Users → Add User** to create your account
 
-### 2. PowerSync Cloud
+5. **Prevent WAL storage buildup** — cap replication slot WAL retention so a disconnected PowerSync client can't fill the disk. Requires the [Supabase CLI](https://supabase.com/docs/guides/resources/supabase-cli):
+
+   ```bash
+   supabase --experimental \
+     --project-ref <your-project-ref> \
+     postgres-config update --config max_slot_wal_keep_size=256MB
+   ```
+
+### 2. PowerSync
 
 1. Sign up at [powersync.com](https://www.powersync.com/)
-2. Create a new instance and connect it to your Supabase project (use your Supabase **Database Connection String** from **Settings → Database**)
-3. Set sync streams in the PowerSync dashboard:
+2. Create an instance and connect it to your Supabase database
+3. Configure sync streams:
 
 ```yaml
 config:
@@ -142,41 +132,30 @@ streams:
 
 ### 3. Local Development
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. Create `.env.local`:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...your-publishable-key
-   NEXT_PUBLIC_POWERSYNC_URL=https://your-instance.powersync.journeyapps.com
-   ```
+Create `.env.local`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...your-publishable-key
+NEXT_PUBLIC_POWERSYNC_URL=https://your-instance.powersync.journeyapps.com
+```
 
-3. Start the dev server:
-   ```bash
-   npm run dev
-   ```
-
-4. Production build (for testing PWA/service worker):
-   ```bash
-   npm run build
-   npm run start
-   ```
+```bash
+npm run dev          # Development
+npm run build && npm run start  # Production (tests PWA/service worker)
+```
 
 ### 4. Deploy to Vercel
 
-1. Push your repo to GitHub
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → Import your repo
-3. Add the three environment variables under **Settings → Environment Variables**:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `NEXT_PUBLIC_POWERSYNC_URL`
-4. Deploy — Vercel auto-detects Next.js and builds it
-5. Your app is now live behind the Supabase auth gate
+1. Push to GitHub
+2. Import at [vercel.com](https://vercel.com) → **Add New Project**
+3. Add environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_POWERSYNC_URL`
+4. Deploy
 
-> **Note**: Make sure your Supabase project's **Authentication → URL Configuration → Site URL** is set to your Vercel deployment URL (e.g., `https://your-app.vercel.app`).
+> Set your Supabase **Authentication → URL Configuration → Site URL** to your Vercel URL.
 
 ---
 
@@ -184,19 +163,13 @@ streams:
 
 | Path | Description |
 |------|-------------|
-| `src/app/page.tsx` | Main dashboard with filters, pagination, and task grid |
-| `src/app/login/page.tsx` | Login page with Supabase auth |
+| `src/app/page.tsx` | Dashboard with filters, pagination, and task grid |
+| `src/app/login/page.tsx` | Login page |
 | `src/app/layout.tsx` | Root layout with theme and PowerSync providers |
-| `src/middleware.ts` | Auth middleware protecting all routes |
+| `src/proxy.ts` | Auth middleware |
 | `src/components/TaskCard.tsx` | Task card with inline editing, subtasks, tags, and optimistic state |
-| `src/components/ManageTagsDialog.tsx` | Tag CRUD dialog with color palette picker |
-| `src/components/SyncIndicator.tsx` | Real-time sync status indicator |
-| `src/lib/tasks.ts` | Shared utilities (auth, priority colors, date logic) |
-| `src/lib/colors.ts` | Centralized color utilities for tags |
-| `src/lib/powersync/AppSchema.ts` | SQLite schema definitions for tasks and tags |
-| `src/lib/powersync/SupabaseConnector.ts` | PowerSync ↔ Supabase sync connector |
-| `public/manifest.json` | PWA manifest |
-
-## Schema
-
-Tasks and Tags are defined in `src/lib/powersync/AppSchema.ts`. When connecting a Supabase backend, ensure your Postgres schema mirrors the local SQLite schema, including the `tags` table and proper Row Level Security (RLS) policies.
+| `src/components/ManageTagsDialog.tsx` | Tag management dialog |
+| `src/components/SyncIndicator.tsx` | Sync status indicator |
+| `src/lib/powersync/AppSchema.ts` | SQLite schema definitions |
+| `src/lib/powersync/SupabaseConnector.ts` | PowerSync ↔ Supabase connector |
+| `src/lib/powersync/db.ts` | Database initialization and connection config |
