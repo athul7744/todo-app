@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { SyncIndicator } from "@/components/SyncIndicator";
 import { resetLocalDatabase } from "@/lib/powersync/db";
+import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,18 @@ export default function Home() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const router = useRouter();
+
+  // Warn user and flush pending writes if they try to leave during debounce window
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasPendingWrites()) {
+        flushAllUpdates();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
