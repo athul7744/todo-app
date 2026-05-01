@@ -53,6 +53,14 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   React.useEffect(() => { setOptimisticState(task.state); }, [task.state]);
+  React.useEffect(() => { setTitle(task.title || ""); }, [task.title]);
+  React.useEffect(() => { setPriority(task.priority || "medium"); }, [task.priority]);
+  React.useEffect(() => {
+    setDueDate(task.due_date ? new Date(task.due_date) : undefined);
+  }, [task.due_date]);
+  React.useEffect(() => {
+    try { setSelectedTagIds(JSON.parse(task.tags || "[]")); } catch { setSelectedTagIds([]); }
+  }, [task.tags]);
 
   // Sync optimistic subtasks with real data
   React.useEffect(() => {
@@ -67,7 +75,15 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const combinedSubtasks = [
     ...subtasks,
     ...optimisticSubtasks.filter(opt => !subtasks.some(st => st.id === opt.id))
-  ];
+  ].sort((a, b) => {
+    // Parse dates robustly — SQLite uses 'YYYY-MM-DD HH:MM:SS', Supabase uses ISO 8601
+    const parse = (d: string | null | undefined) => {
+      if (!d) return Infinity;
+      const t = new Date(d.replace(' ', 'T')).getTime();
+      return isNaN(t) ? Infinity : t;
+    };
+    return parse(a.created_at) - parse(b.created_at);
+  });
 
   // --- Task Actions ---
 
@@ -80,10 +96,11 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (!title.trim()) { onNewCancel?.(); return; }
     setIsSaving(true);
     const userId = await getCurrentUserId();
+    const now = new Date().toISOString();
     await db.execute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?, datetime('now'), datetime('now'))`,
-      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds)]
+       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now]
     );
   };
 
@@ -92,17 +109,18 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       const newSubtaskId = uuidv4();
       const subtaskTitle = newSubtaskTitle.trim();
       const userId = await getCurrentUserId();
+      const now = new Date().toISOString();
 
       setNewSubtaskTitle("");
       setOptimisticSubtasks(prev => [...prev, {
         id: newSubtaskId, parent_id: task.id, title: subtaskTitle,
-        priority: 'low', state: 'pending', tags: "[]",
+        priority: 'low', state: 'pending', tags: "[]", created_at: now,
       } as Task]);
 
       await db.execute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'low', 'pending', datetime('now'), datetime('now'))`,
-        [newSubtaskId, userId, task.id, subtaskTitle]
+         VALUES (?, ?, ?, ?, 'low', 'pending', ?, ?)`,
+        [newSubtaskId, userId, task.id, subtaskTitle, now, now]
       );
     }
   };
@@ -131,8 +149,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     const isSubtask = !!t.parent_id;
 
     if (isSubtask) {
-      // TODO: Review this
-      // Subtasks are deleted directly as per user request
+      // Subtasks are deleted directly — no trash state
       // Optimistically remove from our local list if it was a new unsynced subtask
       setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
       await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
@@ -146,7 +163,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       setTimeout(async () => {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
         await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
-      }, 150);
+      }, 250);
     } else {
       // Move to trash — no animation, card stays visible if trashed filter is active
       await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE id = ?`, [t.id]);
@@ -193,12 +210,13 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   return (
     <div className={cn(
-      "group relative flex flex-col rounded-xl border shadow-sm transition-all duration-300 hover:shadow-md mb-4 overflow-hidden break-inside-avoid",
+      "group relative flex flex-col rounded-xl border shadow-sm hover:shadow-md mb-4 overflow-hidden break-inside-avoid animate-fade-slide-in",
+      "transition-[opacity,transform,background-color,border-color] duration-500 ease-out",
       optimisticState === 'trashed'
         ? "bg-rose-50/40 dark:bg-rose-950/15 border-rose-200/40 dark:border-rose-800/30"
         : "bg-card border-border",
       optimisticState === 'completed' ? "opacity-60 bg-muted/50" : "",
-      isDeleting ? "opacity-0 scale-95" : "opacity-100 scale-100"
+      isDeleting ? "animate-fade-slide-out" : ""
     )}>
       {/* Main Task Header */}
       <div className="flex items-start gap-3 p-4">
@@ -206,7 +224,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
           <button
             onClick={() => toggleTaskState(task)}
             className={cn(
-              "h-5 w-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
+              "h-5 w-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-all duration-300 ease-out mt-0.5",
               optimisticState === 'completed'
                 ? "bg-emerald-500 border-emerald-500 text-white"
                 : "border-muted-foreground/30 hover:border-emerald-500/50"
@@ -385,13 +403,17 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
           {combinedSubtasks.map((st: any) => {
             const currentState = optimisticSubtaskStates[st.id] || st.state;
             return (
-              <div key={st.id} className={cn("flex items-center gap-2 group/subtask", currentState === 'completed' ? "opacity-60" : "")}>
+              <div key={st.id} className={cn(
+                "flex items-center gap-2 group/subtask animate-fade-slide-in",
+                "transition-opacity duration-500 ease-out",
+                currentState === 'completed' ? "opacity-60" : ""
+              )}>
                 <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 ml-1 mt-0.5" />
                 {!isTrashed && (
                   <button
                     onClick={() => toggleTaskState(st)}
                     className={cn(
-                      "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors mt-0.5",
+                      "h-4 w-4 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-all duration-300 ease-out mt-0.5",
                       currentState === 'completed'
                         ? "bg-emerald-500 border-emerald-500 text-white"
                         : "border-muted-foreground/30 hover:border-emerald-500/50"
@@ -402,6 +424,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                 )}
 
                 <textarea
+                  key={st.updated_at || st.id}
                   ref={autoResizeTextarea}
                   maxLength={250}
                   rows={1}
