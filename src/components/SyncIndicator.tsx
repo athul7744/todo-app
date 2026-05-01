@@ -69,15 +69,15 @@ export function SyncIndicator() {
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title={label}>
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground transition-all duration-500 ease-out" title={label}>
       <div className="relative flex items-center justify-center">
-        <div className={cn("h-2 w-2 rounded-full transition-colors", dotColor)} />
+        <div className={cn("h-2 w-2 rounded-full transition-colors duration-700 ease-out", dotColor)} />
         {isSyncing && (
-          <div className={cn("absolute h-2 w-2 rounded-full animate-ping", dotColor, "opacity-75")} />
+          <div className={cn("absolute h-2 w-2 rounded-full animate-gentle-pulse", dotColor)} />
         )}
       </div>
-      {Icon && <Icon className="h-3 w-3" />}
-      <span>{label}</span>
+      {Icon && <Icon className="h-3 w-3 transition-opacity duration-300" />}
+      <span className="transition-opacity duration-300">{label}</span>
     </div>
   );
 }
