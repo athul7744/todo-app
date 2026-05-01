@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getCurrentUserId } from "@/lib/tasks";
+import { debouncedExecute, debouncedUpdate } from "@/lib/debounced-update";
 
 export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
   const db = usePowerSync();
@@ -30,23 +31,28 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
     if (!newTagName.trim()) return;
 
     const newId = uuidv4();
-    const userId = await getCurrentUserId();
+    const tagName = newTagName.trim();
+    const color = newTagColor;
 
-    await db.execute(
-      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-      [newId, userId, newTagName.trim(), newTagColor]
-    );
-    
     setNewTagName("");
     setNewTagColor(TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]);
+
+    const userId = await getCurrentUserId();
+    debouncedExecute(
+      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+      [newId, userId, tagName, color]
+    );
   };
 
   const handleDeleteTag = async (id: string) => {
     await db.execute(`DELETE FROM tags WHERE id = ?`, [id]);
   };
 
-  const handleUpdateTagColor = async (id: string, color: string) => {
-    await db.execute(`UPDATE tags SET color = ?, updated_at = datetime('now') WHERE id = ?`, [color, id]);
+  const handleUpdateTagColor = (id: string, color: string) => {
+    debouncedExecute(
+      `UPDATE tags SET color = ?, updated_at = datetime('now') WHERE id = ?`,
+      [color, id]
+    );
   };
 
   return (

@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
 import { getTagColorClasses, TAG_COLORS, getTagDotClass } from "@/lib/colors";
 import { getCurrentUserId, PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo, autoResizeTextarea } from "@/lib/tasks";
+import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes } from "@/lib/debounced-update";
 
 interface TaskCardProps {
   task: Task;
@@ -87,9 +88,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   // --- Task Actions ---
 
-  const handleUpdate = async (field: string, value: string | null) => {
+  const handleUpdate = (field: string, value: string | null) => {
     if (isNew) return;
-    await db.execute(`UPDATE tasks SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`, [value, task.id]);
+    debouncedUpdate(task.id, field, value);
   };
 
   const handleSaveNew = async () => {
@@ -97,7 +98,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     setIsSaving(true);
     const userId = await getCurrentUserId();
     const now = new Date().toISOString();
-    await db.execute(
+    debouncedExecute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
       [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now]
@@ -108,16 +109,18 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (e.key === 'Enter' && newSubtaskTitle.trim()) {
       const newSubtaskId = uuidv4();
       const subtaskTitle = newSubtaskTitle.trim();
-      const userId = await getCurrentUserId();
       const now = new Date().toISOString();
 
+      // Optimistic update first — no awaits before this
       setNewSubtaskTitle("");
       setOptimisticSubtasks(prev => [...prev, {
         id: newSubtaskId, parent_id: task.id, title: subtaskTitle,
         priority: 'low', state: 'pending', tags: "[]", created_at: now,
       } as Task]);
 
-      await db.execute(
+      // Debounced persist
+      const userId = await getCurrentUserId();
+      debouncedExecute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
          VALUES (?, ?, ?, ?, 'low', 'pending', ?, ?)`,
         [newSubtaskId, userId, task.id, subtaskTitle, now, now]
@@ -139,9 +142,10 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       setOptimisticSubtaskStates(prev => ({ ...prev, [t.id]: newState }));
     }
 
-    await db.execute(`UPDATE tasks SET state = ?, updated_at = datetime('now') WHERE id = ?`, [newState, t.id]);
+    // Debounced writes — merge with any pending field edits for this task
+    debouncedUpdate(t.id, 'state', newState);
     if (newState === 'completed' && !t.parent_id) {
-      await db.execute(`UPDATE tasks SET state = 'completed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
+      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'completed'));
     }
   };
 
@@ -150,48 +154,55 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
     if (isSubtask) {
       // Subtasks are deleted directly — no trash state
-      // Optimistically remove from our local list if it was a new unsynced subtask
       setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
+      // Flush any pending debounced writes for this subtask before deleting
+      flushUpdate(t.id);
       await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
       return;
     }
 
     // Parent task logic
     if (optimisticState === 'trashed') {
-      // Permanently delete — animate out the entire card
+      // Permanently delete — flush pending writes first, then delete immediately
+      flushUpdate(t.id);
       setIsDeleting(true);
       setTimeout(async () => {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
         await db.execute(`DELETE FROM tasks WHERE parent_id = ?`, [t.id]);
       }, 250);
     } else {
-      // Move to trash — no animation, card stays visible if trashed filter is active
-      await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE id = ?`, [t.id]);
-      await db.execute(`UPDATE tasks SET state = 'trashed', updated_at = datetime('now') WHERE parent_id = ?`, [t.id]);
+      // Move to trash — debounced
+      setOptimisticState('trashed');
+      debouncedUpdate(t.id, 'state', 'trashed');
+      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'trashed'));
     }
   };
 
-  const restoreTask = async () => {
-    await db.execute(`UPDATE tasks SET state = 'pending', updated_at = datetime('now') WHERE id = ?`, [task.id]);
+  const restoreTask = () => {
+    setOptimisticState('pending');
+    debouncedUpdate(task.id, 'state', 'pending');
     if (!task.parent_id) {
-      await db.execute(`UPDATE tasks SET state = 'pending', updated_at = datetime('now') WHERE parent_id = ?`, [task.id]);
+      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'pending'));
     }
   };
 
   const handleCreateInlineTag = async () => {
     const newId = uuidv4();
-    const userId = await getCurrentUserId();
+    const tagName = tagSearchQuery.trim();
     const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
 
-    await db.execute(
-      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-      [newId, userId, tagSearchQuery.trim(), randomColor]
-    );
-
+    // Optimistic update first
     const newTags = [...selectedTagIds, newId];
     setSelectedTagIds(newTags);
-    if (!isNew) await handleUpdate("tags", JSON.stringify(newTags));
+    if (!isNew) handleUpdate("tags", JSON.stringify(newTags));
     setTagSearchQuery("");
+
+    // Debounced persist
+    const userId = await getCurrentUserId();
+    debouncedExecute(
+      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+      [newId, userId, tagName, randomColor]
+    );
   };
 
   const handleToggleTag = async (tagId: string) => {
@@ -432,7 +443,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                   defaultValue={st.title || ""}
                   readOnly={isTrashed}
                   onChange={(e) => { if (!isTrashed) autoResizeTextarea(e.target); }}
-                  onBlur={(e) => { if (!isTrashed) db.execute(`UPDATE tasks SET title = ?, updated_at = datetime('now') WHERE id = ?`, [e.target.value, st.id]); }}
+                  onBlur={(e) => { if (!isTrashed) debouncedUpdate(st.id, 'title', e.target.value); }}
                   onKeyDown={(e) => {
                     if (isTrashed) return;
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); }
