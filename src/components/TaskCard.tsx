@@ -18,7 +18,7 @@ import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
 import { getTagColorClasses, TAG_COLORS, getTagDotClass } from "@/lib/colors";
 import { getCurrentUserId, PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo, autoResizeTextarea } from "@/lib/tasks";
-import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes } from "@/lib/debounced-update";
+import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes, cancelExecute } from "@/lib/debounced-update";
 
 interface TaskCardProps {
   task: Task;
@@ -101,7 +101,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     debouncedExecute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now]
+      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now],
+      task.id
     );
   };
 
@@ -123,7 +124,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       debouncedExecute(
         `INSERT INTO tasks (id, user_id, parent_id, title, priority, state, created_at, updated_at)
          VALUES (?, ?, ?, ?, 'low', 'pending', ?, ?)`,
-        [newSubtaskId, userId, task.id, subtaskTitle, now, now]
+        [newSubtaskId, userId, task.id, subtaskTitle, now, now],
+        newSubtaskId
       );
     }
   };
@@ -155,16 +157,18 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (isSubtask) {
       // Subtasks are deleted directly — no trash state
       setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
-      // Flush any pending debounced writes for this subtask before deleting
-      flushUpdate(t.id);
+      // Cancel any pending INSERT and flush any pending UPDATE before deleting
+      cancelExecute(t.id);
+      await flushUpdate(t.id);
       await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
       return;
     }
 
     // Parent task logic
     if (optimisticState === 'trashed') {
-      // Permanently delete — flush pending writes first, then delete immediately
-      flushUpdate(t.id);
+      // Permanently delete — cancel/flush pending writes first, then delete immediately
+      cancelExecute(t.id);
+      await flushUpdate(t.id);
       setIsDeleting(true);
       setTimeout(async () => {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
@@ -201,17 +205,18 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     const userId = await getCurrentUserId();
     debouncedExecute(
       `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-      [newId, userId, tagName, randomColor]
+      [newId, userId, tagName, randomColor],
+      newId
     );
   };
 
-  const handleToggleTag = async (tagId: string) => {
+  const handleToggleTag = (tagId: string) => {
     const isSelected = selectedTagIds.includes(tagId);
     const newTags = isSelected
       ? selectedTagIds.filter(id => id !== tagId)
       : [...selectedTagIds, tagId];
     setSelectedTagIds(newTags);
-    if (!isNew) await handleUpdate("tags", JSON.stringify(newTags));
+    if (!isNew) handleUpdate("tags", JSON.stringify(newTags));
   };
 
   // --- Derived UI State ---

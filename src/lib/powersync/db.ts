@@ -1,11 +1,7 @@
 import { PowerSyncDatabase } from '@powersync/web';
 import { AppSchema } from './AppSchema';
 import { SupabaseConnector } from './SupabaseConnector';
-
-const log = {
-  info: (...args: any[]) => console.log(`[PowerSync]`, ...args),
-  error: (...args: any[]) => console.error(`[PowerSync]`, ...args),
-};
+import { logger as log } from '../logger';
 
 export const db = new PowerSyncDatabase({
   schema: AppSchema,
