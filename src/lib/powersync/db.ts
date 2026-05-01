@@ -29,3 +29,18 @@ export const connectCloud = async () => {
     retryDelayMs: 5000
   });
 };
+
+/** Delete local SQLite database and re-sync all data from the cloud. */
+export const resetLocalDatabase = async () => {
+  if (typeof window === 'undefined') return;
+  // Disconnect from cloud sync
+  await db.disconnect();
+  // Delete all local data
+  await db.disconnectAndClear();
+  // Reset flags so we can re-initialize
+  isLocalReady = false;
+  isCloudConnected = false;
+  // Re-initialize
+  await initLocal();
+  await connectCloud();
+};

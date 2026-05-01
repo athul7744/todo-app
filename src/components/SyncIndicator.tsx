@@ -3,7 +3,20 @@
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { WifiOff, CloudUpload, CloudDownload } from "lucide-react";
+import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { resetLocalDatabase } from "@/lib/powersync/db";
 
 /**
  * Formats a date as a relative time string like "just now", "2m ago", "1h ago"
@@ -24,6 +37,8 @@ export function SyncIndicator() {
   const [showSyncedFlash, setShowSyncedFlash] = useState(false);
   const [, forceUpdate] = useState(0);
   const wasSyncingRef = useRef(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const isConnected = status.connected;
   const isUploading = status.dataFlowStatus?.uploading ?? false;
@@ -68,16 +83,87 @@ export function SyncIndicator() {
     label = "Synced";
   }
 
+  const handleResetLocal = async () => {
+    setIsResetting(true);
+    try {
+      await resetLocalDatabase();
+    } catch (err) {
+      console.error("Failed to reset local database:", err);
+    } finally {
+      setIsResetting(false);
+      setShowResetConfirm(false);
+    }
+  };
+
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground transition-all duration-500 ease-out" title={label}>
-      <div className="relative flex items-center justify-center">
-        <div className={cn("h-2 w-2 rounded-full transition-colors duration-700 ease-out", dotColor)} />
-        {isSyncing && (
-          <div className={cn("absolute h-2 w-2 rounded-full animate-gentle-pulse", dotColor)} />
-        )}
-      </div>
-      {Icon && <Icon className="h-3 w-3 transition-opacity duration-300" />}
-      <span className="transition-opacity duration-300">{label}</span>
-    </div>
+    <>
+      <Popover>
+        <PopoverTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground transition-all duration-500 ease-out hover:text-foreground rounded-md px-1.5 py-1 -mx-1.5 -my-1 hover:bg-accent" title={label}>
+          <div className="relative flex items-center justify-center">
+            <div className={cn("h-2 w-2 rounded-full transition-colors duration-700 ease-out", dotColor)} />
+            {isSyncing && (
+              <div className={cn("absolute h-2 w-2 rounded-full animate-gentle-pulse", dotColor)} />
+            )}
+          </div>
+          {Icon && <Icon className="h-3 w-3 transition-opacity duration-300" />}
+          <span className="transition-opacity duration-300">{label}</span>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-3" align="start">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-foreground">Sync Status</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className={cn("h-2 w-2 rounded-full", dotColor)} />
+                <span>{isConnected ? (isSyncing ? (isUploading ? "Uploading changes..." : "Downloading changes...") : "Connected") : "Offline"}</span>
+              </div>
+              {lastSyncedAt && (
+                <p className="text-[11px] text-muted-foreground/70 ml-4">
+                  Last synced {formatRelativeTime(lastSyncedAt)}
+                </p>
+              )}
+            </div>
+            <div className="border-t pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2 text-xs h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowResetConfirm(true)}
+              >
+                <DatabaseZap className="h-3.5 w-3.5" />
+                Reset Local Data
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Local Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete your local database and re-download all data from the cloud. Any unsynced changes will be lost. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetLocal}
+              disabled={isResetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Resetting...
+                </>
+              ) : (
+                "Reset & Re-sync"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

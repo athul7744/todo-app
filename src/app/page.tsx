@@ -1,7 +1,7 @@
 "use client";
 
 import { usePowerSync, useQuery } from '@powersync/react';
-import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut, MoreVertical } from 'lucide-react';
+import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut, MoreVertical, DatabaseZap, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -18,11 +18,24 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { SyncIndicator } from "@/components/SyncIndicator";
+import { resetLocalDatabase } from "@/lib/powersync/db";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Home() {
   const db = usePowerSync();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -30,6 +43,18 @@ export default function Home() {
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  };
+
+  const handleResetLocal = async () => {
+    setIsResetting(true);
+    try {
+      await resetLocalDatabase();
+    } catch (err) {
+      console.error("Failed to reset local database:", err);
+    } finally {
+      setIsResetting(false);
+      setShowResetConfirm(false);
+    }
   };
   
   const [filterStates, setFilterStates] = useState<string[]>(['pending']);
@@ -169,6 +194,10 @@ export default function Home() {
                       {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => setShowResetConfirm(true)} className="text-destructive focus:text-destructive">
+                    <DatabaseZap className="h-4 w-4 mr-2" />
+                    Reset Local Data
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                     <LogOut className="h-4 w-4 mr-2" />
                     Sign Out
@@ -443,6 +472,35 @@ export default function Home() {
       >
         <Plus className="h-6 w-6" />
       </Button>
+
+      {/* Reset Local Data Confirmation Dialog */}
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Local Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete your local database and re-download all data from the cloud. Any unsynced changes will be lost. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetLocal}
+              disabled={isResetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Resetting...
+                </>
+              ) : (
+                "Reset & Re-sync"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
