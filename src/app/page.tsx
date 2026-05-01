@@ -189,12 +189,12 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="hidden sm:flex items-center gap-2 md:gap-4">
+          <div className="hidden sm:flex items-center gap-1">
             <ManageTagsDialog />
             
-            <Button onClick={handleAddNewTask} className="gap-2 rounded-full shadow-sm">
-              <Plus className="h-4 w-4" />
-              <span>Add Task</span>
+            <Button onClick={handleAddNewTask} variant="ghost" size="sm" className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-emerald-600 dark:hover:text-emerald-400">
+              <Plus className="h-3.5 w-3.5" />
+              <span>Task</span>
             </Button>
             
             {mounted && (
@@ -202,7 +202,7 @@ export default function Home() {
                 variant="ghost" 
                 size="icon" 
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="rounded-full ml-1"
+                className="rounded-full hover:text-amber-600 dark:hover:text-amber-400"
               >
                 {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
@@ -371,22 +371,17 @@ export default function Home() {
           
           {/* Task List */}
           {topLevelTasks.length === 0 && newTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-20 text-center border-2 border-dashed border-border rounded-xl bg-card/50 mx-2">
-              <div className="bg-primary/10 p-5 rounded-full mb-5">
-                <ListTodo className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">No tasks found</h3>
-              <p className="text-muted-foreground max-w-sm mb-8 text-base px-4">
-                No tasks match your current filters. Try adjusting them or add a new task!
-              </p>
-              <Button onClick={handleAddNewTask} className="gap-2 rounded-full h-11 px-6">
+            <div className="flex flex-col items-center justify-center flex-1 py-24 text-center animate-fade-slide-in">
+              <ListTodo className="h-8 w-8 text-muted-foreground/40 mb-4" />
+              <p className="text-muted-foreground text-sm">No tasks match your filters</p>
+              <Button onClick={handleAddNewTask} variant="ghost" className="gap-2 mt-4 text-primary hidden sm:inline-flex">
                 <Plus className="h-4 w-4" />
                 Add Task
               </Button>
             </div>
           ) : (
             <div className="flex flex-col">
-              <div className="columns-1 md:columns-2 xl:columns-3 gap-6 space-y-6 px-1 pb-4">
+              <div className="columns-1 md:columns-2 xl:columns-3 gap-6 space-y-6 px-1 pb-4 animate-stagger">
                 {/* Render Combined Tasks to Prevent Layout Jumps */}
                 {(() => {
                   const combinedTasks = [

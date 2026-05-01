@@ -56,9 +56,9 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
           {children}
         </DialogTrigger>
       ) : (
-        <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-2 sm:px-3 text-xs gap-2">
-          <TagIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Manage Tags</span>
+        <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap text-xs font-medium hover:bg-accent hover:text-indigo-600 dark:hover:text-indigo-400 h-8 rounded-full px-2.5 gap-1.5 transition-colors">
+          <TagIcon className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Tags</span>
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-md">
