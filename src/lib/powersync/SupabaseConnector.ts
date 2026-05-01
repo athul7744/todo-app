@@ -1,14 +1,9 @@
 import { PowerSyncBackendConnector, AbstractPowerSyncDatabase, UpdateType, CrudEntry } from '@powersync/web';
 import { createClient } from '../supabase/client';
+import { logger as log } from '../logger';
 
 /** Response codes that indicate a permanent/fatal error — discard the transaction. */
 const FATAL_RESPONSE_CODES = [/^22/, /^23/, /^42/];
-
-const log = {
-  info: (...args: any[]) => console.log(`[PowerSync]`, ...args),
-  warn: (...args: any[]) => console.warn(`[PowerSync]`, ...args),
-  error: (...args: any[]) => console.error(`[PowerSync]`, ...args),
-};
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
   client = createClient();
@@ -48,8 +43,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
    * PATCH → individual updates (can't be batched easily)
    */
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
-    // getCrudBatch returns ALL pending CRUD ops as a single batch
-    const batch = await database.getCrudBatch();
+    // getCrudBatch returns pending CRUD ops (limited to prevent oversized requests)
+    const batch = await database.getCrudBatch(100);
     if (!batch) return;
 
     const putOps: { [table: string]: any[] } = {};

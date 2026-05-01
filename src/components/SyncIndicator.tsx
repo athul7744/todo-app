@@ -3,20 +3,10 @@
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, Loader2 } from "lucide-react";
+import { WifiOff, CloudUpload, CloudDownload, DatabaseZap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { resetLocalDatabase } from "@/lib/powersync/db";
+import { ResetLocalDataDialog } from "@/components/ResetLocalDataDialog";
 
 /**
  * Formats a date as a relative time string like "just now", "2m ago", "1h ago"
@@ -38,7 +28,6 @@ export function SyncIndicator() {
   const [, forceUpdate] = useState(0);
   const wasSyncingRef = useRef(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
 
   const isConnected = status.connected;
   const isUploading = status.dataFlowStatus?.uploading ?? false;
@@ -83,18 +72,6 @@ export function SyncIndicator() {
     label = "Synced";
   }
 
-  const handleResetLocal = async () => {
-    setIsResetting(true);
-    try {
-      await resetLocalDatabase();
-    } catch (err) {
-      console.error("Failed to reset local database:", err);
-    } finally {
-      setIsResetting(false);
-      setShowResetConfirm(false);
-    }
-  };
-
   return (
     <>
       <Popover>
@@ -137,33 +114,7 @@ export function SyncIndicator() {
         </PopoverContent>
       </Popover>
 
-      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reset Local Data?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will delete your local database and re-download all data from the cloud. Any unsynced changes will be lost. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleResetLocal}
-              disabled={isResetting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isResetting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Resetting...
-                </>
-              ) : (
-                "Reset & Re-sync"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ResetLocalDataDialog open={showResetConfirm} onOpenChange={setShowResetConfirm} />
     </>
   );
 }

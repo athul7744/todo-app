@@ -2,9 +2,10 @@ import { db } from '@/lib/powersync/db';
 
 const DEBOUNCE_MS = 1000;
 
-// ─── Debounced Field Updates (merges per task ID) ───────────────────────────
+// ─── Debounced Field Updates (merges per record ID) ─────────────────────────
 
 interface PendingUpdate {
+  table: string;
   fields: Record<string, string | null>;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -12,49 +13,51 @@ interface PendingUpdate {
 const pendingUpdates = new Map<string, PendingUpdate>();
 
 /**
- * Queue a debounced UPDATE for a task field.
- * Multiple calls for the same taskId within 2s merge fields and reset the timer.
+ * Queue a debounced UPDATE for a record field.
+ * Multiple calls for the same id within DEBOUNCE_MS merge fields and reset the timer.
  */
-export function debouncedUpdate(taskId: string, field: string, value: string | null) {
-  const existing = pendingUpdates.get(taskId);
+export function debouncedUpdate(id: string, field: string, value: string | null, table = 'tasks') {
+  const existing = pendingUpdates.get(id);
 
   if (existing) {
     existing.fields[field] = value;
     clearTimeout(existing.timer);
-    existing.timer = setTimeout(() => flushUpdate(taskId), DEBOUNCE_MS);
+    existing.timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
   } else {
     const fields: Record<string, string | null> = { [field]: value };
-    const timer = setTimeout(() => flushUpdate(taskId), DEBOUNCE_MS);
-    pendingUpdates.set(taskId, { fields, timer });
+    const timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
+    pendingUpdates.set(id, { table, fields, timer });
   }
 }
 
 /**
- * Immediately flush any pending debounced update for a task.
+ * Immediately flush any pending debounced update for a record.
+ * Returns the promise from db.execute so callers can await it.
  */
-export function flushUpdate(taskId: string) {
-  const pending = pendingUpdates.get(taskId);
-  if (!pending) return;
+export function flushUpdate(id: string): Promise<any> | undefined {
+  const pending = pendingUpdates.get(id);
+  if (!pending) return undefined;
 
   clearTimeout(pending.timer);
-  pendingUpdates.delete(taskId);
+  pendingUpdates.delete(id);
 
-  const fields = pending.fields;
+  const { table, fields } = pending;
   const keys = Object.keys(fields);
-  if (keys.length === 0) return;
+  if (keys.length === 0) return undefined;
 
   const setClauses = keys.map(k => `${k} = ?`).join(', ');
   const values = keys.map(k => fields[k]);
 
-  db.execute(
-    `UPDATE tasks SET ${setClauses}, updated_at = datetime('now') WHERE id = ?`,
-    [...values, taskId]
+  return db.execute(
+    `UPDATE ${table} SET ${setClauses}, updated_at = datetime('now') WHERE id = ?`,
+    [...values, id]
   );
 }
 
 // ─── Debounced SQL Executes (for INSERTs and other one-shot writes) ─────────
 
 interface PendingExecute {
+  id?: string; // optional entity ID for cancellation
   sql: string;
   params: any[];
 }
@@ -64,23 +67,31 @@ let executeTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Queue a debounced SQL execute (e.g. INSERT).
- * All queued statements flush together after 2s of inactivity.
- * Each new call resets the 2s timer.
+ * All queued statements flush together after DEBOUNCE_MS of inactivity.
+ * Optionally associate an entity ID so it can be cancelled before flush.
  */
-export function debouncedExecute(sql: string, params: any[]) {
-  pendingExecutes.push({ sql, params });
+export function debouncedExecute(sql: string, params: any[], entityId?: string) {
+  pendingExecutes.push({ id: entityId, sql, params });
   if (executeTimer) clearTimeout(executeTimer);
   executeTimer = setTimeout(flushExecutes, DEBOUNCE_MS);
 }
 
 /**
+ * Cancel a pending execute by entity ID (e.g. if the entity is deleted before flush).
+ */
+export function cancelExecute(entityId: string) {
+  const idx = pendingExecutes.findIndex(e => e.id === entityId);
+  if (idx !== -1) pendingExecutes.splice(idx, 1);
+}
+
+/**
  * Immediately flush all pending SQL executes.
  */
-export function flushExecutes() {
+export async function flushExecutes() {
   if (executeTimer) { clearTimeout(executeTimer); executeTimer = null; }
   const batch = pendingExecutes.splice(0);
   for (const { sql, params } of batch) {
-    db.execute(sql, params);
+    await db.execute(sql, params);
   }
 }
 
@@ -96,9 +107,11 @@ export function hasPendingWrites(): boolean {
 /**
  * Flush everything — all pending updates and executes.
  */
-export function flushAllUpdates() {
-  for (const taskId of pendingUpdates.keys()) {
-    flushUpdate(taskId);
+export async function flushAllUpdates() {
+  const updatePromises: (Promise<any> | undefined)[] = [];
+  for (const id of [...pendingUpdates.keys()]) {
+    updatePromises.push(flushUpdate(id));
   }
-  flushExecutes();
+  await Promise.all(updatePromises.filter(Boolean));
+  await flushExecutes();
 }
