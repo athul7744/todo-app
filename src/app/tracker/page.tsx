@@ -12,6 +12,7 @@ import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
 import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
 import { WeekNavigator } from "@/components/tracker/WeekNavigator";
+import { WeekWidgets } from "@/components/tracker/widgets";
 import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
 import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
 import { TimeLog, ActivityType, DailyRating } from "@/lib/powersync/AppSchema";
@@ -251,6 +252,10 @@ export default function TrackerPage() {
 
             <section>
               <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
+            </section>
+
+            <section className="mt-4">
+              <WeekWidgets days={days} data={gridData} colorMap={activityColorMap} ratings={ratingsMap} />
             </section>
           </>
         )}
