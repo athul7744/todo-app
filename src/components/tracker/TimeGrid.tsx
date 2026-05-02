@@ -45,15 +45,15 @@ interface TimeGridProps {
 export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }: TimeGridProps) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="border-collapse w-max min-w-full text-xs">
+      <table className="border-separate border-spacing-0 w-max min-w-full text-xs">
         <thead>
-          <tr>
+          <tr className="border-b border-border">
             {ratings && (
               <th className="sticky left-0 z-10 bg-muted px-1 py-2 text-center font-semibold text-muted-foreground w-[52px]">
                 Mood
               </th>
             )}
-            <th className={cn("sticky z-10 bg-muted px-3 py-2 text-left font-semibold text-muted-foreground min-w-[90px]", ratings ? "left-[52px]" : "left-0")}>
+            <th className={cn("sticky z-10 bg-muted px-3 py-2 text-left font-semibold text-muted-foreground min-w-[90px] border-r border-border", ratings ? "left-[52px]" : "left-0")}>
               Day
             </th>
             {HOURS.map((h) => (
@@ -74,7 +74,7 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
             return (
               <tr key={dateKey} className="border-t border-border">
                 {ratings && (
-                  <td className="sticky left-0 z-10 bg-muted px-1 py-1 border-r border-border w-[52px]">
+                  <td className="sticky left-0 z-10 bg-muted px-1 py-1 border-r border-border w-[52px] box-border">
                     <Select
                       value={currentScore != null ? currentScore : null}
                       onValueChange={(v: any) => onRate?.(dateKey, Number(v))}
@@ -98,7 +98,7 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
                     </Select>
                   </td>
                 )}
-                <td className={cn("sticky z-10 bg-muted px-3 py-2 font-medium text-muted-foreground whitespace-nowrap", ratings ? "left-[52px]" : "left-0")}>
+                <td className={cn("sticky z-10 bg-muted px-3 py-2 font-medium text-muted-foreground whitespace-nowrap border-r border-border", ratings ? "left-[52px]" : "left-0")}>
                   {format(day, "EEE, MMM d")}
                 </td>
                 {HOURS.map((h) => {
