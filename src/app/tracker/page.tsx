@@ -66,11 +66,11 @@ export default function TrackerPage() {
   const days = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: weekStart, end: weekEnd }).reverse();
+    return eachDayOfInterval({ start: weekStart, end: weekEnd });
   }, [currentDate]);
 
-  const rangeStart = format(days[days.length - 1], "yyyy-MM-dd'T'00:00:00'+00:00'");
-  const rangeEnd = format(days[0], "yyyy-MM-dd'T'23:59:59'+00:00'");
+  const rangeStart = format(days[0], "yyyy-MM-dd'T'00:00:00'+00:00'");
+  const rangeEnd = format(days[days.length - 1], "yyyy-MM-dd'T'23:59:59'+00:00'");
 
   // Subscribe to time_logs within the week window
   const { data: logs } = useQuery<TimeLog & { id: string }>(
@@ -86,7 +86,7 @@ export default function TrackerPage() {
     const map: GridData = new Map();
     for (const log of logs) {
       const ts = new Date(log.start_timestamp!);
-      const dateKey = format(ts, "yyyy-MM-dd");
+      const dateKey = ts.toISOString().slice(0, 10);
       const hourKey = String(ts.getUTCHours()).padStart(2, "0");
       map.set(`${dateKey}|${hourKey}`, {
         id: log.id,
@@ -97,8 +97,8 @@ export default function TrackerPage() {
   }, [logs]);
 
   // Query weekly ratings
-  const weekRangeStartDate = format(days[days.length - 1], "yyyy-MM-dd");
-  const weekRangeEndDate = format(days[0], "yyyy-MM-dd");
+  const weekRangeStartDate = format(days[0], "yyyy-MM-dd");
+  const weekRangeEndDate = format(days[days.length - 1], "yyyy-MM-dd");
   const { data: weekRatings } = useQuery<DailyRating & { id: string }>(
     "SELECT * FROM daily_ratings WHERE rating_date >= ? AND rating_date <= ?",
     [weekRangeStartDate, weekRangeEndDate]
@@ -146,9 +146,7 @@ export default function TrackerPage() {
     async (day: Date, hour: number, existing: GridCell | undefined) => {
       if (!activeActivity) return;
 
-      const startTimestamp = new Date(day);
-      startTimestamp.setUTCHours(hour, 0, 0, 0);
-      const isoTimestamp = startTimestamp.toISOString();
+      const isoTimestamp = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour)).toISOString();
 
       if (activeActivity === "__eraser__") {
         if (existing?.id) {
