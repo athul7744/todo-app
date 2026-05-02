@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ACTIVITY_BUTTON_CLASSES } from "@/lib/activities";
+import { getActivityDotClass } from "@/lib/activities";
 import { Eraser } from "lucide-react";
 
 export interface ActivityItem {
@@ -17,37 +17,42 @@ interface ActivityToolbarProps {
 
 export function ActivityToolbar({ activities, active, onSelect }: ActivityToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {activities.map((a) => {
-        const cls = ACTIVITY_BUTTON_CLASSES[a.color] ?? ACTIVITY_BUTTON_CLASSES["teal"];
-        const isActive = active === a.name;
-        return (
-          <button
-            key={a.name}
-            onClick={() => onSelect(isActive ? null : a.name)}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-sm font-medium border transition-colors",
-              isActive ? cls.active : cls.base
-            )}
-          >
-            {a.name}
-          </button>
-        );
-      })}
+    <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
+      <div className="flex items-center gap-1.5 w-max py-1">
+        {activities.map((a) => {
+          const isActive = active === a.name;
+          const dotColor = getActivityDotClass(a.color);
+          return (
+            <button
+              key={a.name}
+              onClick={() => onSelect(isActive ? null : a.name)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                isActive
+                  ? "bg-foreground text-background shadow-sm"
+                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotColor)} />
+              {a.name}
+            </button>
+          );
+        })}
 
-      {/* Eraser tool */}
-      <button
-        onClick={() => onSelect(active === "__eraser__" ? null : "__eraser__")}
-        className={cn(
-          "px-3 py-1.5 rounded-md text-sm font-medium border transition-colors flex items-center gap-1.5",
-          active === "__eraser__"
-            ? "bg-zinc-700 text-white border-zinc-700 dark:bg-zinc-500 dark:border-zinc-500"
-            : "border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400"
-        )}
-      >
-        <Eraser className="h-4 w-4" />
-        Eraser
-      </button>
+        {/* Eraser tool */}
+        <button
+          onClick={() => onSelect(active === "__eraser__" ? null : "__eraser__")}
+          className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+            active === "__eraser__"
+              ? "bg-foreground text-background shadow-sm"
+              : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+        >
+          <Eraser className="h-3 w-3" />
+          Eraser
+        </button>
+      </div>
     </div>
   );
 }
