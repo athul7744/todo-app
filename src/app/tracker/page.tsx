@@ -11,10 +11,9 @@ import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
 import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
 import { WeekNavigator } from "@/components/tracker/WeekNavigator";
-import { WeeklyRatingRow } from "@/components/tracker/WeeklyRatingRow";
 import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
 import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
-import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
+import { TimeLog, ActivityType, DailyRating } from "@/lib/powersync/AppSchema";
 import { getCurrentUserId } from "@/lib/auth";
 import { getApp } from "@/lib/apps";
 import { DEFAULT_ACTIVITIES } from "@/lib/activities";
@@ -96,6 +95,51 @@ export default function TrackerPage() {
     }
     return map;
   }, [logs]);
+
+  // Query weekly ratings
+  const weekRangeStartDate = format(days[days.length - 1], "yyyy-MM-dd");
+  const weekRangeEndDate = format(days[0], "yyyy-MM-dd");
+  const { data: weekRatings } = useQuery<DailyRating & { id: string }>(
+    "SELECT * FROM daily_ratings WHERE rating_date >= ? AND rating_date <= ?",
+    [weekRangeStartDate, weekRangeEndDate]
+  );
+
+  const ratingsMap = useMemo(
+    () => new Map(weekRatings.filter((r) => r.rating_date).map((r) => [r.rating_date as string, r.score as number])),
+    [weekRatings]
+  );
+
+  const ratingsIdMap = useMemo(
+    () => new Map(weekRatings.filter((r) => r.rating_date).map((r) => [r.rating_date as string, r.id])),
+    [weekRatings]
+  );
+
+  // Rating upsert handler
+  const handleRate = useCallback(
+    async (dateStr: string, score: number) => {
+      const existingId = ratingsIdMap.get(dateStr);
+      const existingScore = ratingsMap.get(dateStr);
+
+      if (existingScore === score) {
+        // Deselect
+        if (existingId) {
+          await db.execute("DELETE FROM daily_ratings WHERE id = ?", [existingId]);
+        }
+        return;
+      }
+
+      if (existingId) {
+        await db.execute("UPDATE daily_ratings SET score = ? WHERE id = ?", [score, existingId]);
+      } else {
+        const userId = await getCurrentUserId();
+        await db.execute(
+          `INSERT INTO daily_ratings (id, user_id, rating_date, score, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+          [uuidv4(), userId, dateStr, score]
+        );
+      }
+    },
+    [db, ratingsMap, ratingsIdMap]
+  );
 
   // Cell click handler
   const handleCellClick = useCallback(
@@ -207,11 +251,7 @@ export default function TrackerPage() {
             </section>
 
             <section>
-              <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} />
-            </section>
-
-            <section>
-              <WeeklyRatingRow days={days} />
+              <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
             </section>
           </>
         )}
