@@ -151,7 +151,7 @@ export default function Home() {
         }
       >
         {/* Filter Row */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 pt-1 px-1 -mx-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 -mx-1">
           <div className="flex items-center text-muted-foreground shrink-0 mr-1">
             <Filter className="h-4 w-4" />
           </div>

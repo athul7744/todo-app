@@ -17,7 +17,9 @@ import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
 import { getTagColorClasses, getTagDotClass } from "@/lib/colors";
-import { getCurrentUserId, PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo, autoResizeTextarea } from "@/lib/tasks";
+import { getCurrentUserId } from "@/lib/auth";
+import { PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo } from "@/lib/tasks";
+import { autoResizeTextarea } from "@/lib/utils";
 import { createTag } from "@/lib/tags";
 import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes, cancelExecute } from "@/lib/debounced-update";
 
