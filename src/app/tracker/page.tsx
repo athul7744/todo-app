@@ -240,9 +240,6 @@ export default function TrackerPage() {
             <WeekNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
 
             <section>
-              <p className="text-sm text-muted-foreground mb-2">
-                Select an activity, then click cells to paint your time.
-              </p>
               <ActivityToolbar
                 activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
                 active={activeActivity}
