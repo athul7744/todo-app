@@ -10,6 +10,7 @@ export interface AppAccent {
 export interface AppConfig {
   id: string;
   name: string;
+  description: string;
   href: string;
   icon: LucideIcon;
   accent: AppAccent;
@@ -19,6 +20,7 @@ export const APPS: AppConfig[] = [
   {
     id: "tasks",
     name: "Tasks",
+    description: "Manage todos with subtasks, tags, and priorities",
     href: "/tasks",
     icon: ListTodo,
     accent: {
@@ -29,6 +31,7 @@ export const APPS: AppConfig[] = [
   {
     id: "tracker",
     name: "Tracker",
+    description: "Log time blocks on a 24-hour paint grid",
     href: "/tracker",
     icon: Clock,
     accent: {
