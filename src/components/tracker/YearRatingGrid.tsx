@@ -73,15 +73,15 @@ export function YearRatingGrid({ year, onDayClick }: YearRatingGridProps) {
             {MONTH_NAMES[month]}
           </h3>
           {/* Day-of-week labels */}
-          <div className="grid grid-cols-7 gap-[2px] mb-0.5">
+          <div className="grid grid-cols-7 gap-x-[2px] mb-0.5">
             {DAY_LABELS.map((d, i) => (
-              <div key={i} className="text-[9px] text-muted-foreground/60 text-center font-medium">
+              <div key={i} className="text-[9px] text-muted-foreground/60 text-center font-medium w-3.5">
                 {d}
               </div>
             ))}
           </div>
           {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-[2px]">
+          <div className="grid grid-cols-7 gap-x-[2px] gap-y-2">
             {/* Offset for first day of month (Monday = 0) */}
             {Array.from({ length: ((getDay(days[0]) + 6) % 7) }, (_, i) => (
               <div key={`pad-${i}`} className="h-3.5 w-3.5" />
