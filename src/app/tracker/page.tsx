@@ -10,6 +10,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
 import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
+import { DailyRatingBar } from "@/components/tracker/DailyRatingBar";
 import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
 import { getCurrentUserId } from "@/lib/auth";
 import { getApp } from "@/lib/apps";
@@ -139,6 +140,11 @@ export default function TrackerPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Daily Rating */}
+        <section>
+          <DailyRatingBar date={days[0]} />
+        </section>
+
         {/* Toolbar */}
         <section>
           <p className="text-sm text-muted-foreground mb-2">

@@ -34,11 +34,19 @@ export const activityTypesTable = new Table({
   created_at: column.text
 });
 
+export const dailyRatingsTable = new Table({
+  user_id: column.text,
+  rating_date: column.text,
+  score: column.integer,
+  created_at: column.text
+});
+
 export const AppSchema = new Schema({
   tasks: tasksTable,
   tags: tagsTable,
   time_logs: timeLogsTable,
-  activity_types: activityTypesTable
+  activity_types: activityTypesTable,
+  daily_ratings: dailyRatingsTable
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -46,3 +54,4 @@ export type Task = Database['tasks'];
 export type Tag = Database['tags'];
 export type TimeLog = Database['time_logs'];
 export type ActivityType = Database['activity_types'];
+export type DailyRating = Database['daily_ratings'];
