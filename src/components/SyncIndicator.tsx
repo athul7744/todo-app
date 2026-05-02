@@ -3,10 +3,11 @@
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { WifiOff, CloudUpload, CloudDownload, DatabaseZap } from "lucide-react";
+import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ResetLocalDataDialog } from "@/components/ResetLocalDataDialog";
+import { reconnectCloud } from "@/lib/powersync/db";
 
 /**
  * Formats a date as a relative time string like "just now", "2m ago", "1h ago"
@@ -91,7 +92,14 @@ export function SyncIndicator() {
               <p className="text-xs font-medium text-foreground">Sync Status</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className={cn("h-2 w-2 rounded-full", dotColor)} />
-                <span>{isConnected ? (isSyncing ? (isUploading ? "Uploading changes..." : "Downloading changes...") : "Connected") : "Offline"}</span>
+                <span className="flex-1">{isConnected ? (isSyncing ? (isUploading ? "Uploading changes..." : "Downloading changes...") : "Connected") : "Offline"}</span>
+                <button
+                  onClick={() => reconnectCloud()}
+                  className="p-1 rounded-md hover:bg-accent text-muted-foreground/50 hover:text-foreground transition-colors"
+                  title="Reconnect"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
               </div>
               {lastSyncedAt && (
                 <p className="text-[11px] text-muted-foreground/70 ml-4">
