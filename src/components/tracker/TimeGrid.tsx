@@ -79,12 +79,11 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
                       value={currentScore != null ? currentScore : null}
                       onValueChange={(v: any) => onRate?.(dateKey, Number(v))}
                     >
-                      <SelectTrigger size="sm" className="w-10 h-7 px-0 justify-center">
-                        {currentRating ? (
-                          <span className={cn("inline-block h-3.5 w-3.5 rounded-full", currentRating.bg)} />
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                      <SelectTrigger size="sm" className="w-7 h-7 px-0 justify-center border-none bg-transparent [&_svg]:hidden mx-auto">
+                        <span className={cn(
+                          "inline-block h-4 w-4 rounded-full border-2",
+                          currentRating ? cn(currentRating.bg, "border-transparent") : "border-muted-foreground/40"
+                        )} />
                       </SelectTrigger>
                       <SelectContent>
                         {RATINGS.map((r) => (
