@@ -62,7 +62,7 @@ export function SyncIndicator() {
   return (
     <>
       <Popover>
-        <PopoverTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground transition-all duration-500 ease-out hover:text-foreground rounded-md px-1.5 py-1 -mx-1.5 -my-1 hover:bg-accent" title={label}>
+        <PopoverTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground transition-all duration-500 ease-out hover:text-foreground rounded-md px-1.5 py-1 -mx-1.5 -my-1 hover:bg-accent whitespace-nowrap" title={label}>
           <div className="relative flex items-center justify-center">
             <div className={cn("h-2 w-2 rounded-full transition-colors duration-700 ease-out", dotColor)} />
             {isSyncing && (
