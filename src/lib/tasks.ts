@@ -1,7 +1,3 @@
-// Re-export from canonical location for backward compatibility
-export { getCurrentUserId } from "@/lib/auth";
-export { autoResizeTextarea } from "@/lib/utils";
-
 /**
  * Priority color definitions for task indicators.
  */
