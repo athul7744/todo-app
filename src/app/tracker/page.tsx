@@ -2,26 +2,34 @@
 
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, getYear } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import { Timer } from "lucide-react";
+import { Timer, CalendarDays, Grid3X3, Star } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
 import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
-import { DailyRatingBar } from "@/components/tracker/DailyRatingBar";
+import { WeekNavigator } from "@/components/tracker/WeekNavigator";
+import { WeeklyRatingRow } from "@/components/tracker/WeeklyRatingRow";
+import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
+import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
 import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
 import { getCurrentUserId } from "@/lib/auth";
 import { getApp } from "@/lib/apps";
 import { DEFAULT_ACTIVITIES } from "@/lib/activities";
+import { cn } from "@/lib/utils";
 
 const trackerApp = getApp("tracker");
-const NUM_DAYS = 7;
+
+type ViewMode = "week" | "year-activity" | "year-rating";
 
 export default function TrackerPage() {
   const db = usePowerSync();
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("week");
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
   const seededRef = useRef(false);
 
   // Query activity types from local DB
@@ -54,16 +62,17 @@ export default function TrackerPage() {
     [activityTypes]
   );
 
-  // Build the 7-day window (today down to 6 days ago)
+  // Build the 7-day window based on selected week (Mon–Sun)
   const days = useMemo(() => {
-    const today = startOfDay(new Date());
-    return Array.from({ length: NUM_DAYS }, (_, i) => subDays(today, i));
-  }, []);
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start: weekStart, end: weekEnd }).reverse();
+  }, [currentDate]);
 
   const rangeStart = format(days[days.length - 1], "yyyy-MM-dd'T'00:00:00'+00:00'");
   const rangeEnd = format(days[0], "yyyy-MM-dd'T'23:59:59'+00:00'");
 
-  // Subscribe to time_logs within the 7-day window — reactive to local changes
+  // Subscribe to time_logs within the week window
   const { data: logs } = useQuery<TimeLog & { id: string }>(
     `SELECT id, activity_name, start_timestamp, duration_minutes
      FROM time_logs
@@ -72,7 +81,7 @@ export default function TrackerPage() {
     [rangeStart, rangeEnd]
   );
 
-  // Pivot: normalize the flat log rows into a Map keyed by "YYYY-MM-DD|HH"
+  // Pivot logs into grid data
   const gridData: GridData = useMemo(() => {
     const map: GridData = new Map();
     for (const log of logs) {
@@ -87,17 +96,16 @@ export default function TrackerPage() {
     return map;
   }, [logs]);
 
-  // Cell click handler — INSERT / UPDATE / DELETE based on current tool
+  // Cell click handler
   const handleCellClick = useCallback(
     async (day: Date, hour: number, existing: GridCell | undefined) => {
-      if (!activeActivity) return; // no tool selected
+      if (!activeActivity) return;
 
       const startTimestamp = new Date(day);
       startTimestamp.setUTCHours(hour, 0, 0, 0);
       const isoTimestamp = startTimestamp.toISOString();
 
       if (activeActivity === "__eraser__") {
-        // DELETE if a log exists
         if (existing?.id) {
           await db.execute("DELETE FROM time_logs WHERE id = ?", [existing.id]);
         }
@@ -105,13 +113,11 @@ export default function TrackerPage() {
       }
 
       if (existing?.id) {
-        // UPDATE the existing row with new activity
         await db.execute(
           "UPDATE time_logs SET activity_name = ? WHERE id = ?",
           [activeActivity, existing.id]
         );
       } else {
-        // INSERT a new log
         const userId = await getCurrentUserId();
         const id = uuidv4();
         await db.execute(
@@ -123,6 +129,15 @@ export default function TrackerPage() {
     },
     [activeActivity, db]
   );
+
+  // When clicking a day in the year rating grid, jump to that week
+  const handleDayClick = (date: Date) => {
+    setCurrentDate(date);
+    setView("week");
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
   return (
     <div className="flex flex-col h-full">
@@ -139,28 +154,104 @@ export default function TrackerPage() {
         actions={<ManageActivitiesDialog />}
       />
 
+      {/* View Tabs */}
+      <div className="border-b border-border px-4 flex items-center gap-1 overflow-x-auto">
+        <button
+          onClick={() => setView("week")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+            view === "week" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Week
+        </button>
+        <button
+          onClick={() => setView("year-activity")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+            view === "year-activity" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Grid3X3 className="h-3.5 w-3.5" />
+          Year Activities
+        </button>
+        <button
+          onClick={() => setView("year-rating")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+            view === "year-rating" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Star className="h-3.5 w-3.5" />
+          Year Ratings
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Daily Rating */}
-        <section>
-          <DailyRatingBar date={days[0]} />
-        </section>
+        {/* Week View */}
+        {view === "week" && (
+          <>
+            <WeekNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
 
-        {/* Toolbar */}
-        <section>
-          <p className="text-sm text-muted-foreground mb-2">
-            Select an activity, then click cells to paint your time.
-          </p>
-          <ActivityToolbar
-            activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
-            active={activeActivity}
-            onSelect={setActiveActivity}
-          />
-        </section>
+            <section>
+              <p className="text-sm text-muted-foreground mb-2">
+                Select an activity, then click cells to paint your time.
+              </p>
+              <ActivityToolbar
+                activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
+                active={activeActivity}
+                onSelect={setActiveActivity}
+              />
+            </section>
 
-        {/* Grid */}
-        <section>
-          <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} />
-        </section>
+            <section>
+              <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} />
+            </section>
+
+            <section>
+              <WeeklyRatingRow days={days} />
+            </section>
+          </>
+        )}
+
+        {/* Year Activity Heatmap */}
+        {view === "year-activity" && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Year:</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                className="bg-transparent border border-border rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <YearActivityGrid year={selectedYear} />
+          </>
+        )}
+
+        {/* Year Rating Heatmap */}
+        {view === "year-rating" && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Year:</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                className="bg-transparent border border-border rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <YearRatingGrid year={selectedYear} onDayClick={handleDayClick} />
+          </>
+        )}
       </div>
     </div>
   );
