@@ -2,26 +2,12 @@
 
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ResetLocalDataDialog } from "@/components/ResetLocalDataDialog";
 import { reconnectCloud } from "@/lib/powersync/db";
-
-/**
- * Formats a date as a relative time string like "just now", "2m ago", "1h ago"
- */
-function formatRelativeTime(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 10) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
 
 export function SyncIndicator() {
   const status = useStatus();
