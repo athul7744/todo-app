@@ -35,6 +35,15 @@ export const connectCloud = async () => {
   log.info("Cloud connection established");
 };
 
+/** Disconnect and reconnect to PowerSync cloud. */
+export const reconnectCloud = async () => {
+  if (typeof window === 'undefined') return;
+  log.info("Reconnecting to cloud...");
+  await db.disconnect();
+  isCloudConnected = false;
+  await connectCloud();
+};
+
 /** Delete local SQLite database and re-sync all data from the cloud. */
 export const resetLocalDatabase = async () => {
   if (typeof window === 'undefined') return;
