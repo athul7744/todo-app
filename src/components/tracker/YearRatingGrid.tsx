@@ -13,6 +13,7 @@ import {
   getMonth,
 } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Star } from "lucide-react";
 import { DailyRating } from "@/lib/powersync/AppSchema";
 
 const RATING_COLORS: Record<number, string> = {
@@ -54,6 +55,15 @@ export function YearRatingGrid({ year, onDayClick }: YearRatingGridProps) {
       return { month: m, days };
     });
   }, [year]);
+
+  if (ratings.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Star className="h-8 w-8 text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">No rating data for {year}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

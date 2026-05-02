@@ -3,6 +3,7 @@
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useMemo } from "react";
 import { format, startOfYear, endOfYear, eachDayOfInterval, getYear } from "date-fns";
+import { Grid3X3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_CELL_CLASSES } from "@/lib/activities";
 import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
@@ -52,6 +53,15 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
     () => eachDayOfInterval({ start: startOfYear(new Date(year, 0, 1)), end: endOfYear(new Date(year, 0, 1)) }),
     [year]
   );
+
+  if (logs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Grid3X3 className="h-8 w-8 text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">No activity data for {year}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] rounded-lg border border-border">
