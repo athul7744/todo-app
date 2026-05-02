@@ -19,6 +19,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getApp } from "@/lib/apps";
 import { DEFAULT_ACTIVITIES } from "@/lib/activities";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const trackerApp = getApp("tracker");
 
@@ -137,7 +138,7 @@ export default function TrackerPage() {
   };
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const years = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
 
   return (
     <div className="flex flex-col h-full">
@@ -220,15 +221,16 @@ export default function TrackerPage() {
           <>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Year:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                className="bg-transparent border border-border rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {years.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+              <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <YearActivityGrid year={selectedYear} />
           </>
@@ -239,15 +241,16 @@ export default function TrackerPage() {
           <>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Year:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                className="bg-transparent border border-border rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {years.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+              <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <YearRatingGrid year={selectedYear} onDayClick={handleDayClick} />
           </>

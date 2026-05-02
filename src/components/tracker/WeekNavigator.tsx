@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, getWeek, getYear, setWeek, setYear } from "date-fns";
 
 interface WeekNavigatorProps {
@@ -19,20 +20,20 @@ export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps)
   const goToPrev = () => onDateChange(subWeeks(currentDate, 1));
   const goToNext = () => onDateChange(addWeeks(currentDate, 1));
 
-  const handleWeekChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newWeek = parseInt(e.target.value, 10);
+  const handleWeekChange = (value: any) => {
+    const newWeek = parseInt(String(value), 10);
     const newDate = setWeek(currentDate, newWeek, { weekStartsOn: 1 });
     onDateChange(newDate);
   };
 
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = parseInt(e.target.value, 10);
+  const handleYearChange = (value: any) => {
+    const newYear = parseInt(String(value), 10);
     const newDate = setYear(currentDate, newYear);
     onDateChange(newDate);
   };
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const years = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
   const weeks = Array.from({ length: 52 }, (_, i) => i + 1);
 
   return (
@@ -43,25 +44,27 @@ export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps)
 
       <div className="flex items-center gap-1.5 text-sm">
         <span className="text-muted-foreground">Week</span>
-        <select
-          value={weekNum}
-          onChange={handleWeekChange}
-          className="bg-transparent border border-border rounded px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-        >
-          {weeks.map((w) => (
-            <option key={w} value={w}>{w}</option>
-          ))}
-        </select>
+        <Select value={weekNum} onValueChange={handleWeekChange}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {weeks.map((w) => (
+              <SelectItem key={w} value={w}>{w}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <span className="text-muted-foreground">of</span>
-        <select
-          value={year}
-          onChange={handleYearChange}
-          className="bg-transparent border border-border rounded px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
+        <Select value={year} onValueChange={handleYearChange}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={y}>{y}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNext}>
