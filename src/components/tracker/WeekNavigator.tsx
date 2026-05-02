@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hash, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, getWeek, getYear, setWeek, setYear } from "date-fns";
@@ -43,7 +43,7 @@ export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps)
       </Button>
 
       <div className="flex items-center gap-1.5 text-sm">
-        <span className="text-muted-foreground">Week</span>
+        <Hash className="h-3.5 w-3.5 text-muted-foreground" />
         <Select value={weekNum} onValueChange={handleWeekChange}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -54,7 +54,7 @@ export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps)
             ))}
           </SelectContent>
         </Select>
-        <span className="text-muted-foreground">of</span>
+        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
         <Select value={year} onValueChange={handleYearChange}>
           <SelectTrigger size="sm">
             <SelectValue />

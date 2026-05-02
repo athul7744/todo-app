@@ -4,7 +4,7 @@ import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, getYear } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import { Timer, CalendarDays, Grid3X3, Star } from "lucide-react";
+import { Timer, CalendarDays, Grid3X3, Star, Calendar } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
@@ -257,7 +257,7 @@ export default function TrackerPage() {
         {view === "year-activity" && (
           <>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Year:</span>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
                 <SelectTrigger size="sm">
                   <SelectValue />
@@ -277,7 +277,7 @@ export default function TrackerPage() {
         {view === "year-rating" && (
           <>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Year:</span>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
                 <SelectTrigger size="sm">
                   <SelectValue />
