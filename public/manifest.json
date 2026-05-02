@@ -4,12 +4,13 @@
   "description": "An offline-first productivity dashboard",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone"],
   "background_color": "#0a0a0a",
   "theme_color": "#4f46e5",
   "orientation": "portrait-primary",
   "scope": "/",
   "id": "/",
-  "target_api_version": 17,
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "/icon.svg",

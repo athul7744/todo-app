@@ -4,7 +4,8 @@ import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, getYear } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import { Timer, CalendarDays, Grid3X3, Star, Calendar } from "lucide-react";
+import { Timer, CalendarDays, Activity, Smile, Calendar } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AppHeader } from "@/components/AppHeader";
 import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
@@ -22,12 +23,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const trackerApp = getApp("tracker");
 
-type ViewMode = "week" | "year-activity" | "year-rating";
+type ViewMode = "week" | "activity" | "mood";
 
 export default function TrackerPage() {
   const db = usePowerSync();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>("week");
+  const view = (searchParams.get("view") as ViewMode) || "week";
+  const setView = (v: ViewMode) => router.push(`/tracker?view=${v}`, { scroll: false });
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
   const seededRef = useRef(false);
@@ -210,24 +214,24 @@ export default function TrackerPage() {
           Week
         </button>
         <button
-          onClick={() => setView("year-activity")}
+          onClick={() => setView("activity")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-            view === "year-activity" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            view === "activity" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          <Grid3X3 className="h-3.5 w-3.5" />
-          Year Activities
+          <Activity className="h-3.5 w-3.5" />
+          Activity
         </button>
         <button
-          onClick={() => setView("year-rating")}
+          onClick={() => setView("mood")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-            view === "year-rating" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            view === "mood" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          <Star className="h-3.5 w-3.5" />
-          Year Ratings
+          <Smile className="h-3.5 w-3.5" />
+          Mood
         </button>
       </div>
 
@@ -252,7 +256,7 @@ export default function TrackerPage() {
         )}
 
         {/* Year Activity Heatmap */}
-        {view === "year-activity" && (
+        {view === "activity" && (
           <>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -267,12 +271,12 @@ export default function TrackerPage() {
                 </SelectContent>
               </Select>
             </div>
-            <YearActivityGrid year={selectedYear} />
+            <YearActivityGrid year={selectedYear} onDayClick={handleDayClick} />
           </>
         )}
 
         {/* Year Rating Heatmap */}
-        {view === "year-rating" && (
+        {view === "mood" && (
           <>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />

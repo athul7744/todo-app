@@ -12,9 +12,10 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 interface YearActivityGridProps {
   year: number;
+  onDayClick?: (date: Date) => void;
 }
 
-export function YearActivityGrid({ year }: YearActivityGridProps) {
+export function YearActivityGrid({ year, onDayClick }: YearActivityGridProps) {
   const db = usePowerSync();
 
   const yearStart = format(startOfYear(new Date(year, 0, 1)), "yyyy-MM-dd'T'00:00:00'+00:00'");
@@ -87,7 +88,10 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
             const isFirstOfMonth = day.getDate() === 1;
             return (
               <tr key={dateKey} className={cn("border-t border-border", isFirstOfMonth && "border-t-2 border-t-foreground/20")}>
-                <td className="sticky left-0 z-10 bg-muted px-0.5 py-0 font-medium text-muted-foreground whitespace-nowrap text-[10px] w-[36px] border-r border-border">
+                <td
+                  className="sticky left-0 z-10 bg-muted px-0.5 py-0 font-medium text-muted-foreground whitespace-nowrap text-[10px] w-[36px] border-r border-border cursor-pointer hover:text-foreground"
+                  onClick={() => onDayClick?.(day)}
+                >
                   {format(day, "MMM d")}
                 </td>
                 {HOURS.map((h) => {

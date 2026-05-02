@@ -101,11 +101,10 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     setIsSaving(true);
     const userId = await getCurrentUserId();
     const now = new Date().toISOString();
-    debouncedExecute(
+    await db.execute(
       `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now],
-      task.id
+      [task.id, userId, title.trim(), priority, dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now]
     );
   };
 
@@ -224,7 +223,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       "transition-[opacity,transform,background-color,border-color] duration-500 ease-out",
       optimisticState === 'trashed'
         ? "bg-rose-50/40 dark:bg-rose-950/15 border-rose-200/40 dark:border-rose-800/30"
-        : "bg-card border-border",
+        : "bg-background border-border",
       optimisticState === 'completed' ? "opacity-60 bg-muted/50" : "",
       isDeleting ? "animate-fade-slide-out" : ""
     )}>
