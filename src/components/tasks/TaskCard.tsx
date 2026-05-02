@@ -16,8 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
-import { getTagColorClasses, TAG_COLORS, getTagDotClass } from "@/lib/colors";
+import { getTagColorClasses, getTagDotClass } from "@/lib/colors";
 import { getCurrentUserId, PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo, autoResizeTextarea } from "@/lib/tasks";
+import { createTag } from "@/lib/tags";
 import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes, cancelExecute } from "@/lib/debounced-update";
 
 interface TaskCardProps {
@@ -191,23 +192,14 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   };
 
   const handleCreateInlineTag = async () => {
-    const newId = uuidv4();
     const tagName = tagSearchQuery.trim();
-    const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
+    const newId = await createTag(tagName, undefined, tagName);
 
     // Optimistic update first
     const newTags = [...selectedTagIds, newId];
     setSelectedTagIds(newTags);
     if (!isNew) handleUpdate("tags", JSON.stringify(newTags));
     setTagSearchQuery("");
-
-    // Debounced persist
-    const userId = await getCurrentUserId();
-    debouncedExecute(
-      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-      [newId, userId, tagName, randomColor],
-      newId
-    );
   };
 
   const handleToggleTag = (tagId: string) => {
@@ -475,8 +467,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
                 className="bg-transparent text-[13px] focus:outline-none flex-1 text-muted-foreground placeholder:text-muted-foreground/50 resize-none overflow-hidden block min-h-[20px]"
                 value={newSubtaskTitle}
                 onChange={(e) => {
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${e.target.scrollHeight}px`;
+                  autoResizeTextarea(e.target);
                   setNewSubtaskTitle(e.target.value);
                 }}
                 onKeyDown={(e) => {

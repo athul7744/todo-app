@@ -1,6 +1,5 @@
 import * as React from "react";
 import { usePowerSync, useQuery } from "@powersync/react";
-import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Tag as TagIcon } from "lucide-react";
 import {
   Dialog,
@@ -16,7 +15,7 @@ import { Tag } from "@/lib/powersync/AppSchema";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getCurrentUserId } from "@/lib/tasks";
+import { createTag } from "@/lib/tags";
 import { debouncedExecute, debouncedUpdate } from "@/lib/debounced-update";
 
 export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
@@ -30,18 +29,13 @@ export function ManageTagsDialog({ children }: { children?: React.ReactNode }) {
     e.preventDefault();
     if (!newTagName.trim()) return;
 
-    const newId = uuidv4();
     const tagName = newTagName.trim();
     const color = newTagColor;
 
     setNewTagName("");
     setNewTagColor(TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]);
 
-    const userId = await getCurrentUserId();
-    debouncedExecute(
-      `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-      [newId, userId, tagName, color]
-    );
+    await createTag(tagName, color);
   };
 
   const handleDeleteTag = async (id: string) => {

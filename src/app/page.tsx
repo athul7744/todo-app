@@ -1,32 +1,26 @@
 "use client";
 
 import { usePowerSync, useQuery } from '@powersync/react';
-import { Plus, ListTodo, CheckCircle2, Moon, Sun, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, LogOut, MoreVertical, DatabaseZap } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { Plus, CheckCircle2, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Task, Tag } from '@/lib/powersync/AppSchema';
-import { TaskCard } from '@/components/TaskCard';
-import { ManageTagsDialog } from '@/components/ManageTagsDialog';
+import { TaskCard } from '@/components/tasks/TaskCard';
+import { ManageTagsDialog } from '@/components/tasks/ManageTagsDialog';
 import { v4 as uuidv4 } from 'uuid';
 import { cn } from '@/lib/utils';
 import { getTagColorClasses, getTagDotClass } from '@/lib/colors';
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { SyncIndicator } from "@/components/SyncIndicator";
-import { ResetLocalDataDialog } from "@/components/ResetLocalDataDialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { AppHeader } from "@/components/AppHeader";
+import { getApp } from "@/lib/apps";
 import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
+
+const tasksApp = getApp("tasks");
 
 export default function Home() {
   const db = usePowerSync();
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const router = useRouter();
 
   // Warn user and flush pending writes if they try to leave during debounce window
   useEffect(() => {
@@ -39,13 +33,6 @@ export default function Home() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  };
   
   const [filterStates, setFilterStates] = useState<string[]>(['pending']);
   const [filterPriorities, setFilterPriorities] = useState<string[]>([]);
@@ -93,10 +80,6 @@ export default function Home() {
   query += ` ORDER BY CASE WHEN parent_id IS NOT NULL THEN created_at END ASC, CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, due_date ASC, created_at DESC`;
   
   const { data: allTasks } = useQuery(query, args);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Reset page when filters change
   useEffect(() => {
@@ -146,100 +129,28 @@ export default function Home() {
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden min-w-0">
       
-      {/* Top Navigation & Filter Row */}
-      <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-border bg-background/95 backdrop-blur-md px-4 md:px-8 py-4 shrink-0">
-        
-        {/* Title & Actions */}
-        <div className="flex items-center justify-between">
-
-          {/* === MOBILE HEADER === */}
-          <div className="flex items-center justify-between w-full sm:hidden">
-            {/* Left: Sync */}
-            <div className="flex items-center w-16">
-              <SyncIndicator />
+      {/* Shared Header with App Switcher */}
+      <AppHeader
+        app={tasksApp}
+        mobileMenuItems={
+          <ManageTagsDialog>
+            <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground">
+              <TagIcon className="h-4 w-4" />
+              Manage Tags
             </div>
-            {/* Center: Branding */}
-            <div className="flex items-center gap-2">
-              <div className="bg-primary/10 p-1.5 rounded-lg">
-                <ListTodo className="h-5 w-5 text-primary" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight">Tasks<span className="text-primary">.</span></h1>
-            </div>
-            {/* Right: Three-dot menu */}
-            <div className="flex items-center justify-end w-16">
-              <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-full h-8 w-8 hover:bg-accent transition-colors focus:outline-none">
-                    <MoreVertical className="h-5 w-5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <ManageTagsDialog>
-                    <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground">
-                      <TagIcon className="h-4 w-4" />
-                      Manage Tags
-                    </div>
-                  </ManageTagsDialog>
-                  {mounted && (
-                    <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-                      {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
-                      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setShowResetConfirm(true)} className="text-destructive focus:text-destructive">
-                    <DatabaseZap className="h-4 w-4 mr-2" />
-                    Reset Local Data
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* === DESKTOP HEADER === */}
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-lg">
-              <ListTodo className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Tasks<span className="text-primary">.</span></h1>
-            <div className="ml-2 flex">
-              <SyncIndicator />
-            </div>
-          </div>
-          
-          <div className="hidden sm:flex items-center gap-1">
+          </ManageTagsDialog>
+        }
+        actions={
+          <>
             <ManageTagsDialog />
-            
             <Button onClick={handleAddNewTask} variant="ghost" size="sm" className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-emerald-600 dark:hover:text-emerald-400">
               <Plus className="h-3.5 w-3.5" />
               <span>Task</span>
             </Button>
-            
-            {mounted && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="rounded-full hover:text-amber-600 dark:hover:text-amber-400"
-              >
-                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </Button>
-            )}
-
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleLogout}
-              className="rounded-full text-muted-foreground hover:text-destructive"
-              title="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Unified Filter Row */}
+          </>
+        }
+      >
+        {/* Filter Row */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 pt-1 px-1 -mx-1">
           <div className="flex items-center text-muted-foreground shrink-0 mr-1">
             <Filter className="h-4 w-4" />
@@ -382,7 +293,7 @@ export default function Home() {
             </PopoverContent>
           </Popover>
         </div>
-      </header>
+      </AppHeader>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
@@ -462,9 +373,6 @@ export default function Home() {
       >
         <Plus className="h-6 w-6" />
       </Button>
-
-      {/* Reset Local Data Confirmation Dialog */}
-      <ResetLocalDataDialog open={showResetConfirm} onOpenChange={setShowResetConfirm} />
     </div>
   );
 }
