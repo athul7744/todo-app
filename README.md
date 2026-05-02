@@ -1,6 +1,6 @@
-# Tasks.
+# Dash.
 
-An offline-first productivity PWA with **Task Management** and **Time Tracking**. Works fully offline with optimistic UI, syncing to the cloud in the background.
+An offline-first productivity dashboard with **Task Management** and **Time Tracking**. Works fully offline with optimistic UI, syncing to the cloud in the background.
 
 ## Features
 

@@ -7,8 +7,8 @@ import { PowerSyncProvider } from "@/components/powersync-provider";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Tasks.",
-  description: "A modern, offline-first task manager",
+  title: "Dash.",
+  description: "An offline-first productivity dashboard",
   manifest: "/manifest.json",
   robots: {
     index: false,
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Tasks.",
+    title: "Dash.",
   },
 };
 
