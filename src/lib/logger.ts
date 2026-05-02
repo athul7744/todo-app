@@ -1,7 +1,8 @@
 const PREFIX = '[PowerSync]';
+const isDev = process.env.NODE_ENV !== 'production';
 
 export const logger = {
-  info: (...args: any[]) => console.log(PREFIX, ...args),
-  warn: (...args: any[]) => console.warn(PREFIX, ...args),
+  info: (...args: any[]) => { if (isDev) console.log(PREFIX, ...args); },
+  warn: (...args: any[]) => { if (isDev) console.warn(PREFIX, ...args); },
   error: (...args: any[]) => console.error(PREFIX, ...args),
 };
