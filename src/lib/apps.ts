@@ -19,7 +19,7 @@ export const APPS: AppConfig[] = [
   {
     id: "tasks",
     name: "Tasks",
-    href: "/",
+    href: "/tasks",
     icon: ListTodo,
     accent: {
       iconBg: "bg-indigo-500/10 dark:bg-indigo-500/20",
