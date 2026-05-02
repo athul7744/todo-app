@@ -49,11 +49,11 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
         <thead>
           <tr className="border-b border-border">
             {ratings && (
-              <th className="sticky left-0 z-10 bg-muted px-1 py-2 text-center font-semibold text-muted-foreground w-[52px]">
+              <th className="sticky left-0 z-10 bg-muted px-1 py-2 text-center font-semibold text-muted-foreground w-[52px] border-r border-b border-border">
                 Mood
               </th>
             )}
-            <th className={cn("sticky z-10 bg-muted px-3 py-2 text-left font-semibold text-muted-foreground min-w-[90px] border-r border-border", ratings ? "left-[52px]" : "left-0")}>
+            <th className={cn("sticky z-10 bg-muted px-3 py-2 text-left font-semibold text-muted-foreground min-w-[90px] border-r border-b border-border", ratings ? "left-[52px]" : "left-0")}>
               Day
             </th>
             {HOURS.map((h) => (

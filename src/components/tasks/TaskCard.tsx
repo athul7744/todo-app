@@ -408,7 +408,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
       {/* Subtasks Section */}
       {!isNew && (
-        <div className="bg-muted/20 border-t border-border p-3 pl-4 flex flex-col gap-1.5">
+        <div className="bg-black/20 border-t border-border p-3 pl-4 flex flex-col gap-1.5">
           {combinedSubtasks.map((st: any) => {
             const currentState = optimisticSubtaskStates[st.id] || st.state;
             return (
