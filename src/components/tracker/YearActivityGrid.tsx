@@ -41,7 +41,7 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
     const map = new Map<string, string>();
     for (const log of logs) {
       const ts = new Date(log.start_timestamp!);
-      const dateKey = format(ts, "yyyy-MM-dd");
+      const dateKey = ts.toISOString().slice(0, 10);
       const hourKey = String(ts.getUTCHours()).padStart(2, "0");
       const color = colorMap[log.activity_name ?? ""] ?? "teal";
       map.set(`${dateKey}|${hourKey}`, color);
@@ -65,16 +65,16 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
 
   return (
     <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] rounded-lg border border-border">
-      <table className="border-collapse text-[10px]">
+      <table className="border-separate border-spacing-0 text-[10px] w-full table-fixed">
         <thead className="sticky top-0 z-20">
-          <tr className="bg-muted">
-            <th className="sticky left-0 z-30 bg-muted px-1 py-1 text-left font-semibold text-muted-foreground min-w-[70px] text-[10px]">
+          <tr className="bg-muted border-b border-border">
+            <th className="sticky left-0 z-30 bg-muted px-0.5 py-1 text-left font-semibold text-muted-foreground w-[36px] text-[10px] border-r border-border">
               Date
             </th>
             {HOURS.map((h) => (
               <th
                 key={h}
-                className="px-0 py-1 text-center font-medium text-muted-foreground min-w-[14px] w-[14px] border-l border-border"
+                className="px-0 py-1 text-center font-medium text-muted-foreground w-[14px] border-l border-border"
               >
                 {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
               </th>
@@ -87,8 +87,8 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
             const isFirstOfMonth = day.getDate() === 1;
             return (
               <tr key={dateKey} className={cn("border-t border-border", isFirstOfMonth && "border-t-2 border-t-foreground/20")}>
-                <td className="sticky left-0 z-10 bg-muted px-1 py-0 font-medium text-muted-foreground whitespace-nowrap text-[10px]">
-                  {isFirstOfMonth ? format(day, "MMM d") : format(day, "d")}
+                <td className="sticky left-0 z-10 bg-muted px-0.5 py-0 font-medium text-muted-foreground whitespace-nowrap text-[10px] w-[36px] border-r border-border">
+                  {format(day, "MMM d")}
                 </td>
                 {HOURS.map((h) => {
                   const key = `${dateKey}|${String(h).padStart(2, "0")}`;
@@ -100,7 +100,7 @@ export function YearActivityGrid({ year }: YearActivityGridProps) {
                       key={h}
                       className={cn(
                         "border-l border-border/50 p-0",
-                        "h-[14px] w-[14px] min-w-[14px]",
+                        "h-[14px] w-[14px]",
                         cellClasses ?? ""
                       )}
                       title={color ? `${dateKey} ${String(h).padStart(2, "0")}:00` : ""}
