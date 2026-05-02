@@ -6,7 +6,7 @@ An offline-first productivity dashboard with **Task Management** and **Time Trac
 
 **Tasks** — Offline-first task manager with subtasks, tags, due dates, priorities, smart filters, trash/restore, and responsive masonry layout.
 
-**Time Tracker** — 7-day × 24-hour paint grid for logging time blocks. User-defined activity types with a 10-color palette.
+**Time Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings (1–5), year activity heatmap, and year rating calendar. User-defined activity types with a color palette.
 
 **General** — Installable PWA, cross-device sync via PowerSync ↔ Supabase, dark/light mode, sync status indicator.
 
