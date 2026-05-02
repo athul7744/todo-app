@@ -173,7 +173,7 @@ NEXT_PUBLIC_POWERSYNC_URL=https://your-instance.powersync.journeyapps.com
 ```
 
 ```bash
-npm run dev          # Development
+npm run dev -- --webpack   # Development
 npm run build && npm run start  # Production (tests PWA/service worker)
 ```
 
@@ -212,6 +212,7 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | `src/components/tracker/YearActivityGrid.tsx` | 365 × 24 year activity heatmap |
 | `src/components/tracker/YearRatingGrid.tsx` | 12-month calendar mood heatmap |
 | `src/components/tracker/ManageActivitiesDialog.tsx` | Activity type CRUD dialog |
+| `src/components/tracker/widgets/` | Week stats widgets (activity pie, mood, sleep, daily stacks, productivity) |
 | **Lib** | |
 | `src/lib/apps.ts` | App registry (id, name, route, icon, accent colors) |
 | `src/lib/auth.ts` | `getCurrentUserId()` with session caching |

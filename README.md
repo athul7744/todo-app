@@ -8,18 +8,20 @@ An offline-first productivity dashboard with **Task Management** and **Time Trac
 
 **Time Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings (1–5), year activity heatmap, and year rating calendar. User-defined activity types with a color palette.
 
-**General** — Installable PWA, cross-device sync via PowerSync ↔ Supabase, dark/light mode, sync status indicator.
+**Week Widgets** — Activity breakdown donut chart, mood insights with sleep correlation, daily stacked bars, sleep stats (avg/range/per-night chart), and productivity ratio bar.
+
+**General** — Installable PWA, cross-device sync via PowerSync ↔ Supabase, dark theme, sync status indicator, production-safe logging.
 
 ## Tech Stack
 
-Next.js 16 · PowerSync · Supabase · Tailwind CSS · Shadcn/UI · Serwist
+Next.js 16 · PowerSync · Supabase · Tailwind CSS v4 · Shadcn/UI · Serwist
 
 ## Quick Start
 
 ```bash
 npm install
 cp .env.example .env.local   # fill in your Supabase + PowerSync keys
-npm run dev
+npm run dev -- --webpack
 ```
 
 > Full setup instructions (Supabase, PowerSync, deployment, project structure) are in [SETUP.md](SETUP.md).
