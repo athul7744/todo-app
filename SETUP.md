@@ -79,11 +79,22 @@ CREATE TABLE public.activity_types (
   UNIQUE (user_id, name)
 );
 
+-- Daily ratings table (1-5 mood score per day)
+CREATE TABLE public.daily_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  rating_date DATE NOT NULL,
+  score SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, rating_date)
+);
+
 -- Row Level Security
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.time_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_ratings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can CRUD own tasks" ON public.tasks
   FOR ALL USING (auth.uid() = user_id)
@@ -101,11 +112,15 @@ CREATE POLICY "Users can CRUD own activity_types" ON public.activity_types
   FOR ALL USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can CRUD own daily_ratings" ON public.daily_ratings
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 -- Indexes
 CREATE INDEX idx_time_logs_user_start ON time_logs (user_id, start_timestamp);
 
 -- Publication for PowerSync replication
-CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags, public.time_logs, public.activity_types;
+CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags, public.time_logs, public.activity_types, public.daily_ratings;
 ```
 
 4. Go to **Authentication → Users → Add User** to create your account
@@ -139,6 +154,7 @@ streams:
       - SELECT * FROM tags WHERE tags.user_id = auth.user_id()
       - SELECT * FROM time_logs WHERE time_logs.user_id = auth.user_id()
       - SELECT * FROM activity_types WHERE activity_types.user_id = auth.user_id()
+      - SELECT * FROM daily_ratings WHERE daily_ratings.user_id = auth.user_id()
 ```
 
 4. Note your **PowerSync Instance URL**
@@ -177,8 +193,9 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | Path | Description |
 |------|-------------|
 | **App Routes** | |
-| `src/app/page.tsx` | Tasks dashboard with filters, pagination, and task grid |
-| `src/app/tracker/page.tsx` | Time Tracker with 24-hour paint grid |
+| `src/app/page.tsx` | App launcher grid |
+| `src/app/tasks/page.tsx` | Tasks dashboard with filters, pagination, and task grid |
+| `src/app/tracker/page.tsx` | Time Tracker with paint grid and daily rating |
 | `src/app/login/page.tsx` | Login page |
 | `src/app/layout.tsx` | Root layout with theme and PowerSync providers |
 | **Shared Components** | |
@@ -192,6 +209,7 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | `src/components/tracker/ActivityToolbar.tsx` | Activity selector toolbar with eraser |
 | `src/components/tracker/TimeGrid.tsx` | 7-day × 24-hour grid matrix |
 | `src/components/tracker/ManageActivitiesDialog.tsx` | Activity type CRUD dialog |
+| `src/components/tracker/DailyRatingBar.tsx` | 1-5 mood rating buttons for current day |
 | **Lib** | |
 | `src/lib/apps.ts` | App registry (id, name, route, icon, accent colors) |
 | `src/lib/auth.ts` | `getCurrentUserId()` with session caching |
@@ -202,6 +220,6 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | `src/lib/debounced-update.ts` | Debounced DB writes (field merge + batch) |
 | `src/lib/utils.ts` | `cn()`, `formatRelativeTime()`, `autoResizeTextarea()` |
 | **PowerSync** | |
-| `src/lib/powersync/AppSchema.ts` | Local SQLite schema (tasks, tags, time_logs, activity_types) |
+| `src/lib/powersync/AppSchema.ts` | Local SQLite schema (tasks, tags, time_logs, activity_types, daily_ratings) |
 | `src/lib/powersync/SupabaseConnector.ts` | PowerSync ↔ Supabase connector |
 | `src/lib/powersync/db.ts` | Database init and connection config |
