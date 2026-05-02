@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { ListTodo, LogIn, Loader2 } from "lucide-react";
+import { LayoutDashboard, LogIn, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -38,17 +38,17 @@ export default function LoginPage() {
         {/* Branding */}
         <div className="flex items-center gap-3 mb-10">
           <div className="bg-primary/10 p-3 rounded-xl">
-            <ListTodo className="h-8 w-8 text-primary" />
+            <LayoutDashboard className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Tasks<span className="text-primary">.</span>
+            Dash<span className="text-primary">.</span>
           </h1>
         </div>
 
         {/* Login Card */}
         <div className="w-full bg-card border border-border rounded-2xl p-8 shadow-sm">
           <h2 className="text-lg font-semibold mb-1 text-card-foreground">Welcome back</h2>
-          <p className="text-sm text-muted-foreground mb-6">Sign in to access your tasks</p>
+          <p className="text-sm text-muted-foreground mb-6">Sign in to your dashboard</p>
 
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -105,7 +105,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-xs text-muted-foreground mt-6">
-          A modern, offline-first task manager
+          Your offline-first personal dashboard
         </p>
       </div>
     </div>
