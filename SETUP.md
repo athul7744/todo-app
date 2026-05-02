@@ -195,7 +195,7 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | **App Routes** | |
 | `src/app/page.tsx` | App launcher grid |
 | `src/app/tasks/page.tsx` | Tasks dashboard with filters, pagination, and task grid |
-| `src/app/tracker/page.tsx` | Time Tracker with paint grid and daily rating |
+| `src/app/tracker/page.tsx` | Time Tracker with week/year-activity/year-rating views |
 | `src/app/login/page.tsx` | Login page |
 | `src/app/layout.tsx` | Root layout with theme and PowerSync providers |
 | **Shared Components** | |
@@ -206,10 +206,12 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | `src/components/tasks/TaskCard.tsx` | Task card with inline editing, subtasks, tags, optimistic state |
 | `src/components/tasks/ManageTagsDialog.tsx` | Tag CRUD dialog |
 | **Tracker Components** | |
-| `src/components/tracker/ActivityToolbar.tsx` | Activity selector toolbar with eraser |
-| `src/components/tracker/TimeGrid.tsx` | 7-day × 24-hour grid matrix |
+| `src/components/tracker/ActivityToolbar.tsx` | Scrollable activity pill selector with eraser |
+| `src/components/tracker/TimeGrid.tsx` | 7-day × 24-hour grid with inline mood select |
+| `src/components/tracker/WeekNavigator.tsx` | Week/year navigation with prev/next buttons |
+| `src/components/tracker/YearActivityGrid.tsx` | 365 × 24 year activity heatmap |
+| `src/components/tracker/YearRatingGrid.tsx` | 12-month calendar mood heatmap |
 | `src/components/tracker/ManageActivitiesDialog.tsx` | Activity type CRUD dialog |
-| `src/components/tracker/DailyRatingBar.tsx` | 1-5 mood rating buttons for current day |
 | **Lib** | |
 | `src/lib/apps.ts` | App registry (id, name, route, icon, accent colors) |
 | `src/lib/auth.ts` | `getCurrentUserId()` with session caching |
