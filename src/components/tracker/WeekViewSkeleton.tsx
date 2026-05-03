@@ -2,8 +2,8 @@
 
 import { cn } from "@/lib/utils";
 
-function Bone({ className }: { className?: string }) {
-  return <div className={cn("bg-muted animate-pulse rounded", className)} />;
+function Bone({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={cn("bg-muted animate-pulse rounded", className)} style={style} />;
 }
 
 /** Skeleton for the ActivityToolbar row */
