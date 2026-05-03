@@ -13,6 +13,7 @@ import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
 import { WeekNavigator } from "@/components/tracker/WeekNavigator";
 import { WeekWidgets } from "@/components/tracker/widgets";
+import { WeekViewSkeleton } from "@/components/tracker/WeekViewSkeleton";
 import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
 import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
 import { TimeLog, ActivityType, DailyRating } from "@/lib/powersync/AppSchema";
@@ -38,7 +39,7 @@ export default function TrackerPage() {
   const seededRef = useRef(false);
 
   // Query activity types from local DB
-  const { data: activityTypes } = useQuery<ActivityType & { id: string }>(
+  const { data: activityTypes, isLoading: loadingActivities } = useQuery<ActivityType & { id: string }>(
     "SELECT * FROM activity_types ORDER BY created_at ASC"
   );
 
@@ -78,7 +79,7 @@ export default function TrackerPage() {
   const rangeEnd = format(days[days.length - 1], "yyyy-MM-dd'T'23:59:59'+00:00'");
 
   // Subscribe to time_logs within the week window
-  const { data: logs } = useQuery<TimeLog & { id: string }>(
+  const { data: logs, isLoading: loadingLogs } = useQuery<TimeLog & { id: string }>(
     `SELECT id, activity_name, start_timestamp, duration_minutes
      FROM time_logs
      WHERE start_timestamp >= ? AND start_timestamp <= ?
@@ -242,21 +243,27 @@ export default function TrackerPage() {
           <>
             <WeekNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
 
-            <section>
-              <ActivityToolbar
-                activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
-                active={activeActivity}
-                onSelect={setActiveActivity}
-              />
-            </section>
+            {loadingActivities || loadingLogs ? (
+              <WeekViewSkeleton />
+            ) : (
+              <>
+                <section>
+                  <ActivityToolbar
+                    activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
+                    active={activeActivity}
+                    onSelect={setActiveActivity}
+                  />
+                </section>
 
-            <section>
-              <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
-            </section>
+                <section>
+                  <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
+                </section>
 
-            <section className="mt-4">
-              <WeekWidgets days={days} data={gridData} colorMap={activityColorMap} ratings={ratingsMap} />
-            </section>
+                <section className="mt-4">
+                  <WeekWidgets days={days} data={gridData} colorMap={activityColorMap} ratings={ratingsMap} />
+                </section>
+              </>
+            )}
           </>
         )}
 

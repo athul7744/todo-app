@@ -36,7 +36,7 @@ export function YearRatingGrid({ year, onDayClick }: YearRatingGridProps) {
   const yearStart = format(startOfYear(new Date(year, 0, 1)), "yyyy-MM-dd");
   const yearEnd = format(endOfYear(new Date(year, 0, 1)), "yyyy-MM-dd");
 
-  const { data: ratings } = useQuery<DailyRating & { id: string }>(
+  const { data: ratings, isLoading } = useQuery<DailyRating & { id: string }>(
     "SELECT rating_date, score FROM daily_ratings WHERE rating_date >= ? AND rating_date <= ?",
     [yearStart, yearEnd]
   );
@@ -55,6 +55,36 @@ export function YearRatingGrid({ year, onDayClick }: YearRatingGridProps) {
       return { month: m, days };
     });
   }, [year]);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 12 }).map((_, m) => (
+          <div key={m} className="border border-border rounded-lg p-2">
+            <div className="h-3 w-8 bg-muted animate-pulse rounded mx-auto mb-1.5" />
+            <div className="grid grid-cols-7 gap-x-[2px] mb-0.5">
+              {DAY_LABELS.map((d, i) => (
+                <div key={i} className="text-[9px] text-muted-foreground/60 text-center font-medium w-3.5">
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-x-[2px] gap-y-2">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-3.5 w-3.5 rounded-sm animate-pulse",
+                    (m * 35 + i) % 5 === 0 ? "bg-muted-foreground/15" : "bg-muted/50"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (ratings.length === 0) {
     return (
