@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PowerSyncProvider } from "@/components/powersync-provider";
 import { RouteRestorer } from "@/components/RouteRestorer";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -62,6 +63,7 @@ export default function RootLayout({
             </div>
           </PowerSyncProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
