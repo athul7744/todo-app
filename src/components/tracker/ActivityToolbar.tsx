@@ -16,13 +16,18 @@ interface ActivityToolbarProps {
 }
 
 export function ActivityToolbar({ activities, active, onSelect }: ActivityToolbarProps) {
+  // Split activities into two rows
+  const mid = Math.ceil(activities.length / 2);
+  const row1 = activities.slice(0, mid);
+  const row2 = activities.slice(mid);
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-start gap-2">
       {/* Eraser - fixed at start */}
       <button
         onClick={() => onSelect(active === "__eraser__" ? null : "__eraser__")}
         className={cn(
-          "flex items-center justify-center h-7 w-7 rounded-full transition-all shrink-0",
+          "flex items-center justify-center h-7 w-7 rounded-full transition-all shrink-0 mt-1",
           active === "__eraser__"
             ? "bg-foreground text-background shadow-sm"
             : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -31,28 +36,32 @@ export function ActivityToolbar({ activities, active, onSelect }: ActivityToolba
         <Eraser className="h-3.5 w-3.5" />
       </button>
 
-      {/* Activities - scrollable */}
+      {/* Activities - two rows */}
       <div className="overflow-x-auto">
-        <div className="flex items-center gap-1.5 w-max py-1">
-          {activities.map((a) => {
-            const isActive = active === a.name;
-            const dotColor = getActivityDotClass(a.color);
-            return (
-              <button
-                key={a.name}
-                onClick={() => onSelect(isActive ? null : a.name)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                  isActive
-                    ? "bg-foreground text-background shadow-sm"
-                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotColor)} />
-                {a.name}
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-1.5 py-1">
+          {[row1, row2].map((row, rowIdx) => (
+            <div key={rowIdx} className="flex items-center gap-1.5 w-max">
+              {row.map((a) => {
+                const isActive = active === a.name;
+                const dotColor = getActivityDotClass(a.color);
+                return (
+                  <button
+                    key={a.name}
+                    onClick={() => onSelect(isActive ? null : a.name)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                      isActive
+                        ? "bg-foreground text-background shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotColor)} />
+                    {a.name}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     </div>
