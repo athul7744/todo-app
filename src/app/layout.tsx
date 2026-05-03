@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PowerSyncProvider } from "@/components/powersync-provider";
+import { RouteRestorer } from "@/components/RouteRestorer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -52,6 +53,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <PowerSyncProvider>
+            <RouteRestorer />
             {/* App Shell Layout structure will be placed here or inside individual pages */}
             <div className="flex flex-col md:flex-row h-screen overflow-hidden">
               <main className="flex-1 overflow-y-auto relative">
