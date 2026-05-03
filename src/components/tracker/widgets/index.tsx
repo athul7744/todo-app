@@ -6,24 +6,35 @@ import { MoodSummary } from "./MoodSummary";
 import { SleepStats } from "./SleepStats";
 import { DailyStacks } from "./DailyStacks";
 import { ProductivityRatio } from "./ProductivityRatio";
+import { AnimatedWidget } from "./AnimatedWidget";
 
 export function WeekWidgets(props: WidgetProps) {
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       {/* Row 1: Sleep + Mood */}
       <div className="grid grid-cols-2 gap-3">
-        <SleepStats {...props} />
-        <MoodSummary {...props} />
+        <AnimatedWidget delay={0}>
+          <SleepStats {...props} />
+        </AnimatedWidget>
+        <AnimatedWidget delay={80}>
+          <MoodSummary {...props} />
+        </AnimatedWidget>
       </div>
 
       {/* Row 2: Activity + Daily */}
       <div className="grid grid-cols-2 gap-3">
-        <ActivityBreakdown {...props} />
-        <DailyStacks {...props} />
+        <AnimatedWidget delay={0}>
+          <ActivityBreakdown {...props} />
+        </AnimatedWidget>
+        <AnimatedWidget delay={80}>
+          <DailyStacks {...props} />
+        </AnimatedWidget>
       </div>
 
       {/* Productivity - same width as grid above */}
-      <ProductivityRatio {...props} />
+      <AnimatedWidget delay={0}>
+        <ProductivityRatio {...props} />
+      </AnimatedWidget>
     </div>
   );
 }

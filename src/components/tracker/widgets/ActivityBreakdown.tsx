@@ -1,22 +1,30 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { format, isAfter, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Moon } from "lucide-react";
+import { List, Moon, PieChart } from "lucide-react";
 import { WidgetProps, COLOR_HEX } from "./types";
+import { WidgetHeader, ToggleButton, WheelOverlay, HatchedEmpty } from "./shared";
 
-export function ActivityBreakdown({ data, colorMap }: WidgetProps) {
+export function ActivityBreakdown({ days, data, colorMap }: WidgetProps) {
   const [excludeSleep, setExcludeSleep] = useState(false);
+  const [selectedSlice, setSelectedSlice] = useState<{ name: string; hours: number } | null>(null);
+  const [showList, setShowList] = useState(false);
+  const today = startOfDay(new Date());
 
   const activityHours = useMemo(() => {
+    const validDates = new Set(days.filter((d) => !isAfter(startOfDay(d), today)).map((d) => format(d, "yyyy-MM-dd")));
     const counts: Record<string, number> = {};
-    for (const [, cell] of data) {
+    for (const [key, cell] of data) {
+      const dateStr = key.split("|")[0];
+      if (!validDates.has(dateStr)) continue;
       if (cell.activityName) {
         counts[cell.activityName] = (counts[cell.activityName] || 0) + 1;
       }
     }
     return counts;
-  }, [data]);
+  }, [data, days, today]);
 
   const slices = useMemo(() => {
     const entries = Object.entries(activityHours)
@@ -63,55 +71,76 @@ export function ActivityBreakdown({ data, colorMap }: WidgetProps) {
   const totalTracked = Object.values(activityHours).reduce((a, b) => a + b, 0);
   const displayTotal = excludeSleep ? totalTracked - (activityHours["Sleep"] || 0) : totalTracked;
 
-  if (totalTracked === 0) return null;
-
   return (
-    <div className="border border-border rounded-lg p-3 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-foreground">Activity</h3>
-        {activityHours["Sleep"] && (
-          <button
-            onClick={() => setExcludeSleep(!excludeSleep)}
-            className={cn(
-              "flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full transition-colors",
-              excludeSleep
-                ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Moon className="h-2.5 w-2.5" />
-            {excludeSleep ? "Hidden" : "Sleep"}
-          </button>
-        )}
-      </div>
+    <div className="border border-border rounded-lg p-3 h-full flex flex-col relative">
+      <WidgetHeader icon={PieChart} title="Activity" className="relative z-20">
+          {slices.length > 0 && (
+            <ToggleButton active={showList} onClick={() => { setShowList(!showList); setSelectedSlice(null); }} icon={List} />
+          )}
+          {activityHours["Sleep"] && (
+            <ToggleButton active={excludeSleep} onClick={() => setExcludeSleep(!excludeSleep)} icon={Moon}>
+              {excludeSleep ? "Hidden" : "Sleep"}
+            </ToggleButton>
+          )}
+      </WidgetHeader>
 
-      {/* Pie chart - centered, larger */}
+      {/* Pie chart area */}
       <div className="flex-1 flex items-center justify-center">
-        <svg viewBox="0 0 100 100" className="h-44 w-44 sm:h-52 sm:w-52">
-          {piePaths.map((path, i) => (
-            <path key={i} d={path.d} fill={path.color} stroke="var(--background)" strokeWidth="0.5">
-              <title>{path.name}: {path.hours}h</title>
-            </path>
-          ))}
-          <circle cx="50" cy="50" r="22" fill="var(--background)" />
-          <text x="50" y="48" textAnchor="middle" className="fill-foreground text-[8px] font-bold">
-            {displayTotal}h
-          </text>
-          <text x="50" y="57" textAnchor="middle" className="fill-muted-foreground text-[5px]">
-            total
-          </text>
-        </svg>
-      </div>
+        {totalTracked === 0 ? (
+          <svg viewBox="0 0 100 100" className="h-52 w-52 sm:h-60 sm:w-60">
+            <defs>
+              <pattern id="hatch-activity" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="1" opacity="0.12" />
+              </pattern>
+            </defs>
+            <circle cx="50" cy="50" r="40" fill="url(#hatch-activity)" />
+            <circle cx="50" cy="50" r="22" fill="var(--background)" />
+            <text x="50" y="52" textAnchor="middle" className="fill-muted-foreground text-[6px]">No data</text>
+          </svg>
+        ) : (
+          <svg
+            viewBox="0 0 100 100"
+            className={cn("h-52 w-52 sm:h-60 sm:w-60 transition-all duration-300 ease-in-out", showList && "blur-sm opacity-40")}
+          >
+            {piePaths.map((path, i) => (
+              <path
+                key={path.name}
+                d={path.d}
+                fill={path.color}
+                stroke="var(--background)"
+                strokeWidth="0.5"
+                className="cursor-pointer hover:opacity-80"
+                style={{ transition: "d 0.4s ease-in-out, opacity 0.3s ease-in-out, fill 0.3s ease-in-out" }}
+                onClick={(e) => { e.stopPropagation(); setSelectedSlice({ name: path.name, hours: path.hours }); setShowList(false); }}
+              />
+            ))}
+            <circle cx="50" cy="50" r="22" fill="var(--background)" className="cursor-pointer" onClick={() => { setSelectedSlice(null); setShowList(true); }} />
+            {selectedSlice ? (
+              <>
+                <text x="50" y="47" textAnchor="middle" className="fill-foreground text-[6px] font-bold pointer-events-none">
+                  {selectedSlice.hours}h
+                </text>
+                <text x="50" y="56" textAnchor="middle" className="fill-muted-foreground text-[4px] pointer-events-none">
+                  {selectedSlice.name}
+                </text>
+              </>
+            ) : (
+              <>
+                <text x="50" y="48" textAnchor="middle" className="fill-foreground text-[8px] font-bold pointer-events-none">
+                  {displayTotal}h
+                </text>
+                <text x="50" y="57" textAnchor="middle" className="fill-muted-foreground text-[5px] pointer-events-none">
+                  total
+                </text>
+              </>
+            )}
+          </svg>
+        )}
 
-      {/* Scrollable legend bar */}
-      <div className="flex gap-2 overflow-x-auto pt-2 border-t border-border mt-2">
-        {slices.map((s) => (
-          <div key={s.name} className="flex items-center gap-1 shrink-0 text-[10px]">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-            <span className="text-muted-foreground">{s.name}</span>
-            <span className="text-foreground font-medium">{s.hours}h</span>
-          </div>
-        ))}
+        {/* List overlay - iOS wheel picker style */}
+        {showList && slices.length > 0 && (
+          <WheelOverlay items={slices} onClose={() => setShowList(false)} />
+        )}
       </div>
     </div>
   );

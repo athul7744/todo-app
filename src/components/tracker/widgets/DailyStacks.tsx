@@ -1,17 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
-import { Moon } from "lucide-react";
+import { format, isAfter, startOfDay } from "date-fns";
+import { Moon, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WidgetProps, COLOR_HEX } from "./types";
+import { WidgetHeader, ToggleButton, DismissButton, WheelOverlay } from "./shared";
 
 export function DailyStacks({ days, data, colorMap }: WidgetProps) {
   const [excludeSleep, setExcludeSleep] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const today = startOfDay(new Date());
 
   const dailyData = useMemo(() => {
     return days.map((day) => {
       const dateKey = format(day, "yyyy-MM-dd");
+      const isFuture = isAfter(startOfDay(day), today);
       const activities: Record<string, number> = {};
       let total = 0;
 
@@ -35,52 +39,70 @@ export function DailyStacks({ days, data, colorMap }: WidgetProps) {
           percentage: total > 0 ? (hours / 24) * 100 : 0,
         }));
 
-      return { day: format(day, "EEE"), letter: format(day, "EEEEE"), segments, total };
+      return { day: format(day, "EEE"), letter: format(day, "EEEEE"), segments, total, isFuture };
     });
-  }, [days, data, colorMap, excludeSleep]);
+  }, [days, data, colorMap, excludeSleep, today]);
 
-  const hasData = dailyData.some((d) => d.total > 0);
-  if (!hasData) return null;
+  const totalHours = dailyData.filter((d) => !d.isFuture).reduce((s, d) => s + d.total, 0);
 
   return (
-    <div className="border border-border rounded-lg p-3 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-foreground">Daily</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setExcludeSleep(!excludeSleep)}
-            className={cn(
-              "flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full transition-colors",
-              excludeSleep
-                ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Moon className="h-2.5 w-2.5" />
-          </button>
-          <span className="text-[10px] text-muted-foreground">{dailyData.reduce((s, d) => s + d.total, 0)}h</span>
-        </div>
-      </div>
+    <div className="border border-border rounded-lg p-3 h-full flex flex-col relative">
+      {/* SVG pattern definition for future days */}
+      <svg className="absolute h-0 w-0">
+        <defs>
+          <pattern id="hatch-future" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="1" opacity="0.15" />
+          </pattern>
+        </defs>
+      </svg>
 
-      <div className="flex-1 flex items-end gap-1.5 min-h-[80px]">
-        {dailyData.map((d) => (
-          <div key={d.day} className="flex flex-col items-center gap-0.5 flex-1 h-full justify-end">
-            {/* Stacked bar */}
-            <div className="w-full flex flex-col-reverse rounded-sm overflow-hidden" style={{ height: `${(d.total / 24) * 100}%`, minHeight: d.total > 0 ? "6px" : "0" }}>
-              {d.segments.map((seg, i) => (
-                <div
-                  key={i}
-                  style={{ backgroundColor: seg.color, height: `${(seg.hours / d.total) * 100}%` }}
-                  title={`${seg.name}: ${seg.hours}h`}
-                />
-              ))}
+      <WidgetHeader icon={BarChart3} title="Daily" subtitle={totalHours > 0 ? `${totalHours}h` : undefined} className="relative z-20">
+          {selectedDay !== null && (
+            <DismissButton onClick={() => setSelectedDay(null)} />
+          )}
+          {totalHours > 0 && (
+            <ToggleButton active={excludeSleep} onClick={() => setExcludeSleep(!excludeSleep)} icon={Moon}>
+              {excludeSleep ? "Hidden" : "Sleep"}
+            </ToggleButton>
+          )}
+      </WidgetHeader>
+
+      <div className="flex-1">
+        <div className={cn("grid grid-cols-7 gap-1 items-end h-full min-h-[80px] transition-all duration-300 ease-in-out", selectedDay !== null && "blur-sm opacity-40")}>
+          {dailyData.map((d, i) => (
+            <div
+              key={d.day}
+              className={cn("flex flex-col items-center gap-0.5 h-full justify-end", !d.isFuture && d.total > 0 && "cursor-pointer")}
+              onClick={() => { if (!d.isFuture && d.total > 0) setSelectedDay(selectedDay === i ? null : i); }}
+            >
+              {/* Stacked bar or future placeholder */}
+              {d.isFuture ? (
+                <svg className="w-full rounded-sm overflow-hidden" style={{ height: "100%" }}>
+                  <rect width="100%" height="100%" fill="url(#hatch-future)" />
+                </svg>
+              ) : d.total > 0 ? (
+                <div className="w-full flex flex-col-reverse rounded-sm overflow-hidden" style={{ height: `${(d.total / 24) * 100}%`, minHeight: "6px", transition: "height 0.3s ease-in-out" }}>
+                  {d.segments.map((seg, si) => (
+                    <div
+                      key={seg.name}
+                      style={{ backgroundColor: seg.color, height: `${(seg.hours / d.total) * 100}%`, transition: "height 0.3s ease-in-out" }}
+                      title={`${seg.name}: ${seg.hours}h`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {/* Hours label */}
+              {d.total > 0 && <span className="text-[8px] text-foreground font-medium">{d.total}</span>}
+              {/* Day label */}
+              <span className={cn("text-[8px]", d.isFuture ? "text-muted-foreground/50" : "text-muted-foreground")}>{d.letter}</span>
             </div>
-            {/* Hours label */}
-            {d.total > 0 && <span className="text-[8px] text-foreground font-medium">{d.total}</span>}
-            {/* Day label */}
-            <span className="text-[8px] text-muted-foreground">{d.letter}</span>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {/* Overlay list for selected day */}
+        {selectedDay !== null && dailyData[selectedDay].segments.length > 0 && (
+          <WheelOverlay items={dailyData[selectedDay].segments} onClose={() => setSelectedDay(null)} />
+        )}
       </div>
     </div>
   );
