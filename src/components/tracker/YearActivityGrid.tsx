@@ -9,6 +9,7 @@ import { getActivityDotClass } from "@/lib/activities";
 import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
 import { COLOR_HEX } from "./widgets/types";
 import { FilterPill } from "./FilterPill";
+import { DayPopover } from "./DayPopover";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -250,50 +251,18 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
 
       {/* Day popover */}
       {daySummary && selectedDay && popoverPos && (
-        <div
+        <DayPopover
           ref={popoverRef}
-          className="fixed z-50 w-[240px] rounded-lg border border-border bg-popover shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{
-            top: popoverPos.y,
-            left: popoverPos.x,
-          }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-            <span className="text-sm font-semibold text-foreground">{format(selectedDay, "EEE, MMM d")}</span>
-            <button
-              onClick={() => { setSelectedDay(null); setPopoverPos(null); }}
-              className="text-muted-foreground hover:text-foreground transition-colors text-xs"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="px-3 pb-1.5">
-            <span className="text-xs text-muted-foreground">{daySummary.totalHours}h logged</span>
-          </div>
-          {/* Activity list */}
-          <div className="px-3 max-h-[120px] overflow-y-auto space-y-1.5 pb-2">
-            {Object.entries(daySummary.activities).map(([name, { count, hex }]) => (
-              <div key={name} className="flex items-center gap-2 text-xs">
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: hex }} />
-                <span className="text-foreground flex-1 truncate">{name}</span>
-                <span className="text-muted-foreground font-medium">{count}h</span>
-                <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full rounded-full" style={{ backgroundColor: hex, width: `${(count / 24) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Edit button */}
-          <div className="border-t border-border px-3 py-2">
-            <button
-              onClick={() => { onDayClick?.(selectedDay); setSelectedDay(null); setPopoverPos(null); }}
-              className="w-full text-xs font-medium py-1.5 rounded bg-accent text-foreground hover:bg-accent/80 transition-colors"
-            >
-              Edit day
-            </button>
-          </div>
-        </div>
+          day={selectedDay}
+          position={popoverPos}
+          activities={Object.entries(daySummary.activities)
+            .sort(([, a], [, b]) => b.count - a.count)
+            .map(([name, { count, hex }]) => ({ name, count, hex }))}
+          totalHours={daySummary.totalHours}
+          showBars
+          onClose={() => { setSelectedDay(null); setPopoverPos(null); }}
+          onEditDay={() => { onDayClick?.(selectedDay); setSelectedDay(null); setPopoverPos(null); }}
+        />
       )}
 
       {/* Grid */}

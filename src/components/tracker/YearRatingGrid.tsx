@@ -14,8 +14,10 @@ import {
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
-import { DailyRating } from "@/lib/powersync/AppSchema";
+import { DailyRating, TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
+import { COLOR_HEX } from "./widgets/types";
 import { FilterPill } from "./FilterPill";
+import { DayPopover } from "./DayPopover";
 
 // Softer oklch-based colors for dark mode harmony
 const RATING_COLORS: Record<number, { bg: string; dot: string; hex: string }> = {
@@ -51,6 +53,23 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
     [yearStart, yearEnd]
   );
 
+  // Activity data for day popover breakdown
+  const { data: logs } = useQuery<TimeLog & { id: string }>(
+    `SELECT activity_name, start_timestamp FROM time_logs
+     WHERE start_timestamp >= ? AND start_timestamp <= ?
+     ORDER BY start_timestamp ASC`,
+    [`${yearStart}T00:00:00+00:00`, `${yearEnd}T23:59:59+00:00`]
+  );
+
+  const { data: activityTypes } = useQuery<ActivityType & { id: string }>(
+    "SELECT name, color FROM activity_types"
+  );
+
+  const activityColorMap = useMemo(
+    () => new Map(activityTypes.map((a) => [a.name, a.color ?? "teal"])),
+    [activityTypes]
+  );
+
   const ratingMap = useMemo(
     () => new Map(ratings.map((r) => [r.rating_date, r.score])),
     [ratings]
@@ -81,8 +100,24 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
     if (!selectedDay) return null;
     const dateStr = format(selectedDay, "yyyy-MM-dd");
     const score = ratingMap.get(dateStr);
-    return { dateStr, score: score ?? null };
-  }, [selectedDay, ratingMap]);
+
+    // Build activity breakdown for selected day
+    const activities: Record<string, { count: number; hex: string }> = {};
+    for (const log of logs) {
+      const ts = new Date(log.start_timestamp!);
+      const logDate = ts.toISOString().slice(0, 10);
+      if (logDate !== dateStr) continue;
+      const name = log.activity_name ?? "Unknown";
+      if (!activities[name]) {
+        const colorKey = activityColorMap.get(name) ?? "teal";
+        activities[name] = { count: 0, hex: COLOR_HEX[colorKey] || "#6b7280" };
+      }
+      activities[name].count++;
+    }
+    const totalHours = Object.values(activities).reduce((s, a) => s + a.count, 0);
+
+    return { dateStr, score: score ?? null, activities, totalHours };
+  }, [selectedDay, ratingMap, logs, activityColorMap]);
 
   // Close popover on click outside
   useEffect(() => {
@@ -191,22 +226,18 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
 
       {/* Day popover */}
       {dayInfo && selectedDay && popoverPos && (
-        <div
+        <DayPopover
           ref={popoverRef}
-          className="fixed z-50 w-[220px] rounded-lg border border-border bg-popover shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{ top: popoverPos.y, left: popoverPos.x }}
-        >
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-            <span className="text-sm font-semibold text-foreground">{format(selectedDay, "EEE, MMM d")}</span>
-            <button
-              onClick={() => { setSelectedDay(null); setPopoverPos(null); }}
-              className="text-muted-foreground hover:text-foreground transition-colors text-xs"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="px-3 pb-2">
-            {dayInfo.score ? (
+          day={selectedDay}
+          position={popoverPos}
+          activities={Object.entries(dayInfo.activities)
+            .sort(([, a], [, b]) => b.count - a.count)
+            .map(([name, { count, hex }]) => ({ name, count, hex }))}
+          totalHours={dayInfo.totalHours}
+          onClose={() => { setSelectedDay(null); setPopoverPos(null); }}
+          onEditDay={() => { onDayClick?.(selectedDay); setSelectedDay(null); setPopoverPos(null); }}
+          header={
+            dayInfo.score ? (
               <div className="flex items-center gap-2">
                 <span className={cn("h-3 w-3 rounded-full", RATING_COLORS[dayInfo.score].dot)} />
                 <span className="text-xs text-foreground font-medium">
@@ -216,17 +247,9 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">No rating</span>
-            )}
-          </div>
-          <div className="border-t border-border px-3 py-2">
-            <button
-              onClick={() => { onDayClick?.(selectedDay); setSelectedDay(null); setPopoverPos(null); }}
-              className="w-full text-xs font-medium py-1.5 rounded bg-accent text-foreground hover:bg-accent/80 transition-colors"
-            >
-              Edit day
-            </button>
-          </div>
-        </div>
+            )
+          }
+        />
       )}
 
       {/* Month cards */}
