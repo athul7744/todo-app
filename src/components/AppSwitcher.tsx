@@ -63,7 +63,9 @@ export function AppSwitcher({ current, size = "md" }: AppSwitcherProps) {
               <div className={cn("rounded-md p-1.5", app.accent.iconBg)}>
                 <AppIcon className={cn("h-4 w-4", app.accent.iconText)} />
               </div>
-              <span className="flex-1">{app.name}</span>
+              <span className="flex-1 font-semibold tracking-tight">
+                {app.name}<span className={app.accent.iconText}>.</span>
+              </span>
               {isActive && <Check className="h-4 w-4 text-muted-foreground" />}
             </Link>
           );

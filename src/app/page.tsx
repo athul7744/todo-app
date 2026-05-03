@@ -24,7 +24,9 @@ export default function Home() {
               <div className={`p-3 rounded-xl ${app.accent.iconBg}`}>
                 <Icon className={`h-6 w-6 ${app.accent.iconText}`} />
               </div>
-              <span className="text-sm font-medium">{app.name}</span>
+              <span className="text-sm font-bold tracking-tight">
+                {app.name}<span className={app.accent.iconText}>.</span>
+              </span>
               <span className="text-xs text-muted-foreground text-center">{app.description}</span>
             </Link>
           );
