@@ -43,8 +43,17 @@ interface TimeGridProps {
 }
 
 export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }: TimeGridProps) {
+  // Key for animation reset when week changes
+  const weekKey = days.length > 0 ? format(days[0], "yyyy-MM-dd") : "";
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="overflow-x-auto rounded-lg border border-border" key={weekKey}>
+      <style>{`
+        @keyframes rowSlideIn {
+          from { opacity: 0; transform: translateX(-8px); }
+          to { opacity: 1; transform: none; }
+        }
+      `}</style>
       <table className="border-separate border-spacing-0 w-max min-w-full text-xs">
         <thead>
           <tr className="border-b border-border">
@@ -67,12 +76,16 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
           </tr>
         </thead>
         <tbody>
-          {days.map((day) => {
+          {days.map((day, rowIdx) => {
             const dateKey = format(day, "yyyy-MM-dd");
             const currentScore = ratings?.get(dateKey) ?? null;
             const currentRating = RATINGS.find((r) => r.score === currentScore);
             return (
-              <tr key={dateKey} className="border-t border-border">
+              <tr
+                key={dateKey}
+                className="border-t border-border animate-[rowSlideIn_0.25s_ease-out_both]"
+                style={{ animationDelay: `${rowIdx * 40}ms` }}
+              >
                 {ratings && (
                   <td className="sticky left-0 z-10 bg-muted px-1 py-1 border-r border-border w-[52px] box-border">
                     <Select

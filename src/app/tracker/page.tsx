@@ -37,6 +37,7 @@ export default function TrackerPage() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
   const seededRef = useRef(false);
+  const hasLoadedOnce = useRef(false);
 
   // Query activity types from local DB
   const { data: activityTypes, isLoading: loadingActivities } = useQuery<ActivityType & { id: string }>(
@@ -115,6 +116,24 @@ export default function TrackerPage() {
     [weekRatings]
   );
 
+  // Keep widget props consistent: only update when gridData belongs to current days.
+  // useQuery resolves a frame late on week change, so widgets would briefly see
+  // new days + stale data, causing an empty-state flash.
+  const widgetProps = useRef({ days, data: gridData, ratings: ratingsMap });
+  const isDataStale = useMemo(() => {
+    if (gridData.size === 0) return false; // genuinely empty week — not stale
+    const firstKey = gridData.keys().next().value as string | undefined;
+    if (!firstKey) return false;
+    const keyDate = firstKey.split("|")[0];
+    const startDate = format(days[0], "yyyy-MM-dd");
+    const endDate = format(days[days.length - 1], "yyyy-MM-dd");
+    return keyDate < startDate || keyDate > endDate;
+  }, [days, gridData]);
+
+  if (!isDataStale) {
+    widgetProps.current = { days, data: gridData, ratings: ratingsMap };
+  }
+
   const ratingsIdMap = useMemo(
     () => new Map(weekRatings.filter((r) => r.rating_date).map((r) => [r.rating_date as string, r.id])),
     [weekRatings]
@@ -178,6 +197,12 @@ export default function TrackerPage() {
     },
     [activeActivity, db]
   );
+
+  // Track first successful load to avoid skeleton flicker on week switch
+  if (!loadingActivities && !loadingLogs) {
+    hasLoadedOnce.current = true;
+  }
+  const showSkeleton = !hasLoadedOnce.current && (loadingActivities || loadingLogs);
 
   // When clicking a day in the year rating grid, jump to that week
   const handleDayClick = (date: Date) => {
@@ -243,10 +268,10 @@ export default function TrackerPage() {
           <>
             <WeekNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
 
-            {loadingActivities || loadingLogs ? (
+            {showSkeleton ? (
               <WeekViewSkeleton />
             ) : (
-              <>
+              <div className={cn("transition-opacity duration-150", isDataStale && "opacity-70")}>
                 <section>
                   <ActivityToolbar
                     activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
@@ -259,52 +284,58 @@ export default function TrackerPage() {
                   <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
                 </section>
 
-                <section className="mt-4">
-                  <WeekWidgets days={days} data={gridData} colorMap={activityColorMap} ratings={ratingsMap} />
+                <section className="mt-4 pb-16 sm:pb-0">
+                  <WeekWidgets days={widgetProps.current.days} data={widgetProps.current.data} colorMap={activityColorMap} ratings={widgetProps.current.ratings} />
                 </section>
-              </>
+              </div>
             )}
           </>
         )}
 
         {/* Year Activity Heatmap */}
         {view === "activity" && (
-          <>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <YearActivityGrid year={selectedYear} onDayClick={handleDayClick} />
-          </>
+          <YearActivityGrid
+            year={selectedYear}
+            onDayClick={handleDayClick}
+            headerLeft={
+              <div className="flex items-center gap-2 shrink-0 pt-1">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            }
+          />
         )}
 
         {/* Year Rating Heatmap */}
         {view === "mood" && (
-          <>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <YearRatingGrid year={selectedYear} onDayClick={handleDayClick} />
-          </>
+          <YearRatingGrid
+            year={selectedYear}
+            onDayClick={handleDayClick}
+            headerLeft={
+              <div className="flex items-center gap-2 shrink-0">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            }
+          />
         )}
       </div>
     </div>
