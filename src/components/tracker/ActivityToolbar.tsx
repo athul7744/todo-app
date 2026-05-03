@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { getActivityDotClass } from "@/lib/activities";
+import { COLOR_HEX } from "./widgets/types";
+import { FilterPill } from "./FilterPill";
 import { Eraser } from "lucide-react";
 
 export interface ActivityItem {
@@ -41,25 +43,16 @@ export function ActivityToolbar({ activities, active, onSelect }: ActivityToolba
         <div className="flex flex-col gap-1.5 py-1">
           {[row1, row2].map((row, rowIdx) => (
             <div key={rowIdx} className="flex items-center gap-1.5 w-max">
-              {row.map((a) => {
-                const isActive = active === a.name;
-                const dotColor = getActivityDotClass(a.color);
-                return (
-                  <button
-                    key={a.name}
-                    onClick={() => onSelect(isActive ? null : a.name)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                      isActive
-                        ? "bg-foreground text-background shadow-sm"
-                        : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                    )}
-                  >
-                    <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotColor)} />
-                    {a.name}
-                  </button>
-                );
-              })}
+              {row.map((a) => (
+                <FilterPill
+                  key={a.name}
+                  label={a.name}
+                  dotClass={getActivityDotClass(a.color)}
+                  activeHex={COLOR_HEX[a.color]}
+                  active={active === a.name}
+                  onClick={() => onSelect(active === a.name ? null : a.name)}
+                />
+              ))}
             </div>
           ))}
         </div>

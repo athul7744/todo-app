@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { DailyRating } from "@/lib/powersync/AppSchema";
+import { FilterPill } from "./FilterPill";
 
 // Softer oklch-based colors for dark mode harmony
 const RATING_COLORS: Record<number, { bg: string; dot: string; hex: string }> = {
@@ -153,25 +154,16 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
       <div className="flex items-center gap-3">
         {headerLeft}
         <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
-          {[1, 2, 3, 4, 5].map((score) => {
-            const isActive = activeFilter === score;
-            return (
-              <button
-                key={score}
-                onClick={() => setActiveFilter(isActive ? null : score)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                  isActive
-                    ? "shadow-sm ring-1 ring-foreground/20 text-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-                style={isActive ? { backgroundColor: `color-mix(in srgb, ${RATING_COLORS[score].hex} 25%, transparent)` } : undefined}
-              >
-                <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", RATING_COLORS[score].dot)} />
-                {RATING_LABELS[score - 1]}
-              </button>
-            );
-          })}
+          {[1, 2, 3, 4, 5].map((score) => (
+            <FilterPill
+              key={score}
+              label={RATING_LABELS[score - 1]}
+              dotClass={RATING_COLORS[score].dot}
+              activeHex={RATING_COLORS[score].hex}
+              active={activeFilter === score}
+              onClick={() => setActiveFilter(activeFilter === score ? null : score)}
+            />
+          ))}
         </div>
       </div>
 

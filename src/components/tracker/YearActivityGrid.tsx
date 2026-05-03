@@ -1,13 +1,14 @@
 "use client";
 
 import { useQuery } from "@powersync/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, startOfYear, endOfYear, eachDayOfInterval, getMonth, isEqual, startOfDay } from "date-fns";
 import { Grid3X3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActivityDotClass } from "@/lib/activities";
 import { TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
 import { COLOR_HEX } from "./widgets/types";
+import { FilterPill } from "./FilterPill";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -105,6 +106,20 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
     return { dateKey, totalHours, activities };
   }, [selectedDay, cellMap]);
 
+  const handleRowClick = useCallback((day: Date, e: React.MouseEvent) => {
+    setSelectedDay((prev) => {
+      const isSelected = prev && isEqual(startOfDay(day), startOfDay(prev));
+      if (isSelected) {
+        setPopoverPos(null);
+        return null;
+      }
+      const x = Math.min(e.clientX + 8, window.innerWidth - 256);
+      const y = Math.min(e.clientY - 20, window.innerHeight - 260);
+      setPopoverPos({ x: Math.max(8, x), y: Math.max(8, y) });
+      return day;
+    });
+  }, []);
+
   if (loadingTypes || loadingLogs) {
     return (
       <div className="space-y-3">
@@ -185,25 +200,16 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
           <div className="flex flex-col gap-1.5 py-1">
             {[legend.slice(0, Math.ceil(legend.length / 2)), legend.slice(Math.ceil(legend.length / 2))].map((row, rowIdx) => (
               <div key={rowIdx} className="flex items-center gap-1.5 w-max">
-                {row.map((item) => {
-                  const isActive = activeFilter === item.name;
-                  return (
-                    <button
-                      key={item.name}
-                      onClick={() => setActiveFilter(isActive ? null : item.name)}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                        isActive
-                          ? "shadow-sm ring-1 ring-foreground/20 text-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                      )}
-                      style={isActive ? { backgroundColor: `color-mix(in srgb, ${item.hex} 25%, transparent)` } : undefined}
-                    >
-                      <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", getActivityDotClass(item.colorKey))} />
-                      {item.name}
-                    </button>
-                  );
-                })}
+                {row.map((item) => (
+                  <FilterPill
+                    key={item.name}
+                    label={item.name}
+                    dotClass={getActivityDotClass(item.colorKey)}
+                    activeHex={item.hex}
+                    active={activeFilter === item.name}
+                    onClick={() => setActiveFilter(activeFilter === item.name ? null : item.name)}
+                  />
+                ))}
               </div>
             ))}
           </div>
@@ -308,65 +314,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
               </tr>
             </thead>
             <tbody>
-              {allDays.map((day, rowIdx) => {
-                const dateKey = format(day, "yyyy-MM-dd");
-                const isFirstOfMonth = day.getDate() === 1;
-                const monthIdx = getMonth(day);
-
-                const isSelected = selectedDay && isEqual(startOfDay(day), startOfDay(selectedDay));
-
-                return (
-                  <tr
-                    key={dateKey}
-                    data-date={dateKey}
-                    className={cn(
-                      "animate-[fadeInRow_0.3s_ease-out_both] cursor-pointer transition-colors",
-                      isSelected && "rounded"
-                    )}
-                    style={{ animationDelay: `${Math.min(rowIdx * 3, 300)}ms` }}
-                    onClick={(e) => {
-                      if (isSelected) {
-                        setSelectedDay(null);
-                        setPopoverPos(null);
-                      } else {
-                        setSelectedDay(day);
-                        // Position popover near click, clamped to viewport
-                        const x = Math.min(e.clientX + 8, window.innerWidth - 256);
-                        const y = Math.min(e.clientY - 20, window.innerHeight - 260);
-                        setPopoverPos({ x: Math.max(8, x), y: Math.max(8, y) });
-                      }
-                    }}
-                  >
-                    <td
-                      className={cn(
-                        "sticky left-0 z-10 bg-card px-1 py-0 font-medium whitespace-nowrap w-[40px] transition-colors hover:text-foreground",
-                        isFirstOfMonth ? "text-foreground text-[10px] font-bold" : "text-muted-foreground/60 text-[9px]"
-                      )}
-                    >
-                      {isFirstOfMonth ? MONTH_NAMES[monthIdx] : format(day, "d")}
-                    </td>
-                    {HOURS.map((h) => {
-                      const key = `${dateKey}|${String(h).padStart(2, "0")}`;
-                      const cell = cellMap.get(key);
-                      const hex = cell ? COLOR_HEX[cell.color] || "#6b7280" : undefined;
-
-                      return (
-                        <td key={h} className="p-0">
-                          <div
-                            className="activity-cell h-[12px] w-[12px] rounded-[3px] transition-all duration-200"
-                            data-activity={cell?.activity || undefined}
-                            style={{
-                              backgroundColor: hex || undefined,
-                              opacity: hex ? 1 : 0.1,
-                            }}
-                            title={cell ? `${cell.activity} · ${format(day, "MMM d")} ${String(h).padStart(2, "0")}:00` : ""}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
+              <GridRows allDays={allDays} cellMap={cellMap} onRowClick={handleRowClick} />
             </tbody>
           </table>
         </div>
@@ -374,3 +322,58 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
     </div>
   );
 }
+
+/** Memoized grid rows — avoids re-rendering 8,760 cells when only activeFilter/selectedDay changes (CSS handles those) */
+const GridRows = memo(function GridRows({ allDays, cellMap, onRowClick }: {
+  allDays: Date[];
+  cellMap: Map<string, { activity: string; color: string }>;
+  onRowClick: (day: Date, e: React.MouseEvent) => void;
+}) {
+  return (
+    <>
+      {allDays.map((day, rowIdx) => {
+        const dateKey = format(day, "yyyy-MM-dd");
+        const isFirstOfMonth = day.getDate() === 1;
+        const monthIdx = getMonth(day);
+
+        return (
+          <tr
+            key={dateKey}
+            data-date={dateKey}
+            className="animate-[fadeInRow_0.3s_ease-out_both] cursor-pointer transition-colors"
+            style={{ animationDelay: `${Math.min(rowIdx * 3, 300)}ms` }}
+            onClick={(e) => onRowClick(day, e)}
+          >
+            <td
+              className={cn(
+                "sticky left-0 z-10 bg-card px-1 py-0 font-medium whitespace-nowrap w-[40px] transition-colors hover:text-foreground",
+                isFirstOfMonth ? "text-foreground text-[10px] font-bold" : "text-muted-foreground/60 text-[9px]"
+              )}
+            >
+              {isFirstOfMonth ? MONTH_NAMES[monthIdx] : format(day, "d")}
+            </td>
+            {HOURS.map((h) => {
+              const key = `${dateKey}|${String(h).padStart(2, "0")}`;
+              const cell = cellMap.get(key);
+              const hex = cell ? COLOR_HEX[cell.color] || "#6b7280" : undefined;
+
+              return (
+                <td key={h} className="p-0">
+                  <div
+                    className="activity-cell h-[12px] w-[12px] rounded-[3px] transition-opacity duration-200"
+                    data-activity={cell?.activity || undefined}
+                    style={{
+                      backgroundColor: hex || undefined,
+                      opacity: hex ? 1 : 0.1,
+                    }}
+                    title={cell ? `${cell.activity} · ${format(day, "MMM d")} ${String(h).padStart(2, "0")}:00` : ""}
+                  />
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+    </>
+  );
+});
