@@ -46,7 +46,7 @@ export function DailyStacks({ days, data, colorMap }: WidgetProps) {
   const totalHours = dailyData.filter((d) => !d.isFuture).reduce((s, d) => s + d.total, 0);
 
   return (
-    <div className="border border-border rounded-lg p-3 h-full flex flex-col relative">
+    <div className="border border-border rounded-lg p-3 flex flex-col relative h-full min-h-[258px]">
       {/* SVG pattern definition for future days */}
       <svg className="absolute h-0 w-0">
         <defs>

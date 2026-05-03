@@ -72,7 +72,7 @@ export function ActivityBreakdown({ days, data, colorMap }: WidgetProps) {
   const displayTotal = excludeSleep ? totalTracked - (activityHours["Sleep"] || 0) : totalTracked;
 
   return (
-    <div className="border border-border rounded-lg p-3 h-full flex flex-col relative">
+    <div className="border border-border rounded-lg p-3 flex flex-col relative h-full min-h-[258px]">
       <WidgetHeader icon={PieChart} title="Activity" className="relative z-20">
           {slices.length > 0 && (
             <ToggleButton active={showList} onClick={() => { setShowList(!showList); setSelectedSlice(null); }} icon={List} />

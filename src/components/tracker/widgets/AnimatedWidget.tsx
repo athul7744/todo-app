@@ -3,38 +3,31 @@
 import { useRef, useState, useEffect } from "react";
 
 export function AnimatedWidget({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const hasAnimated = useRef(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setTimeout(() => setIsVisible(true), delay);
-          observer.unobserve(el);
-        }
-      },
-      { threshold: 0.15 }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
+    if (hasAnimated.current) return;
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+      hasAnimated.current = true;
+    }, delay);
+    return () => clearTimeout(timer);
   }, [delay]);
 
   return (
     <div
-      ref={ref}
       className={className}
       style={{
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? "translateY(0)" : "translateY(12px)",
-        transition: "opacity 0.5s ease-out, transform 0.5s ease-out",
+        transition: "opacity 0.4s ease-out, transform 0.4s ease-out",
+        height: "100%",
       }}
     >
-      {children}
+      <div className="h-full transition-[opacity,transform] duration-300 ease-in-out">
+        {children}
+      </div>
     </div>
   );
 }

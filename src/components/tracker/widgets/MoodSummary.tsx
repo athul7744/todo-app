@@ -103,16 +103,18 @@ export function MoodSummary({ days, data, colorMap, ratings }: WidgetProps) {
 
   if (!insights || !ratings) {
     return (
-      <div className="border border-border rounded-lg p-3 h-full flex flex-col">
-        <WidgetHeader icon={Smile} title="Week Mood" />
-        <HatchedEmpty id="hatch-mood" label="Rate days to see stats" className="flex-1" />
+      <div className="border border-border rounded-lg p-3">
+        <WidgetHeader icon={Smile} title="Mood" />
+        <div className="mt-1">
+          <HatchedEmpty id="hatch-mood" label="Rate days to see stats" className="h-[88px] rounded-sm" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="border border-border rounded-lg p-3 h-full flex flex-col relative">
-      <WidgetHeader icon={Smile} title="Week Mood" className="relative z-20">
+    <div className="border border-border rounded-lg p-3 flex flex-col relative h-full">
+      <WidgetHeader icon={Smile} title="Mood" className="relative z-20">
           {dayDetail && (
             <DismissButton onClick={() => setSelectedDay(null)} />
           )}

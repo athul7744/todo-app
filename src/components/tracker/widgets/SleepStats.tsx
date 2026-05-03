@@ -38,9 +38,11 @@ export function SleepStats({ days, data }: WidgetProps) {
 
   if (!stats) {
     return (
-      <div className="border border-border rounded-lg p-3 h-full flex flex-col">
+      <div className="border border-border rounded-lg p-3">
         <WidgetHeader icon={Moon} title="Sleep" />
-        <HatchedEmpty id="hatch-sleep" label="No sleep data" className="flex-1" />
+        <div className="mt-1">
+          <HatchedEmpty id="hatch-sleep" label="No sleep data" className="h-[88px] rounded-sm" />
+        </div>
       </div>
     );
   }
