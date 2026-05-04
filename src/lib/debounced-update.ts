@@ -31,6 +31,21 @@ export function debouncedUpdate(id: string, field: string, value: string | null,
 }
 
 /**
+ * Cancel a pending debounced field update for a record.
+ * If no fields remain for the record, its timer is cleared and the pending update is removed.
+ */
+export function cancelUpdate(id: string, field: string) {
+  const pending = pendingUpdates.get(id);
+  if (!pending || !(field in pending.fields)) return;
+
+  delete pending.fields[field];
+  if (Object.keys(pending.fields).length > 0) return;
+
+  clearTimeout(pending.timer);
+  pendingUpdates.delete(id);
+}
+
+/**
  * Immediately flush any pending debounced update for a record.
  * Returns the promise from db.execute so callers can await it.
  */

@@ -21,7 +21,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo } from "@/lib/tasks";
 import { autoResizeTextarea } from "@/lib/utils";
 import { createTag } from "@/lib/tags";
-import { debouncedUpdate, debouncedExecute, flushUpdate, flushExecutes, cancelExecute } from "@/lib/debounced-update";
+import { debouncedUpdate, debouncedExecute, flushUpdate, cancelExecute, cancelUpdate } from "@/lib/debounced-update";
 
 interface TaskCardProps {
   task: Task;
@@ -32,6 +32,7 @@ interface TaskCardProps {
 
 export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) {
   const db = usePowerSync();
+  const persistedTaskState = task.state ?? "pending";
   const [title, setTitle] = React.useState(task.title || "");
   const [priority, setPriority] = React.useState(task.priority || "medium");
 
@@ -52,11 +53,11 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
   // Optimistic UI state
   const [optimisticSubtasks, setOptimisticSubtasks] = React.useState<Task[]>([]);
-  const [optimisticState, setOptimisticState] = React.useState(task.state);
+  const [optimisticState, setOptimisticState] = React.useState(persistedTaskState);
   const [optimisticSubtaskStates, setOptimisticSubtaskStates] = React.useState<Record<string, string>>({});
   const [isDeleting, setIsDeleting] = React.useState(false);
 
-  React.useEffect(() => { setOptimisticState(task.state); }, [task.state]);
+  React.useEffect(() => { setOptimisticState(persistedTaskState); }, [persistedTaskState]);
   React.useEffect(() => { setTitle(task.title || ""); }, [task.title]);
   React.useEffect(() => { setPriority(task.priority || "medium"); }, [task.priority]);
   React.useEffect(() => {
@@ -96,6 +97,15 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     debouncedUpdate(task.id, field, value);
   };
 
+  const persistStateChange = React.useCallback((record: Task, nextState: string) => {
+    const persistedState = record.state ?? "pending";
+    if (nextState === persistedState) {
+      cancelUpdate(record.id, "state");
+      return;
+    }
+    debouncedUpdate(record.id, "state", nextState);
+  }, []);
+
   const handleSaveNew = async () => {
     if (!title.trim()) { onNewCancel?.(); return; }
     setIsSaving(true);
@@ -133,7 +143,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   };
 
   const toggleTaskState = async (t: Task) => {
-    const newState = t.state === 'completed' ? 'pending' : 'completed';
+    const persistedState = t.state ?? "pending";
+    const currentState = t.parent_id ? (optimisticSubtaskStates[t.id] ?? persistedState) : optimisticState;
+    const newState = currentState === 'completed' ? 'pending' : 'completed';
 
     if (!t.parent_id) {
       setOptimisticState(newState);
@@ -141,15 +153,21 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
         const updates: Record<string, string> = {};
         subtasks.forEach(st => updates[st.id] = 'completed');
         setOptimisticSubtaskStates(prev => ({ ...prev, ...updates }));
+      } else if (currentState !== persistedState) {
+        const updates: Record<string, string> = {};
+        subtasks.forEach(st => updates[st.id] = st.state ?? 'pending');
+        setOptimisticSubtaskStates(prev => ({ ...prev, ...updates }));
       }
     } else {
       setOptimisticSubtaskStates(prev => ({ ...prev, [t.id]: newState }));
     }
 
     // Debounced writes — merge with any pending field edits for this task
-    debouncedUpdate(t.id, 'state', newState);
+    persistStateChange(t, newState);
     if (newState === 'completed' && !t.parent_id) {
-      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'completed'));
+      subtasks.forEach(st => persistStateChange(st, 'completed'));
+    } else if (!t.parent_id && currentState !== persistedState) {
+      subtasks.forEach(st => persistStateChange(st, st.state ?? 'pending'));
     }
   };
 
@@ -179,16 +197,24 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     } else {
       // Move to trash — debounced
       setOptimisticState('trashed');
-      debouncedUpdate(t.id, 'state', 'trashed');
-      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'trashed'));
+      persistStateChange(t, 'trashed');
+      subtasks.forEach(st => persistStateChange(st, 'trashed'));
     }
   };
 
   const restoreTask = () => {
-    setOptimisticState('pending');
-    debouncedUpdate(task.id, 'state', 'pending');
+    const restoredTaskState = task.state === 'trashed' ? 'pending' : persistedTaskState;
+    setOptimisticState(restoredTaskState);
+    persistStateChange(task, restoredTaskState);
     if (!task.parent_id) {
-      subtasks.forEach(st => debouncedUpdate(st.id, 'state', 'pending'));
+      const restoredSubtaskState = task.state === 'trashed' ? 'pending' : null;
+      const updates: Record<string, string> = {};
+      subtasks.forEach(st => {
+        const nextState = restoredSubtaskState ?? st.state ?? 'pending';
+        updates[st.id] = nextState;
+        persistStateChange(st, nextState);
+      });
+      setOptimisticSubtaskStates(prev => ({ ...prev, ...updates }));
     }
   };
 
