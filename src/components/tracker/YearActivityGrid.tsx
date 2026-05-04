@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@powersync/react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, startOfYear, endOfYear, eachDayOfInterval, getMonth, isEqual, startOfDay } from "date-fns";
 import { Grid3X3 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,13 @@ import { DayPopover } from "./DayPopover";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Canvas grid constants
+const LABEL_COL_WIDTH = 44;
+const HEADER_HEIGHT = 22;
+const BORDER_RADIUS = 4;
+const MIN_CELL_SIZE = 12;
+const CELL_GAP = 3;
 
 interface YearActivityGridProps {
   year: number;
@@ -32,9 +39,6 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
     if (!selectedDay) return;
     const handler = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        // Don't close if clicking on a table row (row click handler manages toggle)
-        const target = e.target as HTMLElement;
-        if (target.closest("tr[data-date]")) return;
         setSelectedDay(null);
         setPopoverPos(null);
       }
@@ -107,20 +111,6 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
     return { dateKey, totalHours, activities };
   }, [selectedDay, cellMap]);
 
-  const handleRowClick = useCallback((day: Date, e: React.MouseEvent) => {
-    setSelectedDay((prev) => {
-      const isSelected = prev && isEqual(startOfDay(day), startOfDay(prev));
-      if (isSelected) {
-        setPopoverPos(null);
-        return null;
-      }
-      const x = Math.min(e.clientX + 8, window.innerWidth - 256);
-      const y = Math.min(e.clientY - 20, window.innerHeight - 260);
-      setPopoverPos({ x: Math.max(8, x), y: Math.max(8, y) });
-      return day;
-    });
-  }, []);
-
   if (loadingTypes || loadingLogs) {
     return (
       <div className="space-y-3">
@@ -144,9 +134,9 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
         </div>
 
         {/* Grid skeleton */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)] p-1">
-            <table className="border-separate border-spacing-[1px] text-[10px] w-full table-fixed">
+        <div className="rounded-xl border border-border bg-card overflow-hidden flex-1">
+          <div className="overflow-x-auto overflow-y-hidden h-[calc(100vh-220px)] p-1">
+            <table className="border-separate border-spacing-[1px] text-[10px] w-full table-fixed h-full">
               <thead className="sticky top-0 z-20">
                 <tr>
                   <th className="sticky left-0 z-30 bg-card px-1 py-1.5 w-[40px]">
@@ -160,7 +150,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 28 }).map((_, row) => (
+                {Array.from({ length: 50 }).map((_, row) => (
                   <tr key={row}>
                     <td className="sticky left-0 z-10 bg-card px-1 py-0 w-[40px]">
                       <div className="h-2.5 w-8 bg-muted rounded animate-pulse" />
@@ -217,38 +207,6 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
         </div>
       </div>
 
-      {/* CSS-based filter for instant highlighting (no per-cell re-render) */}
-      <style>{`
-        .activity-grid .activity-cell[data-activity]:hover {
-          transform: scale(1.5);
-          z-index: 10;
-          box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 20%, transparent);
-          border-radius: 2px;
-          cursor: default;
-        }
-        ${activeFilter ? `
-        .activity-grid .activity-cell[data-activity] {
-          opacity: 0.15 !important;
-        }
-        .activity-grid .activity-cell[data-activity="${CSS.escape(activeFilter)}"] {
-          opacity: 1 !important;
-        }
-        ` : ""}
-        @keyframes fadeInRow {
-          from { opacity: 0; transform: translateX(-6px); }
-          to { opacity: 1; transform: none; }
-        }
-        ${selectedDay ? `
-        .activity-grid tr[data-date="${format(selectedDay, "yyyy-MM-dd")}"] {
-          background: color-mix(in srgb, var(--foreground) 8%, transparent);
-        }
-        .activity-grid tr[data-date="${format(selectedDay, "yyyy-MM-dd")}"] td:first-child {
-          color: var(--foreground) !important;
-          font-weight: 700 !important;
-        }
-        ` : ""}
-      `}</style>
-
       {/* Day popover */}
       {daySummary && selectedDay && popoverPos && (
         <DayPopover
@@ -265,84 +223,298 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
         />
       )}
 
-      {/* Grid */}
-      <div className="activity-grid rounded-xl border border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)] p-1">
-          <table className="border-separate border-spacing-[1px] text-[10px] w-full table-fixed">
-            <thead className="sticky top-0 z-20">
-              <tr>
-                <th className="sticky left-0 z-30 bg-card px-1 py-1.5 text-left font-semibold text-muted-foreground/70 w-[40px]" />
-                {HOURS.map((h) => (
-                  <th
-                    key={h}
-                    className="px-0 py-1.5 text-center font-medium text-muted-foreground/60 w-[14px]"
+      {/* Canvas Grid */}
+      <ActivityCanvas
+        allDays={allDays}
+        cellMap={cellMap}
+        activeFilter={activeFilter}
+        selectedDay={selectedDay}
+        onDaySelect={(day, e) => {
+          setSelectedDay((prev) => {
+            const isSelected = prev && isEqual(startOfDay(day), startOfDay(prev));
+            if (isSelected) {
+              setPopoverPos(null);
+              return null;
+            }
+            const x = Math.min(e.clientX + 8, window.innerWidth - 256);
+            const y = Math.min(e.clientY - 20, window.innerHeight - 260);
+            setPopoverPos({ x: Math.max(8, x), y: Math.max(8, y) });
+            return day;
+          });
+        }}
+      />
+    </div>
+  );
+}
+
+/** Canvas-based activity grid — renders 8,760 cells as pixels for smooth scroll/filter */
+function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySelect }: {
+  allDays: Date[];
+  cellMap: Map<string, { activity: string; color: string }>;
+  activeFilter: string | null;
+  selectedDay: Date | null;
+  onDaySelect: (day: Date, e: React.MouseEvent) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const hoveredRowRef = useRef<number | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const needsRedrawRef = useRef(false);
+
+  // Measure the outer wrapper to determine available width
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Compute cell size to fill the width (use available space minus labels)
+  const availableWidth = Math.max(0, containerWidth - LABEL_COL_WIDTH - 2); // 2px for border
+  const cellStride = availableWidth > 0 ? availableWidth / 24 : MIN_CELL_SIZE + CELL_GAP;
+  const cellSize = Math.max(1, cellStride - CELL_GAP);
+  const gridWidth = Math.round(24 * cellStride);
+  const gridHeight = Math.round(allDays.length * cellStride);
+
+  // Resolve theme colors (cached, only recomputes when grid dimensions change)
+  const themeColors = useMemo(() => {
+    if (typeof document === "undefined") return { fgHighlight: "transparent", fgHover: "transparent", mutedBg: "transparent" };
+    const tempEl = document.createElement("div");
+    tempEl.style.position = "absolute";
+    tempEl.style.visibility = "hidden";
+    tempEl.style.pointerEvents = "none";
+    document.body.appendChild(tempEl);
+    const getColor = (varName: string, opacity = 1) => {
+      tempEl.style.color = `var(${varName})`;
+      const computed = getComputedStyle(tempEl).color;
+      if (opacity >= 1) return computed;
+      tempEl.style.color = `color-mix(in srgb, var(${varName}) ${Math.round(opacity * 100)}%, transparent)`;
+      return getComputedStyle(tempEl).color;
+    };
+    const colors = {
+      fgHighlight: getColor("--foreground", 0.08),
+      fgHover: getColor("--foreground", 0.04),
+      mutedBg: getColor("--muted-foreground", 0.15),
+    };
+    document.body.removeChild(tempEl);
+    return colors;
+  }, [containerWidth]); // recompute on resize (theme may change with breakpoints)
+
+  // Draw the canvas (cells only, no labels)
+  const drawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.round(gridWidth * dpr);
+    const targetH = Math.round(gridHeight * dpr);
+    // Only reset dimensions if they changed (resizing clears canvas)
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, gridWidth, gridHeight);
+
+    const { fgHighlight, fgHover, mutedBg } = themeColors;
+
+    const selectedDateKey = selectedDay ? format(selectedDay, "yyyy-MM-dd") : null;
+    const hoveredRow = hoveredRowRef.current;
+
+    for (let row = 0; row < allDays.length; row++) {
+      const day = allDays[row];
+      const dateKey = format(day, "yyyy-MM-dd");
+      const y = row * cellStride;
+      const isSelected = dateKey === selectedDateKey;
+      const isHovered = row === hoveredRow;
+
+      // Row highlight
+      if (isSelected || isHovered) {
+        ctx.fillStyle = isSelected ? fgHighlight : fgHover;
+        ctx.fillRect(0, y, gridWidth, cellStride);
+      }
+
+      // Cells
+      for (let h = 0; h < 24; h++) {
+        const key = `${dateKey}|${String(h).padStart(2, "0")}`;
+        const cell = cellMap.get(key);
+        const x = h * cellStride;
+        const hex = cell ? COLOR_HEX[cell.color] || "#6b7280" : undefined;
+
+        if (!hex) {
+          ctx.globalAlpha = activeFilter ? 0.05 : 0.1;
+          ctx.fillStyle = mutedBg;
+          roundRect(ctx, x, y, cellSize, cellSize, BORDER_RADIUS);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        } else {
+          let targetAlpha = 1;
+          if (activeFilter) {
+            targetAlpha = cell!.activity === activeFilter ? 1 : 0.15;
+          }
+          ctx.globalAlpha = targetAlpha;
+          ctx.fillStyle = hex;
+          roundRect(ctx, x, y, cellSize, cellSize, BORDER_RADIUS);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+  }, [allDays, cellMap, activeFilter, selectedDay, gridWidth, gridHeight, cellSize, cellStride, themeColors]);
+
+  // Redraw immediately when inputs change
+  useEffect(() => {
+    drawCanvas();
+  }, [drawCanvas]);
+
+  // Redraw on hover change without triggering React state churn
+  const scheduleHoverRedraw = useCallback(() => {
+    if (needsRedrawRef.current) return;
+    needsRedrawRef.current = true;
+    requestAnimationFrame(() => {
+      needsRedrawRef.current = false;
+      drawCanvas();
+    });
+  }, [drawCanvas]);
+
+  // Hit detection on canvas (coords relative to canvas, not container)
+  const getCell = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = gridWidth / rect.width;
+    const scaleY = gridHeight / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    const row = Math.floor(y / cellStride);
+    const col = Math.floor(x / cellStride);
+
+    if (row < 0 || row >= allDays.length || col < 0 || col >= 24) return null;
+    return { row, col };
+  }, [allDays.length, gridWidth, gridHeight, cellStride]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const hit = getCell(e);
+    if (!hit) {
+      setTooltip(null);
+      if (hoveredRowRef.current !== null) {
+        hoveredRowRef.current = null;
+        scheduleHoverRedraw();
+      }
+      return;
+    }
+    if (hoveredRowRef.current !== hit.row) {
+      hoveredRowRef.current = hit.row;
+      scheduleHoverRedraw();
+    }
+    const day = allDays[hit.row];
+    const dateKey = format(day, "yyyy-MM-dd");
+    const key = `${dateKey}|${String(hit.col).padStart(2, "0")}`;
+    const cell = cellMap.get(key);
+    if (cell) {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      setTooltip({
+        text: `${cell.activity} · ${format(day, "MMM d")} ${String(hit.col).padStart(2, "0")}:00`,
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top - 28,
+      });
+    } else {
+      setTooltip(null);
+    }
+  }, [allDays, cellMap, getCell, scheduleHoverRedraw]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const hit = getCell(e);
+    if (!hit) return;
+    onDaySelect(allDays[hit.row], e);
+  }, [allDays, getCell, onDaySelect]);
+
+  const selectedDateKey = selectedDay ? format(selectedDay, "yyyy-MM-dd") : null;
+
+  return (
+    <div ref={wrapperRef} className="rounded-xl border border-border bg-card" style={{ overflow: "clip" }}>
+      <div
+        className="overflow-auto max-h-[calc(100vh-260px)] relative"
+        onMouseLeave={() => { setTooltip(null); hoveredRowRef.current = null; scheduleHoverRedraw(); }}
+      >
+        <table className="border-separate border-spacing-0 text-[10px]" style={{ width: LABEL_COL_WIDTH + gridWidth }}>
+          <thead>
+            <tr>
+              <th className="sticky top-0 left-0 z-30 bg-card" style={{ width: LABEL_COL_WIDTH, height: HEADER_HEIGHT }} />
+              {HOURS.map((h) => (
+                <th
+                  key={h}
+                  className="sticky top-0 z-20 bg-card text-center font-bold text-muted-foreground/60 px-0"
+                  style={{ width: cellStride, height: HEADER_HEIGHT }}
+                >
+                  {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allDays.map((day) => {
+              const dateKey = format(day, "yyyy-MM-dd");
+              const isFirstOfMonth = day.getDate() === 1;
+              const isSelected = dateKey === selectedDateKey;
+              return (
+                <tr key={dateKey} style={{ height: cellStride }}>
+                  <td
+                    className={cn(
+                      "sticky left-0 bg-card px-1 whitespace-nowrap",
+                      isFirstOfMonth ? "top-0 z-20 text-foreground font-bold" : "z-10 text-muted-foreground/60 text-[9px]",
+                      isSelected && "text-foreground font-bold"
+                    )}
+                    style={isFirstOfMonth ? { top: HEADER_HEIGHT, width: LABEL_COL_WIDTH } : { width: LABEL_COL_WIDTH }}
                   >
-                    {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <GridRows allDays={allDays} cellMap={cellMap} onRowClick={handleRowClick} />
-            </tbody>
-          </table>
-        </div>
+                    {isFirstOfMonth ? MONTH_NAMES[getMonth(day)] : String(day.getDate())}
+                  </td>
+                  <td colSpan={24} className="p-0 h-0" />
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Canvas overlaid on cell area */}
+        <canvas
+          ref={canvasRef}
+          className="absolute cursor-pointer"
+          style={{ top: HEADER_HEIGHT, left: LABEL_COL_WIDTH, width: gridWidth, height: gridHeight }}
+          onMouseMove={handleMouseMove}
+          onClick={handleClick}
+        />
+
+        {/* Tooltip */}
+        {tooltip && (
+          <div
+            className="absolute pointer-events-none px-2 py-1 rounded bg-popover border border-border text-[10px] text-foreground shadow-md whitespace-nowrap z-50"
+            style={{ left: LABEL_COL_WIDTH + tooltip.x, top: HEADER_HEIGHT + tooltip.y, transform: "translateX(-50%)" }}
+          >
+            {tooltip.text}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/** Memoized grid rows — avoids re-rendering 8,760 cells when only activeFilter/selectedDay changes (CSS handles those) */
-const GridRows = memo(function GridRows({ allDays, cellMap, onRowClick }: {
-  allDays: Date[];
-  cellMap: Map<string, { activity: string; color: string }>;
-  onRowClick: (day: Date, e: React.MouseEvent) => void;
-}) {
-  return (
-    <>
-      {allDays.map((day, rowIdx) => {
-        const dateKey = format(day, "yyyy-MM-dd");
-        const isFirstOfMonth = day.getDate() === 1;
-        const monthIdx = getMonth(day);
-
-        return (
-          <tr
-            key={dateKey}
-            data-date={dateKey}
-            className="animate-[fadeInRow_0.3s_ease-out_both] cursor-pointer transition-colors"
-            style={{ animationDelay: `${Math.min(rowIdx * 3, 300)}ms` }}
-            onClick={(e) => onRowClick(day, e)}
-          >
-            <td
-              className={cn(
-                "sticky left-0 z-10 bg-card px-1 py-0 font-medium whitespace-nowrap w-[40px] transition-colors hover:text-foreground",
-                isFirstOfMonth ? "text-foreground text-[10px] font-bold" : "text-muted-foreground/60 text-[9px]"
-              )}
-            >
-              {isFirstOfMonth ? MONTH_NAMES[monthIdx] : format(day, "d")}
-            </td>
-            {HOURS.map((h) => {
-              const key = `${dateKey}|${String(h).padStart(2, "0")}`;
-              const cell = cellMap.get(key);
-              const hex = cell ? COLOR_HEX[cell.color] || "#6b7280" : undefined;
-
-              return (
-                <td key={h} className="p-0">
-                  <div
-                    className="activity-cell h-[12px] w-[12px] rounded-[3px] transition-opacity duration-200"
-                    data-activity={cell?.activity || undefined}
-                    style={{
-                      backgroundColor: hex || undefined,
-                      opacity: hex ? 1 : 0.1,
-                    }}
-                    title={cell ? `${cell.activity} · ${format(day, "MMM d")} ${String(h).padStart(2, "0")}:00` : ""}
-                  />
-                </td>
-              );
-            })}
-          </tr>
-        );
-      })}
-    </>
-  );
-});
+/** Draw a rounded rectangle path */
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
