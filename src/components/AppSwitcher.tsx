@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, LayoutDashboard } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { APPS, type AppConfig } from "@/lib/apps";
@@ -42,8 +42,19 @@ export function AppSwitcher({ current, size = "md" }: AppSwitcherProps) {
       </PopoverTrigger>
 
       <PopoverContent align="start" sideOffset={8} className="w-56 p-1.5">
-        <div className="text-xs font-medium text-muted-foreground px-2 py-1.5 mb-0.5">
-          Switch app
+        <div className="mb-0.5 flex items-center justify-between px-2 py-1.5">
+          <div className="text-xs font-medium text-muted-foreground">
+            Switch app
+          </div>
+          <Link
+            href="/"
+            onClick={() => setOpen(false)}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Open launcher"
+            title="Open launcher"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+          </Link>
         </div>
         {APPS.map((app) => {
           const AppIcon = app.icon;
