@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { sanitizeNextPath } from '@/lib/share'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -15,7 +16,7 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({
@@ -36,6 +37,7 @@ export async function proxy(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === '/login'
   const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback')
+  const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`
 
   // Allow auth callback through always
   if (isAuthCallback) {
@@ -46,14 +48,15 @@ export async function proxy(request: NextRequest) {
   if (!user && !isLoginPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.search = ''
+    url.searchParams.set('next', requestedPath)
     return NextResponse.redirect(url)
   }
 
   // Logged in and on login page → redirect to dashboard
   if (user && isLoginPage) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
+    const next = sanitizeNextPath(request.nextUrl.searchParams.get('next'))
+    return NextResponse.redirect(new URL(next, request.url))
   }
 
   return supabaseResponse

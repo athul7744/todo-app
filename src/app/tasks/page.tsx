@@ -3,7 +3,8 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Plus, CheckCircle2, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Task, Tag } from '@/lib/powersync/AppSchema';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { ManageTagsDialog } from '@/components/tasks/ManageTagsDialog';
@@ -16,11 +17,15 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { AppHeader } from "@/components/AppHeader";
 import { getApp } from "@/lib/apps";
 import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
+import { SHARE_DRAFT_ID_PARAM, SHARE_DRAFT_TITLE_PARAM } from '@/lib/share';
 
 const tasksApp = getApp("tasks");
 
 export default function Home() {
   const db = usePowerSync();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Warn user and flush pending writes if they try to leave during debounce window
   useEffect(() => {
@@ -81,6 +86,40 @@ export default function Home() {
   
   const { data: allTasks } = useQuery(query, args);
 
+  const sharedDraftTask = useMemo(() => {
+    const draftId = searchParams.get(SHARE_DRAFT_ID_PARAM);
+    const draftTitle = searchParams.get(SHARE_DRAFT_TITLE_PARAM)?.trim() ?? "";
+    if (!draftId || !draftTitle) return null;
+
+    const now = new Date().toISOString();
+    return {
+      id: draftId,
+      title: draftTitle,
+      priority: "medium",
+      state: "pending",
+      due_date: "",
+      tags: "[]",
+      created_at: now,
+      updated_at: now,
+    } as Task;
+  }, [searchParams]);
+
+  const clearSharedDraft = useCallback(() => {
+    if (!searchParams.has(SHARE_DRAFT_ID_PARAM) && !searchParams.has(SHARE_DRAFT_TITLE_PARAM)) return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete(SHARE_DRAFT_ID_PARAM);
+    nextParams.delete(SHARE_DRAFT_TITLE_PARAM);
+    const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname;
+    router.replace(nextUrl);
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (sharedDraftTask && allTasks.length > 0 && allTasks.some((task) => task.id === sharedDraftTask.id)) {
+      clearSharedDraft();
+    }
+  }, [allTasks, clearSharedDraft, sharedDraftTask]);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
@@ -115,6 +154,10 @@ export default function Home() {
   };
 
   const handleCancelNewTask = (id: string) => {
+    if (sharedDraftTask?.id === id) {
+      clearSharedDraft();
+      return;
+    }
     setNewTasks(prev => prev.filter(t => t.id !== id));
   };
 
@@ -300,7 +343,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto h-full flex flex-col">
           
           {/* Task List */}
-          {topLevelTasks.length === 0 && newTasks.length === 0 ? (
+          {topLevelTasks.length === 0 && newTasks.length === 0 && !sharedDraftTask ? (
             <div className="flex flex-col items-center justify-center flex-1 py-24 text-center animate-fade-slide-in">
               <ListTodo className="h-8 w-8 text-muted-foreground/40 mb-4" />
               <p className="text-muted-foreground text-sm">No tasks match your filters</p>
@@ -315,12 +358,13 @@ export default function Home() {
                 {/* Render Combined Tasks to Prevent Layout Jumps */}
                 {(() => {
                   const combinedTasks = [
+                    ...(sharedDraftTask && !allTasks.some((task) => task.id === sharedDraftTask.id) ? [sharedDraftTask] : []),
                     ...newTasks.filter(nt => !paginatedTopLevelTasks.some((t: any) => t.id === nt.id)),
                     ...paginatedTopLevelTasks
                   ];
 
                   return combinedTasks.map((task: any) => {
-                    const isDraft = newTasks.some(nt => nt.id === task.id);
+                    const isDraft = (sharedDraftTask?.id === task.id) || newTasks.some(nt => nt.id === task.id);
                     return (
                       <TaskCard 
                         key={task.id} 

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutDashboard, LogIn, Loader2 } from "lucide-react";
+import { sanitizeNextPath } from "@/lib/share";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -27,7 +29,8 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/");
+      const next = sanitizeNextPath(searchParams.get("next"));
+      router.push(next);
       router.refresh();
     }
   };
