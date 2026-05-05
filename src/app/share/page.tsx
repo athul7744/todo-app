@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePowerSync } from "@powersync/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Link2, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  SHARE_DRAFT_ID_PARAM,
-  SHARE_DRAFT_TITLE_PARAM,
   buildSharedTaskTitle,
   readIncomingSharePayload,
 } from "@/lib/share";
+import { getCurrentUserId } from "@/lib/auth";
+import { TaskMetadataEditor } from "@/components/tasks/TaskMetadataEditor";
 
 export default function SharePage() {
   const searchParams = useSearchParams();
@@ -20,37 +21,54 @@ export default function SharePage() {
 }
 
 function ShareReview({ payload }: { payload: ReturnType<typeof readIncomingSharePayload> }) {
+  const db = usePowerSync();
   const router = useRouter();
   const [draftTitle, setDraftTitle] = useState(() => buildSharedTaskTitle(payload));
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const hasSharedContent = Boolean(payload.title || payload.text || payload.url);
 
-  const handleCreateDraft = () => {
+  const handleCreateTask = async () => {
     const trimmedTitle = draftTitle.trim();
-    if (!trimmedTitle) return;
+    if (!trimmedTitle || isSaving) return;
 
-    const params = new URLSearchParams();
-    params.set(SHARE_DRAFT_ID_PARAM, crypto.randomUUID());
-    params.set(SHARE_DRAFT_TITLE_PARAM, trimmedTitle);
-    router.push(`/tasks?${params.toString()}`);
+    setIsSaving(true);
+
+    try {
+      const taskId = crypto.randomUUID();
+      const userId = await getCurrentUserId();
+      const now = new Date().toISOString();
+
+      await db.execute(
+        `INSERT INTO tasks (id, user_id, title, priority, state, due_date, tags, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+        [taskId, userId, trimmedTitle, "medium", dueDate ? dueDate.toISOString() : null, JSON.stringify(selectedTagIds), now, now]
+      );
+
+      router.push("/tasks");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="min-h-full bg-background px-4 py-8 md:px-8">
+    <div className="min-h-full bg-background px-[var(--app-gutter-x)] py-8">
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-3 text-primary">
             <Share2 className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Draft Task</h1>
-            <p className="text-sm text-muted-foreground">Review the shared content, then open it as a draft task.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Save Task</h1>
+            <p className="text-sm text-muted-foreground">Review the shared content, set any metadata, and save it directly to tasks.</p>
           </div>
         </div>
 
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <label htmlFor="share-draft-title" className="mb-2 block text-sm font-medium text-card-foreground">
-            Draft task title
+            Task title
           </label>
           <textarea
             id="share-draft-title"
@@ -59,9 +77,18 @@ function ShareReview({ payload }: { payload: ReturnType<typeof readIncomingShare
             value={draftTitle}
             onChange={(event) => setDraftTitle(event.target.value)}
             className="min-h-[112px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-            placeholder="Draft task title"
+            placeholder="Task title"
           />
           <p className="mt-2 text-xs text-muted-foreground">{draftTitle.length}/250 characters</p>
+
+          <TaskMetadataEditor
+            dueDate={dueDate}
+            onDueDateChange={setDueDate}
+            selectedTagIds={selectedTagIds}
+            onSelectedTagIdsChange={setSelectedTagIds}
+            density="default"
+            dueDateFormat="MMM d, yyyy"
+          />
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -104,7 +131,7 @@ function ShareReview({ payload }: { payload: ReturnType<typeof readIncomingShare
 
         <div className="flex items-center justify-end gap-3">
           <Button variant="ghost" onClick={() => router.push("/tasks")}>Cancel</Button>
-          <Button onClick={handleCreateDraft} disabled={!draftTitle.trim()}>Create Draft Task</Button>
+          <Button onClick={handleCreateTask} disabled={!draftTitle.trim() || isSaving}>{isSaving ? "Saving..." : "Save Task"}</Button>
         </div>
       </div>
     </div>

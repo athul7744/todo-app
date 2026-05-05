@@ -7,9 +7,6 @@ export interface IncomingSharePayload {
   text: string;
   url: string;
 }
-
-export const SHARE_DRAFT_ID_PARAM = "shareDraftId";
-export const SHARE_DRAFT_TITLE_PARAM = "shareTitle";
 const TASK_TITLE_MAX_LENGTH = 250;
 
 function normalizeShareValue(value: string | null): string {

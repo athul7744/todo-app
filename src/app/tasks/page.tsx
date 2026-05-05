@@ -3,8 +3,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Plus, CheckCircle2, Filter, Tag as TagIcon, X, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 import { Task, Tag } from '@/lib/powersync/AppSchema';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { ManageTagsDialog } from '@/components/tasks/ManageTagsDialog';
@@ -15,17 +14,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { AppHeader } from "@/components/AppHeader";
+import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { getApp } from "@/lib/apps";
 import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
-import { SHARE_DRAFT_ID_PARAM, SHARE_DRAFT_TITLE_PARAM } from '@/lib/share';
 
 const tasksApp = getApp("tasks");
 
 export default function Home() {
   const db = usePowerSync();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   // Warn user and flush pending writes if they try to leave during debounce window
   useEffect(() => {
@@ -86,40 +82,6 @@ export default function Home() {
   
   const { data: allTasks } = useQuery(query, args);
 
-  const sharedDraftTask = useMemo(() => {
-    const draftId = searchParams.get(SHARE_DRAFT_ID_PARAM);
-    const draftTitle = searchParams.get(SHARE_DRAFT_TITLE_PARAM)?.trim() ?? "";
-    if (!draftId || !draftTitle) return null;
-
-    const now = new Date().toISOString();
-    return {
-      id: draftId,
-      title: draftTitle,
-      priority: "medium",
-      state: "pending",
-      due_date: "",
-      tags: "[]",
-      created_at: now,
-      updated_at: now,
-    } as Task;
-  }, [searchParams]);
-
-  const clearSharedDraft = useCallback(() => {
-    if (!searchParams.has(SHARE_DRAFT_ID_PARAM) && !searchParams.has(SHARE_DRAFT_TITLE_PARAM)) return;
-
-    const nextParams = new URLSearchParams(searchParams.toString());
-    nextParams.delete(SHARE_DRAFT_ID_PARAM);
-    nextParams.delete(SHARE_DRAFT_TITLE_PARAM);
-    const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname;
-    router.replace(nextUrl);
-  }, [pathname, router, searchParams]);
-
-  useEffect(() => {
-    if (sharedDraftTask && allTasks.length > 0 && allTasks.some((task) => task.id === sharedDraftTask.id)) {
-      clearSharedDraft();
-    }
-  }, [allTasks, clearSharedDraft, sharedDraftTask]);
-
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
@@ -154,10 +116,6 @@ export default function Home() {
   };
 
   const handleCancelNewTask = (id: string) => {
-    if (sharedDraftTask?.id === id) {
-      clearSharedDraft();
-      return;
-    }
     setNewTasks(prev => prev.filter(t => t.id !== id));
   };
 
@@ -339,11 +297,11 @@ export default function Home() {
       </AppHeader>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8">
         <div className="max-w-7xl mx-auto h-full flex flex-col">
           
           {/* Task List */}
-          {topLevelTasks.length === 0 && newTasks.length === 0 && !sharedDraftTask ? (
+          {topLevelTasks.length === 0 && newTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 py-24 text-center animate-fade-slide-in">
               <ListTodo className="h-8 w-8 text-muted-foreground/40 mb-4" />
               <p className="text-muted-foreground text-sm">No tasks match your filters</p>
@@ -358,13 +316,12 @@ export default function Home() {
                 {/* Render Combined Tasks to Prevent Layout Jumps */}
                 {(() => {
                   const combinedTasks = [
-                    ...(sharedDraftTask && !allTasks.some((task) => task.id === sharedDraftTask.id) ? [sharedDraftTask] : []),
                     ...newTasks.filter(nt => !paginatedTopLevelTasks.some((t: any) => t.id === nt.id)),
                     ...paginatedTopLevelTasks
                   ];
 
                   return combinedTasks.map((task: any) => {
-                    const isDraft = (sharedDraftTask?.id === task.id) || newTasks.some(nt => nt.id === task.id);
+                    const isDraft = newTasks.some(nt => nt.id === task.id);
                     return (
                       <TaskCard 
                         key={task.id} 
@@ -409,14 +366,19 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Mobile Floating Action Button */}
-      <Button 
-        onClick={handleAddNewTask} 
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:hidden h-14 w-14 rounded-full shadow-lg z-30"
-        size="icon"
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      <MobileBottomFabs
+        app={tasksApp}
+        centerUseShell={false}
+        centerContent={
+          <Button
+            onClick={handleAddNewTask}
+            size="icon"
+            className="size-12 rounded-full border border-indigo-200 bg-indigo-100 text-indigo-700 shadow-lg transition-all duration-200 hover:bg-indigo-200 dark:border-indigo-700 dark:bg-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-700"
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+        }
+      />
     </div>
   );
 }

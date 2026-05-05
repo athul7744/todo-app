@@ -1,27 +1,21 @@
 import * as React from "react";
-import { Task, Tag } from "@/lib/powersync/AppSchema";
-import { usePowerSync, useQuery } from "@powersync/react";
-import { Check, CheckCircle2, Trash2, Calendar as CalendarIcon, Plus, CornerDownRight, Undo2 } from "lucide-react";
+import { Task } from "@/lib/powersync/AppSchema";
+import { usePowerSync } from "@powersync/react";
+import { Check, Trash2, CornerDownRight, Undo2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { cn } from "@/lib/utils";
-import { getTagColorClasses, getTagDotClass } from "@/lib/colors";
 import { getCurrentUserId } from "@/lib/auth";
-import { PRIORITY_COLORS, PRIORITY_LEVELS, getDueDateInfo } from "@/lib/tasks";
+import { PRIORITY_COLORS, PRIORITY_LEVELS } from "@/lib/tasks";
 import { autoResizeTextarea } from "@/lib/utils";
-import { createTag } from "@/lib/tags";
 import { debouncedUpdate, debouncedExecute, flushUpdate, cancelExecute, cancelUpdate } from "@/lib/debounced-update";
+import { TaskMetadataEditor } from "@/components/tasks/TaskMetadataEditor";
 
 interface TaskCardProps {
   task: Task;
@@ -43,12 +37,9 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
   const [newSubtaskTitle, setNewSubtaskTitle] = React.useState("");
 
   // Tags Logic
-  const { data: allTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>(() => {
     try { return JSON.parse(task.tags || "[]"); } catch { return []; }
   });
-  const [isTagSelectorOpen, setIsTagSelectorOpen] = React.useState(false);
-  const [tagSearchQuery, setTagSearchQuery] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
 
   // Optimistic UI state
@@ -218,29 +209,8 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     }
   };
 
-  const handleCreateInlineTag = async () => {
-    const tagName = tagSearchQuery.trim();
-    const newId = await createTag(tagName, undefined, tagName);
-
-    // Optimistic update first
-    const newTags = [...selectedTagIds, newId];
-    setSelectedTagIds(newTags);
-    if (!isNew) handleUpdate("tags", JSON.stringify(newTags));
-    setTagSearchQuery("");
-  };
-
-  const handleToggleTag = (tagId: string) => {
-    const isSelected = selectedTagIds.includes(tagId);
-    const newTags = isSelected
-      ? selectedTagIds.filter(id => id !== tagId)
-      : [...selectedTagIds, tagId];
-    setSelectedTagIds(newTags);
-    if (!isNew) handleUpdate("tags", JSON.stringify(newTags));
-  };
-
   // --- Derived UI State ---
 
-  const dueDateInfo = getDueDateInfo(dueDate);
   const isTrashed = optimisticState === 'trashed';
 
   return (
@@ -293,99 +263,19 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
 
           {/* Metadata Row — hidden for trashed tasks */}
           {!isTrashed && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-0.5 pb-0.5">
-              {/* Due Date Picker */}
-              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                <PopoverTrigger
-                  className={cn(
-                    "flex items-center h-6 px-1.5 justify-start text-left font-normal text-xs hover:bg-accent hover:text-accent-foreground rounded-md transition-colors -ml-1.5 shrink-0 whitespace-nowrap",
-                    !dueDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                  {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={(date) => {
-                      setDueDate(date);
-                      if (!isNew) handleUpdate("due_date", date ? date.toISOString() : null);
-                      setIsCalendarOpen(false);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {/* Due Date Pill */}
-              {dueDateInfo.show && (
-                <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0`}>
-                  {dueDateInfo.label}
-                </span>
-              )}
-
-              {/* Tag Selector */}
-              <Popover open={isTagSelectorOpen} onOpenChange={setIsTagSelectorOpen}>
-                <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground shrink-0 rounded-md">
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Tag
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search tags..."
-                      className="h-9"
-                      value={tagSearchQuery}
-                      onValueChange={setTagSearchQuery}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {tagSearchQuery.trim() ? (
-                          <div
-                            className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent flex items-center gap-2"
-                            onClick={handleCreateInlineTag}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Create &quot;{tagSearchQuery}&quot;
-                          </div>
-                        ) : "No tags found."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {allTags.map((tag: Tag) => {
-                          const isSelected = selectedTagIds.includes(tag.id);
-                          return (
-                            <CommandItem key={tag.id} onSelect={() => handleToggleTag(tag.id)}>
-                              <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
-                                <CheckCircle2 className="h-3 w-3" />
-                              </div>
-                              <div className={cn("h-3 w-3 rounded-full mr-2", getTagDotClass(tag.color || 'slate'))} />
-                              <span>{tag.name}</span>
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-
-          {/* Selected Tags */}
-          {selectedTagIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-0.5">
-              {selectedTagIds.map(tagId => {
-                const tag = allTags.find((t: Tag) => t.id === tagId);
-                if (!tag) return null;
-                return (
-                  <Badge key={tag.id} variant="secondary" className={cn("px-1.5 py-0 h-5 text-[10px] font-medium gap-1 rounded-sm shadow-none", getTagColorClasses(tag.color || 'slate'))}>
-                    {tag.name}
-                  </Badge>
-                );
-              })}
-            </div>
+            <TaskMetadataEditor
+              dueDate={dueDate}
+              onDueDateChange={(date) => {
+                setDueDate(date);
+                if (!isNew) handleUpdate("due_date", date ? date.toISOString() : null);
+              }}
+              selectedTagIds={selectedTagIds}
+              onSelectedTagIdsChange={(tagIds) => {
+                setSelectedTagIds(tagIds);
+                if (!isNew) handleUpdate("tags", JSON.stringify(tagIds));
+              }}
+              density="compact"
+            />
           )}
         </div>
 
