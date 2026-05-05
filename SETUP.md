@@ -24,7 +24,7 @@ graph LR
 1. The app reads/writes directly to a local SQLite database (via WASM in the browser)
 2. PowerSync streams changes bidirectionally between local SQLite and Supabase Postgres
 3. The service worker caches all app assets so the UI and database logic load without internet
-4. CRUD uploads are throttled (2s debounce) to batch rapid edits into fewer network calls
+4. CRUD uploads are debounced to batch rapid edits into fewer network calls while task and tracker views keep the UI responsive with optimistic local state
 
 ---
 
@@ -165,7 +165,8 @@ streams:
 npm install
 ```
 
-Create `.env.local`:
+Copy `.env.example` to `.env.local` and fill in your values:
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...your-publishable-key
@@ -173,9 +174,16 @@ NEXT_PUBLIC_POWERSYNC_URL=https://your-instance.powersync.journeyapps.com
 ```
 
 ```bash
-npm run dev -- --webpack   # Development
-npm run build && npm run start  # Production (tests PWA/service worker)
+npm run dev
+npm run build && npm run start
+npm run lint
+npx tsc --noEmit
 ```
+
+Notes:
+
+- `npm run dev` and `npm run build` already use the repo's configured Webpack-based Next.js commands.
+- The `/share` route is wired as the PWA web share target, so mobile share-sheet flows can be exercised locally after sign-in.
 
 ## 4. Deploy to Vercel
 
@@ -194,6 +202,7 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 |------|-------------|
 | **App Routes** | |
 | `src/app/page.tsx` | App launcher grid |
+| `src/app/share/page.tsx` | Share-target review screen that saves incoming text/links directly into tasks |
 | `src/app/tasks/page.tsx` | Tasks dashboard with filters, pagination, and task grid |
 | `src/app/tracker/page.tsx` | Time Tracker with week/year-activity/year-rating views |
 | `src/app/login/page.tsx` | Login page |
@@ -201,14 +210,16 @@ npm run build && npm run start  # Production (tests PWA/service worker)
 | **Shared Components** | |
 | `src/components/AppHeader.tsx` | Shared header with app switcher, theme toggle, sync, logout |
 | `src/components/AppSwitcher.tsx` | Popover for switching between apps |
+| `src/components/MobileBottomFabs.tsx` | Shared mobile FAB shell for app switcher and per-view actions |
 | `src/components/SyncIndicator.tsx` | Sync status indicator with reconnect/reset |
 | **Task Components** | |
 | `src/components/tasks/TaskCard.tsx` | Task card with inline editing, subtasks, tags, optimistic state |
+| `src/components/tasks/TaskMetadataEditor.tsx` | Reusable due-date and tag picker shared by tasks and share capture |
 | `src/components/tasks/ManageTagsDialog.tsx` | Tag CRUD dialog |
 | **Tracker Components** | |
 | `src/components/tracker/ActivityToolbar.tsx` | Scrollable activity pill selector with eraser |
 | `src/components/tracker/TimeGrid.tsx` | 7-day × 24-hour grid with inline mood select |
-| `src/components/tracker/WeekNavigator.tsx` | Week/year navigation with prev/next buttons |
+| `src/components/tracker/WeekNavigator.tsx` | Desktop week navigation plus mobile FAB navigation controls |
 | `src/components/tracker/YearActivityGrid.tsx` | 365 × 24 year activity heatmap |
 | `src/components/tracker/YearRatingGrid.tsx` | 12-month calendar mood heatmap |
 | `src/components/tracker/ManageActivitiesDialog.tsx` | Activity type CRUD dialog |
