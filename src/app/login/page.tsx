@@ -36,7 +36,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background px-[var(--app-gutter-x)]">
       <div className="w-full max-w-sm flex flex-col items-center">
         {/* Branding */}
         <div className="flex items-center gap-3 mb-10">

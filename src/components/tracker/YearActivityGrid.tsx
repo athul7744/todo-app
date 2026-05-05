@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@powersync/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { format, startOfYear, endOfYear, eachDayOfInterval, getMonth, isEqual, startOfDay } from "date-fns";
 import { Grid3X3 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,22 +17,82 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 // Canvas grid constants
 const LABEL_COL_WIDTH = 44;
 const HEADER_HEIGHT = 22;
-const BORDER_RADIUS = 4;
 const MIN_CELL_SIZE = 12;
+const CELL_SIZE_STEPS = [12, 13, 14, 15, 16, 17] as const;
 const CELL_GAP = 3;
+const FRAME_HORIZONTAL_INSET = 8;
+const VISIBLE_DAY_ROWS = 42;
+const CELL_SIZE_STEP_WIDTH = 56;
+const YEAR_VIEW_SHELL_CLASS = "w-full";
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getGridMetrics(containerWidth: number) {
+  const minStride = MIN_CELL_SIZE + CELL_GAP;
+  const availableWidth = Math.max(0, containerWidth - LABEL_COL_WIDTH - FRAME_HORIZONTAL_INSET * 2);
+  const minimumGridWidth = HOURS.length * minStride;
+  const extraWidth = Math.max(0, availableWidth - minimumGridWidth);
+  const maxStepIndex = CELL_SIZE_STEPS.length - 1;
+  const requestedStepIndex = Math.floor(extraWidth / CELL_SIZE_STEP_WIDTH);
+  const strideLimitedStepIndex = availableWidth > 0
+    ? Math.max(0, Math.floor(availableWidth / HOURS.length) - MIN_CELL_SIZE - CELL_GAP)
+    : 0;
+  const stepIndex = clamp(Math.min(requestedStepIndex, strideLimitedStepIndex), 0, maxStepIndex);
+  const baseCellSize = CELL_SIZE_STEPS[stepIndex];
+  const baseCellStride = baseCellSize + CELL_GAP;
+  const unusedWidth = Math.max(0, availableWidth - HOURS.length * baseCellStride);
+  const gridExpansion = unusedWidth;
+  const cellSize = baseCellSize + gridExpansion / HOURS.length;
+  const cellStride = cellSize + CELL_GAP;
+  const cellRadius = clamp(Math.round(cellSize / 4), 3, 5);
+  const frameInset = FRAME_HORIZONTAL_INSET;
+  const contentWidth = LABEL_COL_WIDTH + HOURS.length * cellStride;
+
+  return {
+    cellRadius,
+    cellSize,
+    cellStride,
+    contentWidth,
+    frameInset,
+    frameWidth: contentWidth + frameInset * 2,
+    gridWidth: HOURS.length * cellStride,
+    viewportHeight: HEADER_HEIGHT + VISIBLE_DAY_ROWS * cellStride,
+  };
+}
 
 interface YearActivityGridProps {
   year: number;
   onDayClick?: (date: Date) => void;
   /** Optional element rendered to the left of the activity filter toolbar */
   headerLeft?: React.ReactNode;
+  optimisticTimeLogs?: Map<string, { activityName: string | null }>;
 }
 
-export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityGridProps) {
+export function YearActivityGrid({ year, onDayClick, headerLeft, optimisticTimeLogs }: YearActivityGridProps) {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      const nextWidth = element.clientWidth;
+      setContainerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   // Close popover on click outside
   useEffect(() => {
@@ -75,8 +135,24 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
       const color = colorMap[log.activity_name ?? ""] ?? "teal";
       map.set(`${dateKey}|${hourKey}`, { color, activity: log.activity_name ?? "" });
     }
+
+    optimisticTimeLogs?.forEach((change, cellKey) => {
+      const [dateKey] = cellKey.split("|");
+      if (dateKey.slice(0, 4) !== String(year)) return;
+
+      if (change.activityName === null) {
+        map.delete(cellKey);
+        return;
+      }
+
+      map.set(cellKey, {
+        color: colorMap[change.activityName] ?? "teal",
+        activity: change.activityName,
+      });
+    });
+
     return map;
-  }, [logs, colorMap]);
+  }, [colorMap, logs, optimisticTimeLogs, year]);
 
   const allDays = useMemo(
     () => eachDayOfInterval({ start: startOfYear(new Date(year, 0, 1)), end: endOfYear(new Date(year, 0, 1)) }),
@@ -111,14 +187,16 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
     return { dateKey, totalHours, activities };
   }, [selectedDay, cellMap]);
 
+  const gridMetrics = useMemo(() => getGridMetrics(containerWidth), [containerWidth]);
+
   if (loadingTypes || loadingLogs) {
     return (
-      <div className="space-y-3">
+      <div ref={containerRef} className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-3")}> 
         {/* Header skeleton: year selector + activity pills */}
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3 md:gap-4">
           {headerLeft}
-          <div className="overflow-x-auto flex-1">
-            <div className="flex flex-col gap-1.5 py-1">
+          <div className="min-w-0 flex-1 overflow-x-auto pr-1">
+            <div className="flex min-w-full flex-col gap-1.5 py-1">
               <div className="flex items-center gap-1.5 w-max">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-6 w-20 rounded-full bg-muted animate-pulse" />
@@ -134,39 +212,53 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
         </div>
 
         {/* Grid skeleton */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden flex-1">
-          <div className="overflow-x-auto overflow-y-hidden h-[calc(100vh-220px)] p-1">
-            <table className="border-separate border-spacing-[1px] text-[10px] w-full table-fixed h-full">
-              <thead className="sticky top-0 z-20">
-                <tr>
-                  <th className="sticky left-0 z-30 bg-card px-1 py-1.5 w-[40px]">
-                    <div className="h-2.5 w-7 bg-muted rounded animate-pulse" />
-                  </th>
-                  {HOURS.map((h) => (
-                    <th key={h} className="px-0 py-1.5 text-center font-medium text-muted-foreground/60 w-[14px]">
-                      {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
+        <div className="flex-1">
+          <div className="overflow-auto relative" style={{ height: gridMetrics.viewportHeight }}>
+            <div className="relative rounded-xl border border-border bg-card" style={{ width: gridMetrics.frameWidth }}>
+              <table
+                className="border-separate border-spacing-0 text-[10px]"
+                style={{ width: gridMetrics.contentWidth, marginLeft: gridMetrics.frameInset }}
+              >
+                <thead className="sticky top-0 z-20">
+                  <tr>
+                    <th className="sticky z-30 bg-card px-1 py-1.5" style={{ left: gridMetrics.frameInset, width: LABEL_COL_WIDTH, height: HEADER_HEIGHT }}>
+                      <div className="h-2.5 w-7 bg-muted rounded animate-pulse" />
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 50 }).map((_, row) => (
-                  <tr key={row}>
-                    <td className="sticky left-0 z-10 bg-card px-1 py-0 w-[40px]">
-                      <div className="h-2.5 w-8 bg-muted rounded animate-pulse" />
-                    </td>
-                    {HOURS.map((_, h) => (
-                      <td key={h} className="p-0">
-                        <div className={cn(
-                          "h-[12px] w-[12px] rounded-[3px]",
-                          ((row * 24 + h) * 13 + row) % 6 === 0 ? "bg-muted animate-pulse" : "bg-muted/30"
-                        )} />
-                      </td>
+                    {HOURS.map((h) => (
+                      <th
+                        key={h}
+                        className="px-0 py-1.5 text-center font-medium text-muted-foreground/60"
+                        style={{ width: gridMetrics.cellStride, height: HEADER_HEIGHT }}
+                      >
+                        {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {Array.from({ length: VISIBLE_DAY_ROWS }).map((_, row) => (
+                    <tr key={row} style={{ height: gridMetrics.cellStride }}>
+                      <td className="sticky z-10 bg-card px-1 py-0" style={{ left: gridMetrics.frameInset, width: LABEL_COL_WIDTH }}>
+                        <div className="h-2.5 w-8 bg-muted rounded animate-pulse" />
+                      </td>
+                      {HOURS.map((_, h) => (
+                        <td key={h} className="p-0" style={{ width: gridMetrics.cellStride, height: gridMetrics.cellStride }}>
+                          <div className={cn(
+                            "animate-pulse",
+                            ((row * 24 + h) * 13 + row) % 6 === 0 ? "bg-muted animate-pulse" : "bg-muted/30"
+                          )}
+                          style={{
+                            width: gridMetrics.cellSize,
+                            height: gridMetrics.cellSize,
+                            borderRadius: gridMetrics.cellRadius,
+                          }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -175,20 +267,23 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
 
   if (logs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Grid3X3 className="h-8 w-8 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">No activity data for {year}</p>
+      <div ref={containerRef} className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
+        {headerLeft && <div className="flex items-center gap-3 md:gap-4">{headerLeft}</div>}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Grid3X3 className="h-8 w-8 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">No activity data for {year}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div ref={containerRef} className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-3")}>
       {/* Activity filter toolbar - two rows like week view, with headerLeft */}
-      <div className="flex items-start gap-3">
+      <div className="flex min-w-0 items-start gap-3 md:gap-4 animate-fade-slide-in">
         {headerLeft}
-        <div className="overflow-x-auto flex-1">
-          <div className="flex flex-col gap-1.5 py-1">
+        <div className="min-w-0 flex-1 overflow-x-auto pr-1">
+          <div className="flex min-w-full flex-col gap-1.5 py-1">
             {[legend.slice(0, Math.ceil(legend.length / 2)), legend.slice(Math.ceil(legend.length / 2))].map((row, rowIdx) => (
               <div key={rowIdx} className="flex items-center gap-1.5 w-max">
                 {row.map((item) => (
@@ -228,6 +323,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
         allDays={allDays}
         cellMap={cellMap}
         activeFilter={activeFilter}
+        gridMetrics={gridMetrics}
         selectedDay={selectedDay}
         onDaySelect={(day, e) => {
           setSelectedDay((prev) => {
@@ -248,37 +344,22 @@ export function YearActivityGrid({ year, onDayClick, headerLeft }: YearActivityG
 }
 
 /** Canvas-based activity grid — renders 8,760 cells as pixels for smooth scroll/filter */
-function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySelect }: {
+function ActivityCanvas({ allDays, cellMap, activeFilter, gridMetrics, selectedDay, onDaySelect }: {
   allDays: Date[];
   cellMap: Map<string, { activity: string; color: string }>;
   activeFilter: string | null;
+  gridMetrics: ReturnType<typeof getGridMetrics>;
   selectedDay: Date | null;
   onDaySelect: (day: Date, e: React.MouseEvent) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const hoveredRowRef = useRef<number | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
   const needsRedrawRef = useRef(false);
-
-  // Measure the outer wrapper to determine available width
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      setContainerWidth(entries[0].contentRect.width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Compute cell size to fill the width (use available space minus labels)
-  const availableWidth = Math.max(0, containerWidth - LABEL_COL_WIDTH - 2); // 2px for border
-  const cellStride = availableWidth > 0 ? availableWidth / 24 : MIN_CELL_SIZE + CELL_GAP;
-  const cellSize = Math.max(1, cellStride - CELL_GAP);
-  const gridWidth = Math.round(24 * cellStride);
+  const { cellRadius, cellSize, cellStride, frameInset, gridWidth, viewportHeight } = gridMetrics;
   const gridHeight = Math.round(allDays.length * cellStride);
+  const frameOffsetLeft = frameRef.current?.offsetLeft ?? 0;
 
   // Resolve theme colors (cached, only recomputes when grid dimensions change)
   const themeColors = useMemo(() => {
@@ -302,7 +383,7 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySele
     };
     document.body.removeChild(tempEl);
     return colors;
-  }, [containerWidth]); // recompute on resize (theme may change with breakpoints)
+  }, [gridWidth]); // recompute on resize (theme may change with breakpoints)
 
   // Draw the canvas (cells only, no labels)
   const drawCanvas = useCallback(() => {
@@ -348,7 +429,7 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySele
         if (!hex) {
           ctx.globalAlpha = activeFilter ? 0.05 : 0.1;
           ctx.fillStyle = mutedBg;
-          roundRect(ctx, x, y, cellSize, cellSize, BORDER_RADIUS);
+          roundRect(ctx, x, y, cellSize, cellSize, cellRadius);
           ctx.fill();
           ctx.globalAlpha = 1;
         } else {
@@ -358,13 +439,13 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySele
           }
           ctx.globalAlpha = targetAlpha;
           ctx.fillStyle = hex;
-          roundRect(ctx, x, y, cellSize, cellSize, BORDER_RADIUS);
+          roundRect(ctx, x, y, cellSize, cellSize, cellRadius);
           ctx.fill();
           ctx.globalAlpha = 1;
         }
       }
     }
-  }, [allDays, cellMap, activeFilter, selectedDay, gridWidth, gridHeight, cellSize, cellStride, themeColors]);
+  }, [allDays, cellMap, activeFilter, selectedDay, gridWidth, gridHeight, cellRadius, cellSize, cellStride, themeColors]);
 
   // Redraw immediately when inputs change
   useEffect(() => {
@@ -399,6 +480,17 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySele
   }, [allDays.length, gridWidth, gridHeight, cellStride]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (selectedDay) {
+      if (tooltip) {
+        setTooltip(null);
+      }
+      if (hoveredRowRef.current !== null) {
+        hoveredRowRef.current = null;
+        scheduleHoverRedraw();
+      }
+      return;
+    }
+
     const hit = getCell(e);
     if (!hit) {
       setTooltip(null);
@@ -426,75 +518,86 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, selectedDay, onDaySele
     } else {
       setTooltip(null);
     }
-  }, [allDays, cellMap, getCell, scheduleHoverRedraw]);
+  }, [allDays, cellMap, getCell, scheduleHoverRedraw, selectedDay, tooltip]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     const hit = getCell(e);
     if (!hit) return;
+    setTooltip(null);
+    if (hoveredRowRef.current !== null) {
+      hoveredRowRef.current = null;
+      scheduleHoverRedraw();
+    }
     onDaySelect(allDays[hit.row], e);
-  }, [allDays, getCell, onDaySelect]);
+  }, [allDays, getCell, onDaySelect, scheduleHoverRedraw]);
 
   const selectedDateKey = selectedDay ? format(selectedDay, "yyyy-MM-dd") : null;
 
   return (
-    <div ref={wrapperRef} className="rounded-xl border border-border bg-card" style={{ overflow: "clip" }}>
+    <div className="animate-fade-slide-in" style={{ animationDelay: "40ms" }}>
       <div
-        className="overflow-auto max-h-[calc(100vh-260px)] relative"
+        className="overflow-auto relative"
+        style={{ height: viewportHeight }}
         onMouseLeave={() => { setTooltip(null); hoveredRowRef.current = null; scheduleHoverRedraw(); }}
       >
-        <table className="border-separate border-spacing-0 text-[10px]" style={{ width: LABEL_COL_WIDTH + gridWidth }}>
-          <thead>
-            <tr>
-              <th className="sticky top-0 left-0 z-30 bg-card" style={{ width: LABEL_COL_WIDTH, height: HEADER_HEIGHT }} />
-              {HOURS.map((h) => (
-                <th
-                  key={h}
-                  className="sticky top-0 z-20 bg-card text-center font-bold text-muted-foreground/60 px-0"
-                  style={{ width: cellStride, height: HEADER_HEIGHT }}
-                >
-                  {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {allDays.map((day) => {
-              const dateKey = format(day, "yyyy-MM-dd");
-              const isFirstOfMonth = day.getDate() === 1;
-              const isSelected = dateKey === selectedDateKey;
-              return (
-                <tr key={dateKey} style={{ height: cellStride }}>
-                  <td
-                    className={cn(
-                      "sticky left-0 bg-card px-1 whitespace-nowrap",
-                      isFirstOfMonth ? "top-0 z-20 text-foreground font-bold" : "z-10 text-muted-foreground/60 text-[9px]",
-                      isSelected && "text-foreground font-bold"
-                    )}
-                    style={isFirstOfMonth ? { top: HEADER_HEIGHT, width: LABEL_COL_WIDTH } : { width: LABEL_COL_WIDTH }}
+        <div ref={frameRef} className="relative rounded-xl border border-border bg-card overflow-hidden" style={{ width: gridMetrics.frameWidth }}>
+          <table
+            className="border-separate border-spacing-0 text-[10px]"
+            style={{ width: gridMetrics.contentWidth, marginLeft: frameInset }}
+          >
+            <thead>
+              <tr>
+                <th className="sticky top-0 z-30 bg-card" style={{ left: frameInset, width: LABEL_COL_WIDTH, height: HEADER_HEIGHT }} />
+                {HOURS.map((h) => (
+                  <th
+                    key={h}
+                    className="sticky top-0 z-20 bg-card text-center font-bold text-muted-foreground/60 px-0"
+                    style={{ width: cellStride, height: HEADER_HEIGHT }}
                   >
-                    {isFirstOfMonth ? MONTH_NAMES[getMonth(day)] : String(day.getDate())}
-                  </td>
-                  <td colSpan={24} className="p-0 h-0" />
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    {h % 6 === 0 ? String(h).padStart(2, "0") : ""}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {allDays.map((day) => {
+                const dateKey = format(day, "yyyy-MM-dd");
+                const isFirstOfMonth = day.getDate() === 1;
+                const isSelected = dateKey === selectedDateKey;
+                return (
+                  <tr key={dateKey} style={{ height: cellStride }}>
+                    <td
+                      className={cn(
+                        "sticky bg-card px-1 whitespace-nowrap",
+                        isFirstOfMonth ? "top-0 z-20 text-foreground font-bold" : "z-10 text-muted-foreground/60 text-[9px]",
+                        isSelected && "text-foreground font-bold"
+                      )}
+                      style={isFirstOfMonth ? { top: HEADER_HEIGHT, left: frameInset, width: LABEL_COL_WIDTH } : { left: frameInset, width: LABEL_COL_WIDTH }}
+                    >
+                      {isFirstOfMonth ? MONTH_NAMES[getMonth(day)] : String(day.getDate())}
+                    </td>
+                    <td colSpan={24} className="p-0 h-0" />
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
-        {/* Canvas overlaid on cell area */}
-        <canvas
-          ref={canvasRef}
-          className="absolute cursor-pointer"
-          style={{ top: HEADER_HEIGHT, left: LABEL_COL_WIDTH, width: gridWidth, height: gridHeight }}
-          onMouseMove={handleMouseMove}
-          onClick={handleClick}
-        />
+          {/* Canvas overlaid on cell area */}
+          <canvas
+            ref={canvasRef}
+            className="absolute cursor-pointer"
+            style={{ top: HEADER_HEIGHT, left: frameInset + LABEL_COL_WIDTH, width: gridWidth, height: gridHeight }}
+            onMouseMove={handleMouseMove}
+            onClick={handleClick}
+          />
+        </div>
 
         {/* Tooltip */}
         {tooltip && (
           <div
             className="absolute pointer-events-none px-2 py-1 rounded bg-popover border border-border text-[10px] text-foreground shadow-md whitespace-nowrap z-50"
-            style={{ left: LABEL_COL_WIDTH + tooltip.x, top: HEADER_HEIGHT + tooltip.y, transform: "translateX(-50%)" }}
+            style={{ left: frameOffsetLeft + frameInset + LABEL_COL_WIDTH + tooltip.x, top: HEADER_HEIGHT + tooltip.y, transform: "translateX(-50%)" }}
           >
             {tooltip.text}
           </div>

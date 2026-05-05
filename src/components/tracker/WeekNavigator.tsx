@@ -12,6 +12,91 @@ interface WeekNavigatorProps {
 }
 
 export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps) {
+  const controls = useWeekNavigatorControls(currentDate, onDateChange);
+
+  return (
+    <div className="hidden sm:flex items-center gap-2 flex-wrap">
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={controls.goToPrev}>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+
+      <div className="flex items-center gap-1.5 text-sm">
+        <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+        <Select value={controls.weekNum} onValueChange={controls.handleWeekChange}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {controls.weeks.map((week) => (
+              <SelectItem key={week} value={week}>{week}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+        <Select value={controls.year} onValueChange={controls.handleYearChange}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {controls.years.map((itemYear) => (
+              <SelectItem key={itemYear} value={itemYear}>{itemYear}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={controls.goToNext}>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+
+      <span className="text-xs text-muted-foreground ml-2">
+        {format(controls.weekStart, "MMM d")} – {format(controls.weekEnd, "MMM d, yyyy")}
+      </span>
+    </div>
+  );
+}
+
+export function WeekNavigatorFab({ currentDate, onDateChange }: WeekNavigatorProps) {
+  const controls = useWeekNavigatorControls(currentDate, onDateChange);
+
+  return (
+    <>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={controls.goToPrev}>
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </Button>
+
+      <div className="flex items-center gap-1 text-xs">
+        <Select value={controls.weekNum} onValueChange={controls.handleWeekChange}>
+          <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {controls.weeks.map((week) => (
+              <SelectItem key={week} value={week}>{week}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground text-[10px]">/</span>
+        <Select value={controls.year} onValueChange={controls.handleYearChange}>
+          <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {controls.years.map((itemYear) => (
+              <SelectItem key={itemYear} value={itemYear}>{itemYear}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={controls.goToNext}>
+        <ChevronRight className="h-3.5 w-3.5" />
+      </Button>
+    </>
+  );
+}
+
+function useWeekNavigatorControls(currentDate: Date, onDateChange: (date: Date) => void) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
   const weekNum = getWeek(currentDate, { weekStartsOn: 1 });
@@ -36,83 +121,5 @@ export function WeekNavigator({ currentDate, onDateChange }: WeekNavigatorProps)
   const years = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
   const weeks = Array.from({ length: 52 }, (_, i) => i + 1);
 
-  return (
-    <>
-      {/* Desktop: inline */}
-      <div className="hidden sm:flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrev}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-
-        <div className="flex items-center gap-1.5 text-sm">
-          <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-          <Select value={weekNum} onValueChange={handleWeekChange}>
-            <SelectTrigger size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {weeks.map((w) => (
-                <SelectItem key={w} value={w}>{w}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-          <Select value={year} onValueChange={handleYearChange}>
-            <SelectTrigger size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNext}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-
-        <span className="text-xs text-muted-foreground ml-2">
-          {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
-        </span>
-      </div>
-
-      {/* Mobile: FAB at bottom */}
-      <div className="sm:hidden fixed inset-x-0 -bottom-4 z-40 h-32 pointer-events-none" style={{ background: "linear-gradient(to top, var(--background) 0%, var(--background) 30%, color-mix(in oklch, var(--background) 80%, transparent) 60%, transparent 100%)" }} />
-      <div className="sm:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 bg-card border border-border rounded-full px-3 py-2 shadow-[0_0_40px_8px_rgba(0,0,0,0.5)]">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goToPrev}>
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </Button>
-
-        <div className="flex items-center gap-1 text-xs">
-          <Select value={weekNum} onValueChange={handleWeekChange}>
-            <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {weeks.map((w) => (
-                <SelectItem key={w} value={w}>{w}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-muted-foreground text-[10px]">/</span>
-          <Select value={year} onValueChange={handleYearChange}>
-            <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goToNext}>
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </>
-  );
+  return { goToNext, goToPrev, handleWeekChange, handleYearChange, weekEnd, weekNum, weekStart, weeks, year, years };
 }

@@ -1,12 +1,13 @@
 import { db } from '@/lib/powersync/db';
 
 const DEBOUNCE_MS = 1000;
+type SQLValue = string | number | null;
 
 // ─── Debounced Field Updates (merges per record ID) ─────────────────────────
 
 interface PendingUpdate {
   table: string;
-  fields: Record<string, string | null>;
+  fields: Record<string, SQLValue>;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -16,7 +17,7 @@ const pendingUpdates = new Map<string, PendingUpdate>();
  * Queue a debounced UPDATE for a record field.
  * Multiple calls for the same id within DEBOUNCE_MS merge fields and reset the timer.
  */
-export function debouncedUpdate(id: string, field: string, value: string | null, table = 'tasks') {
+export function debouncedUpdate(id: string, field: string, value: SQLValue, table = 'tasks') {
   const existing = pendingUpdates.get(id);
 
   if (existing) {
@@ -24,7 +25,7 @@ export function debouncedUpdate(id: string, field: string, value: string | null,
     clearTimeout(existing.timer);
     existing.timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
   } else {
-    const fields: Record<string, string | null> = { [field]: value };
+    const fields: Record<string, SQLValue> = { [field]: value };
     const timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
     pendingUpdates.set(id, { table, fields, timer });
   }
@@ -83,10 +84,21 @@ let executeTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Queue a debounced SQL execute (e.g. INSERT).
  * All queued statements flush together after DEBOUNCE_MS of inactivity.
- * Optionally associate an entity ID so it can be cancelled before flush.
+ * Optionally associate an entity ID so it can be replaced or cancelled before flush.
  */
 export function debouncedExecute(sql: string, params: any[], entityId?: string) {
-  pendingExecutes.push({ id: entityId, sql, params });
+  if (entityId) {
+    const existing = pendingExecutes.find((execute) => execute.id === entityId);
+    if (existing) {
+      existing.sql = sql;
+      existing.params = params;
+    } else {
+      pendingExecutes.push({ id: entityId, sql, params });
+    }
+  } else {
+    pendingExecutes.push({ id: entityId, sql, params });
+  }
+
   if (executeTimer) clearTimeout(executeTimer);
   executeTimer = setTimeout(flushExecutes, DEBOUNCE_MS);
 }
@@ -95,8 +107,16 @@ export function debouncedExecute(sql: string, params: any[], entityId?: string) 
  * Cancel a pending execute by entity ID (e.g. if the entity is deleted before flush).
  */
 export function cancelExecute(entityId: string) {
-  const idx = pendingExecutes.findIndex(e => e.id === entityId);
-  if (idx !== -1) pendingExecutes.splice(idx, 1);
+  for (let index = pendingExecutes.length - 1; index >= 0; index--) {
+    if (pendingExecutes[index].id === entityId) {
+      pendingExecutes.splice(index, 1);
+    }
+  }
+
+  if (pendingExecutes.length === 0 && executeTimer) {
+    clearTimeout(executeTimer);
+    executeTimer = null;
+  }
 }
 
 /**

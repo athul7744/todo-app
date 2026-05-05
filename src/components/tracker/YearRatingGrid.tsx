@@ -32,14 +32,17 @@ const RATING_LABELS = ["Sad/Bad", "Meh", "Okay", "Awesome", "LifeMax"];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const YEAR_VIEW_SHELL_CLASS = "w-full";
 
 interface YearRatingGridProps {
   year: number;
   onDayClick?: (date: Date) => void;
   headerLeft?: React.ReactNode;
+  optimisticRatings?: Map<string, { score: number | null }>;
+  optimisticTimeLogs?: Map<string, { activityName: string | null }>;
 }
 
-export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridProps) {
+export function YearRatingGrid({ year, onDayClick, headerLeft, optimisticRatings, optimisticTimeLogs }: YearRatingGridProps) {
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
@@ -71,9 +74,55 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
   );
 
   const ratingMap = useMemo(
-    () => new Map(ratings.map((r) => [r.rating_date, r.score])),
-    [ratings]
+    () => {
+      const map = new Map(ratings.map((r) => [r.rating_date, r.score]));
+
+      optimisticRatings?.forEach((change, dateStr) => {
+        if (dateStr.slice(0, 4) !== String(year)) return;
+
+        if (change.score === null) {
+          map.delete(dateStr);
+          return;
+        }
+
+        map.set(dateStr, change.score);
+      });
+
+      return map;
+    },
+    [optimisticRatings, ratings, year]
   );
+
+  const activityCellMap = useMemo(() => {
+    const map = new Map<string, { activity: string; hex: string }>();
+
+    for (const log of logs) {
+      const ts = new Date(log.start_timestamp!);
+      const dateKey = ts.toISOString().slice(0, 10);
+      const hourKey = String(ts.getUTCHours()).padStart(2, "0");
+      const name = log.activity_name ?? "Unknown";
+      const colorKey = activityColorMap.get(name) ?? "teal";
+      map.set(`${dateKey}|${hourKey}`, { activity: name, hex: COLOR_HEX[colorKey] || "#6b7280" });
+    }
+
+    optimisticTimeLogs?.forEach((change, cellKey) => {
+      const [dateKey] = cellKey.split("|");
+      if (dateKey.slice(0, 4) !== String(year)) return;
+
+      if (change.activityName === null) {
+        map.delete(cellKey);
+        return;
+      }
+
+      const colorKey = activityColorMap.get(change.activityName) ?? "teal";
+      map.set(cellKey, {
+        activity: change.activityName,
+        hex: COLOR_HEX[colorKey] || "#6b7280",
+      });
+    });
+
+    return map;
+  }, [activityColorMap, logs, optimisticTimeLogs, year]);
 
   const months = useMemo(() => {
     return Array.from({ length: 12 }, (_, m) => {
@@ -103,21 +152,20 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
 
     // Build activity breakdown for selected day
     const activities: Record<string, { count: number; hex: string }> = {};
-    for (const log of logs) {
-      const ts = new Date(log.start_timestamp!);
-      const logDate = ts.toISOString().slice(0, 10);
-      if (logDate !== dateStr) continue;
-      const name = log.activity_name ?? "Unknown";
-      if (!activities[name]) {
-        const colorKey = activityColorMap.get(name) ?? "teal";
-        activities[name] = { count: 0, hex: COLOR_HEX[colorKey] || "#6b7280" };
+    for (let hour = 0; hour < 24; hour++) {
+      const key = `${dateStr}|${String(hour).padStart(2, "0")}`;
+      const cell = activityCellMap.get(key);
+      if (!cell) continue;
+
+      if (!activities[cell.activity]) {
+        activities[cell.activity] = { count: 0, hex: cell.hex };
       }
-      activities[name].count++;
+      activities[cell.activity].count++;
     }
     const totalHours = Object.values(activities).reduce((s, a) => s + a.count, 0);
 
     return { dateStr, score: score ?? null, activities, totalHours };
-  }, [selectedDay, ratingMap, logs, activityColorMap]);
+  }, [activityCellMap, ratingMap, selectedDay]);
 
   // Close popover on click outside
   useEffect(() => {
@@ -136,11 +184,11 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
         {/* Header skeleton */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 md:gap-4">
           {headerLeft}
-          <div className="flex items-center gap-1.5">
+          <div className="min-w-0 flex items-center gap-1.5 overflow-x-auto">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-6 w-16 rounded-full bg-muted animate-pulse" />
             ))}
@@ -169,10 +217,10 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
     );
   }
 
-  if (ratings.length === 0) {
+  if (ratingMap.size === 0) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
+      <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
+        <div className="flex items-center gap-3 md:gap-4">
           {headerLeft}
         </div>
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -184,11 +232,11 @@ export function YearRatingGrid({ year, onDayClick, headerLeft }: YearRatingGridP
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
       {/* Header: year selector + pill legend */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 md:gap-4">
         {headerLeft}
-        <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
+        <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-x-auto">
           {[1, 2, 3, 4, 5].map((score) => (
             <FilterPill
               key={score}

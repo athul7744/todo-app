@@ -11,21 +11,33 @@ import { AppHeader } from "@/components/AppHeader";
 import { ActivityToolbar } from "@/components/tracker/ActivityToolbar";
 import { TimeGrid, GridData, GridCell } from "@/components/tracker/TimeGrid";
 import { ManageActivitiesDialog } from "@/components/tracker/ManageActivitiesDialog";
-import { WeekNavigator } from "@/components/tracker/WeekNavigator";
+import { WeekNavigator, WeekNavigatorFab } from "@/components/tracker/WeekNavigator";
 import { WeekWidgets } from "@/components/tracker/widgets";
 import { WeekViewSkeleton } from "@/components/tracker/WeekViewSkeleton";
 import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
 import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
+import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { TimeLog, ActivityType, DailyRating } from "@/lib/powersync/AppSchema";
 import { getCurrentUserId } from "@/lib/auth";
 import { getApp } from "@/lib/apps";
 import { DEFAULT_ACTIVITIES } from "@/lib/activities";
+import { cancelExecute, cancelUpdate, debouncedExecute, debouncedUpdate } from "@/lib/debounced-update";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const trackerApp = getApp("tracker");
 
 type ViewMode = "week" | "activity" | "mood";
+
+interface OptimisticTimeLogChange {
+  rowId: string;
+  activityName: string | null;
+}
+
+interface OptimisticRatingChange {
+  rowId: string;
+  score: number | null;
+}
 
 export default function TrackerPage() {
   const db = usePowerSync();
@@ -36,8 +48,24 @@ export default function TrackerPage() {
   const setView = (v: ViewMode) => router.push(`/tracker?view=${v}`, { scroll: false });
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
+  const [optimisticTimeLogs, setOptimisticTimeLogs] = useState<Map<string, OptimisticTimeLogChange>>(new Map());
+  const [optimisticRatings, setOptimisticRatings] = useState<Map<string, OptimisticRatingChange>>(new Map());
+  const optimisticTimeLogsRef = useRef(optimisticTimeLogs);
+  const optimisticRatingsRef = useRef(optimisticRatings);
   const seededRef = useRef(false);
   const hasLoadedOnce = useRef(false);
+
+  useEffect(() => {
+    optimisticTimeLogsRef.current = optimisticTimeLogs;
+  }, [optimisticTimeLogs]);
+
+  useEffect(() => {
+    optimisticRatingsRef.current = optimisticRatings;
+  }, [optimisticRatings]);
+
+  useEffect(() => {
+    void getCurrentUserId();
+  }, []);
 
   // Query activity types from local DB
   const { data: activityTypes, isLoading: loadingActivities } = useQuery<ActivityType & { id: string }>(
@@ -78,6 +106,10 @@ export default function TrackerPage() {
 
   const rangeStart = format(days[0], "yyyy-MM-dd'T'00:00:00'+00:00'");
   const rangeEnd = format(days[days.length - 1], "yyyy-MM-dd'T'23:59:59'+00:00'");
+  const currentDayKeys = useMemo(
+    () => new Set(days.map((day) => format(day, "yyyy-MM-dd"))),
+    [days]
+  );
 
   // Subscribe to time_logs within the week window
   const { data: logs, isLoading: loadingLogs } = useQuery<TimeLog & { id: string }>(
@@ -103,6 +135,24 @@ export default function TrackerPage() {
     return map;
   }, [logs]);
 
+  const mergedGridData: GridData = useMemo(() => {
+    const map: GridData = new Map(gridData);
+
+    optimisticTimeLogs.forEach((change, cellKey) => {
+      const [dateKey] = cellKey.split("|");
+      if (!currentDayKeys.has(dateKey)) return;
+
+      if (change.activityName === null) {
+        map.delete(cellKey);
+        return;
+      }
+
+      map.set(cellKey, { id: change.rowId, activityName: change.activityName });
+    });
+
+    return map;
+  }, [currentDayKeys, gridData, optimisticTimeLogs]);
+
   // Query weekly ratings
   const weekRangeStartDate = format(days[0], "yyyy-MM-dd");
   const weekRangeEndDate = format(days[days.length - 1], "yyyy-MM-dd");
@@ -116,54 +166,193 @@ export default function TrackerPage() {
     [weekRatings]
   );
 
-  // Keep widget props consistent: only update when gridData belongs to current days.
-  // useQuery resolves a frame late on week change, so widgets would briefly see
-  // new days + stale data, causing an empty-state flash.
-  const widgetProps = useRef({ days, data: gridData, ratings: ratingsMap });
-  const isDataStale = useMemo(() => {
-    if (gridData.size === 0) return false; // genuinely empty week — not stale
-    const firstKey = gridData.keys().next().value as string | undefined;
-    if (!firstKey) return false;
-    const keyDate = firstKey.split("|")[0];
-    const startDate = format(days[0], "yyyy-MM-dd");
-    const endDate = format(days[days.length - 1], "yyyy-MM-dd");
-    return keyDate < startDate || keyDate > endDate;
-  }, [days, gridData]);
+  const mergedRatingsMap = useMemo(() => {
+    const map = new Map(ratingsMap);
 
-  if (!isDataStale) {
-    widgetProps.current = { days, data: gridData, ratings: ratingsMap };
-  }
+    optimisticRatings.forEach((change, dateStr) => {
+      if (!currentDayKeys.has(dateStr)) return;
+
+      if (change.score === null) {
+        map.delete(dateStr);
+        return;
+      }
+
+      map.set(dateStr, change.score);
+    });
+
+    return map;
+  }, [currentDayKeys, optimisticRatings, ratingsMap]);
+
+  const currentWeekOptimisticTimeLogs = useMemo(() => {
+    const map = new Map<string, OptimisticTimeLogChange>();
+
+    optimisticTimeLogs.forEach((change, cellKey) => {
+      const [dateKey] = cellKey.split("|");
+      if (!currentDayKeys.has(dateKey)) return;
+      map.set(cellKey, change);
+    });
+
+    return map;
+  }, [currentDayKeys, optimisticTimeLogs]);
+
+  const currentWeekOptimisticRatings = useMemo(() => {
+    const map = new Map<string, OptimisticRatingChange>();
+
+    optimisticRatings.forEach((change, dateStr) => {
+      if (!currentDayKeys.has(dateStr)) return;
+      map.set(dateStr, change);
+    });
+
+    return map;
+  }, [currentDayKeys, optimisticRatings]);
 
   const ratingsIdMap = useMemo(
     () => new Map(weekRatings.filter((r) => r.rating_date).map((r) => [r.rating_date as string, r.id])),
     [weekRatings]
   );
 
+  useEffect(() => {
+    setOptimisticTimeLogs((prev) => {
+      let didChange = false;
+      const next = new Map(prev);
+
+      prev.forEach((change, cellKey) => {
+        const [dateKey] = cellKey.split("|");
+        if (!currentDayKeys.has(dateKey)) return;
+
+        const persisted = gridData.get(cellKey);
+        const matchesPersisted = change.activityName === null
+          ? !persisted
+          : persisted?.id === change.rowId && persisted.activityName === change.activityName;
+
+        if (matchesPersisted) {
+          next.delete(cellKey);
+          didChange = true;
+        }
+      });
+
+      return didChange ? next : prev;
+    });
+  }, [currentDayKeys, gridData]);
+
+  useEffect(() => {
+    setOptimisticRatings((prev) => {
+      let didChange = false;
+      const next = new Map(prev);
+
+      prev.forEach((change, dateStr) => {
+        if (!currentDayKeys.has(dateStr)) return;
+
+        const persistedId = ratingsIdMap.get(dateStr);
+        const persistedScore = ratingsMap.get(dateStr) ?? null;
+        const matchesPersisted = change.score === null
+          ? !persistedId
+          : Boolean(persistedId) && persistedId === change.rowId && persistedScore === change.score;
+
+        if (matchesPersisted) {
+          next.delete(dateStr);
+          didChange = true;
+        }
+      });
+
+      return didChange ? next : prev;
+    });
+  }, [currentDayKeys, ratingsIdMap, ratingsMap]);
+
+  // Keep widget props consistent: only update when gridData belongs to current days.
+  // useQuery resolves a frame late on week change, so widgets would briefly see
+  // new days + stale data, causing an empty-state flash.
+  const widgetProps = useRef({ days, data: mergedGridData, ratings: mergedRatingsMap });
+  const isDataStale = useMemo(() => {
+    if (mergedGridData.size === 0) return false; // genuinely empty week — not stale
+    const firstKey = mergedGridData.keys().next().value as string | undefined;
+    if (!firstKey) return false;
+    const keyDate = firstKey.split("|")[0];
+    const startDate = format(days[0], "yyyy-MM-dd");
+    const endDate = format(days[days.length - 1], "yyyy-MM-dd");
+    return keyDate < startDate || keyDate > endDate;
+  }, [days, mergedGridData]);
+
+  if (!isDataStale) {
+    widgetProps.current = { days, data: mergedGridData, ratings: mergedRatingsMap };
+  }
+
   // Rating upsert handler
   const handleRate = useCallback(
     async (dateStr: string, score: number) => {
       const existingId = ratingsIdMap.get(dateStr);
-      const existingScore = ratingsMap.get(dateStr);
+      const persistedScore = ratingsMap.get(dateStr) ?? null;
+      const optimisticEntry = optimisticRatings.get(dateStr);
+      const currentScore = optimisticEntry ? optimisticEntry.score : persistedScore;
+      const nextScore = currentScore === score ? null : score;
 
-      if (existingScore === score) {
-        // Deselect
-        if (existingId) {
-          await db.execute("DELETE FROM daily_ratings WHERE id = ?", [existingId]);
+      if (!existingId) {
+        cancelExecute(`daily-rating:${dateStr}`);
+
+        if (nextScore === null) {
+          setOptimisticRatings((prev) => {
+            if (!prev.has(dateStr)) return prev;
+            const next = new Map(prev);
+            next.delete(dateStr);
+            return next;
+          });
+          return;
         }
+
+        const rowId = optimisticEntry?.rowId ?? uuidv4();
+        setOptimisticRatings((prev) => {
+          const next = new Map(prev);
+          next.set(dateStr, { rowId, score: nextScore });
+          return next;
+        });
+
+        const userId = await getCurrentUserId();
+        const latest = optimisticRatingsRef.current.get(dateStr);
+        if (!latest || latest.rowId !== rowId || latest.score !== nextScore) {
+          return;
+        }
+
+        debouncedExecute(
+          `INSERT INTO daily_ratings (id, user_id, rating_date, score, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+          [rowId, userId, dateStr, nextScore],
+          `daily-rating:${dateStr}`
+        );
         return;
       }
 
-      if (existingId) {
-        await db.execute("UPDATE daily_ratings SET score = ? WHERE id = ?", [score, existingId]);
-      } else {
-        const userId = await getCurrentUserId();
-        await db.execute(
-          `INSERT INTO daily_ratings (id, user_id, rating_date, score, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-          [uuidv4(), userId, dateStr, score]
-        );
+      const entityId = `daily-rating:${existingId}`;
+      cancelExecute(entityId);
+
+      if (nextScore === null) {
+        cancelUpdate(existingId, "score");
+        debouncedExecute("DELETE FROM daily_ratings WHERE id = ?", [existingId], entityId);
+        setOptimisticRatings((prev) => {
+          const next = new Map(prev);
+          next.set(dateStr, { rowId: existingId, score: null });
+          return next;
+        });
+        return;
       }
+
+      if (persistedScore === nextScore) {
+        cancelUpdate(existingId, "score");
+        setOptimisticRatings((prev) => {
+          if (!prev.has(dateStr)) return prev;
+          const next = new Map(prev);
+          next.delete(dateStr);
+          return next;
+        });
+        return;
+      }
+
+      debouncedUpdate(existingId, "score", nextScore, "daily_ratings");
+      setOptimisticRatings((prev) => {
+        const next = new Map(prev);
+        next.set(dateStr, { rowId: existingId, score: nextScore });
+        return next;
+      });
     },
-    [db, ratingsMap, ratingsIdMap]
+    [optimisticRatings, ratingsIdMap, ratingsMap]
   );
 
   // Cell click handler
@@ -171,31 +360,85 @@ export default function TrackerPage() {
     async (day: Date, hour: number, existing: GridCell | undefined) => {
       if (!activeActivity) return;
 
+      const dateKey = format(day, "yyyy-MM-dd");
+      const hourKey = String(hour).padStart(2, "0");
+      const cellKey = `${dateKey}|${hourKey}`;
+      const persistedCell = gridData.get(cellKey);
+      const nextActivity = activeActivity === "__eraser__" ? null : activeActivity;
+      const currentActivity = existing?.activityName ?? null;
+
+      if (nextActivity === currentActivity) return;
+
       const isoTimestamp = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour)).toISOString();
 
-      if (activeActivity === "__eraser__") {
-        if (existing?.id) {
-          await db.execute("DELETE FROM time_logs WHERE id = ?", [existing.id]);
+      if (!persistedCell?.id) {
+        cancelExecute(`time-log:${cellKey}`);
+
+        if (nextActivity === null) {
+          setOptimisticTimeLogs((prev) => {
+            if (!prev.has(cellKey)) return prev;
+            const next = new Map(prev);
+            next.delete(cellKey);
+            return next;
+          });
+          return;
         }
+
+        const rowId = optimisticTimeLogs.get(cellKey)?.rowId ?? uuidv4();
+        setOptimisticTimeLogs((prev) => {
+          const next = new Map(prev);
+          next.set(cellKey, { rowId, activityName: nextActivity });
+          return next;
+        });
+
+        const userId = await getCurrentUserId();
+        const latest = optimisticTimeLogsRef.current.get(cellKey);
+        if (!latest || latest.rowId !== rowId || latest.activityName !== nextActivity) {
+          return;
+        }
+
+        debouncedExecute(
+          `INSERT INTO time_logs (id, user_id, activity_name, start_timestamp, duration_minutes, created_at)
+           VALUES (?, ?, ?, ?, 60, ?)`,
+          [rowId, userId, nextActivity, isoTimestamp, new Date().toISOString()],
+          `time-log:${cellKey}`
+        );
         return;
       }
 
-      if (existing?.id) {
-        await db.execute(
-          "UPDATE time_logs SET activity_name = ? WHERE id = ?",
-          [activeActivity, existing.id]
-        );
-      } else {
-        const userId = await getCurrentUserId();
-        const id = uuidv4();
-        await db.execute(
-          `INSERT INTO time_logs (id, user_id, activity_name, start_timestamp, duration_minutes, created_at)
-           VALUES (?, ?, ?, ?, 60, ?)`,
-          [id, userId, activeActivity, isoTimestamp, new Date().toISOString()]
-        );
+      const entityId = `time-log:${persistedCell.id}`;
+      cancelExecute(entityId);
+
+      if (nextActivity === null) {
+        cancelUpdate(persistedCell.id, "activity_name");
+        debouncedExecute("DELETE FROM time_logs WHERE id = ?", [persistedCell.id], entityId);
+        setOptimisticTimeLogs((prev) => {
+          const next = new Map(prev);
+          next.set(cellKey, { rowId: persistedCell.id!, activityName: null });
+          return next;
+        });
+        return;
       }
+
+      if (persistedCell.activityName === nextActivity) {
+        cancelUpdate(persistedCell.id, "activity_name");
+        setOptimisticTimeLogs((prev) => {
+          if (!prev.has(cellKey)) return prev;
+          const next = new Map(prev);
+          next.delete(cellKey);
+          return next;
+        });
+        return;
+      }
+
+      debouncedUpdate(persistedCell.id, "activity_name", nextActivity, "time_logs");
+      setOptimisticTimeLogs((prev) => {
+        const next = new Map(prev);
+        next.set(cellKey, { rowId: persistedCell.id!, activityName: nextActivity });
+        return next;
+      });
     },
-    [activeActivity, db]
+    [activeActivity, gridData, optimisticTimeLogs]
   );
 
   // Track first successful load to avoid skeleton flicker on week switch
@@ -229,7 +472,7 @@ export default function TrackerPage() {
       />
 
       {/* View Tabs */}
-      <div className="border-b border-border px-4 flex items-center gap-1 overflow-x-auto">
+      <div className="border-b border-border px-[var(--app-gutter-x)] flex items-center gap-1 overflow-x-auto">
         <button
           onClick={() => setView("week")}
           className={cn(
@@ -262,7 +505,7 @@ export default function TrackerPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] space-y-4 sm:pb-4 md:py-8">
         {/* Week View */}
         {view === "week" && (
           <>
@@ -281,7 +524,7 @@ export default function TrackerPage() {
                 </section>
 
                 <section>
-                  <TimeGrid days={days} data={gridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={ratingsMap} onRate={handleRate} />
+                  <TimeGrid days={days} data={mergedGridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={mergedRatingsMap} onRate={handleRate} />
                 </section>
 
                 <section className="mt-4 pb-16 sm:pb-0">
@@ -297,6 +540,7 @@ export default function TrackerPage() {
           <YearActivityGrid
             year={selectedYear}
             onDayClick={handleDayClick}
+            optimisticTimeLogs={currentWeekOptimisticTimeLogs}
             headerLeft={
               <div className="flex items-center gap-2 shrink-0 pt-1">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -320,6 +564,8 @@ export default function TrackerPage() {
           <YearRatingGrid
             year={selectedYear}
             onDayClick={handleDayClick}
+            optimisticRatings={currentWeekOptimisticRatings}
+            optimisticTimeLogs={currentWeekOptimisticTimeLogs}
             headerLeft={
               <div className="flex items-center gap-2 shrink-0">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -338,6 +584,11 @@ export default function TrackerPage() {
           />
         )}
       </div>
+
+      <MobileBottomFabs
+        app={trackerApp}
+        centerContent={view === "week" ? <WeekNavigatorFab currentDate={currentDate} onDateChange={setCurrentDate} /> : undefined}
+      />
     </div>
   );
 }

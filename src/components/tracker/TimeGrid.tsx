@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_CELL_CLASSES } from "@/lib/activities";
 import { format } from "date-fns";
@@ -45,9 +46,25 @@ interface TimeGridProps {
 export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }: TimeGridProps) {
   // Key for animation reset when week changes
   const weekKey = days.length > 0 ? format(days[0], "yyyy-MM-dd") : "";
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const currentTimeCellRef = useRef<HTMLTableCellElement>(null);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const currentCell = currentTimeCellRef.current;
+    if (!wrapper || !currentCell) return;
+
+    requestAnimationFrame(() => {
+      const targetLeft = currentCell.offsetLeft - (wrapper.clientWidth - currentCell.clientWidth) / 2;
+      wrapper.scrollTo({
+        left: Math.max(0, targetLeft),
+        behavior: "smooth",
+      });
+    });
+  }, [weekKey]);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border" key={weekKey}>
+    <div ref={wrapperRef} className="overflow-x-auto rounded-lg border border-border" key={weekKey}>
       <style>{`
         @keyframes rowSlideIn {
           from { opacity: 0; transform: translateX(-8px); }
@@ -78,6 +95,9 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
         <tbody>
           {days.map((day, rowIdx) => {
             const dateKey = format(day, "yyyy-MM-dd");
+            const now = new Date();
+            const todayKey = format(now, "yyyy-MM-dd");
+            const currentHour = now.getHours();
             const currentScore = ratings?.get(dateKey) ?? null;
             const currentRating = RATINGS.find((r) => r.score === currentScore);
             return (
@@ -123,10 +143,12 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
                   const cellClasses = color
                     ? ACTIVITY_CELL_CLASSES[color]
                     : undefined;
+                  const isCurrentTimeCell = dateKey === todayKey && h === currentHour;
 
                   return (
                     <td
                       key={h}
+                      ref={isCurrentTimeCell ? currentTimeCellRef : null}
                       onClick={() => onCellClick(day, h, cell)}
                       className={cn(
                         "border-l border-border cursor-pointer text-center select-none transition-colors",

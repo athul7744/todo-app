@@ -10,6 +10,7 @@ import { SyncIndicator } from "@/components/SyncIndicator";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { createClient } from "@/lib/supabase/client";
 import { type AppConfig } from "@/lib/apps";
+import { cn } from "@/lib/utils";
 
 interface AppHeaderProps {
   /** The active app config */
@@ -26,6 +27,7 @@ export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeader
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
+  const Icon = app.icon;
 
   useEffect(() => setMounted(true), []);
 
@@ -38,7 +40,7 @@ export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeader
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-border bg-background/95 backdrop-blur-md px-4 md:px-8 py-4 shrink-0">
+      <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-border bg-background/95 backdrop-blur-md px-[var(--app-gutter-x)] py-4 shrink-0">
         {/* Title & Actions */}
         <div className="flex items-center justify-between">
 
@@ -48,8 +50,16 @@ export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeader
             <div className="flex items-center w-12">
               <SyncIndicator />
             </div>
-            {/* Center: App Switcher */}
-            <AppSwitcher current={app} size="sm" />
+            {/* Center: App branding */}
+            <div className="flex items-center gap-2 rounded-lg px-2 py-1">
+              <div className={cn("rounded-lg p-1.5", app.accent.iconBg)}>
+                <Icon className={cn("h-4.5 w-4.5", app.accent.iconText)} />
+              </div>
+              <h1 className="text-lg font-bold tracking-tight text-foreground">
+                {app.name}
+                <span className={app.accent.iconText}>.</span>
+              </h1>
+            </div>
             {/* Right: Overflow menu */}
             <div className="flex items-center justify-end w-12">
               <DropdownMenu>
