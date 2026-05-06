@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { resetLocalDatabase } from "@/lib/powersync/db";
+import { logger } from "@/lib/logger";
 
 interface ResetLocalDataDialogProps {
   open: boolean;
@@ -27,7 +28,7 @@ export function ResetLocalDataDialog({ open, onOpenChange }: ResetLocalDataDialo
     try {
       await resetLocalDatabase();
     } catch (err) {
-      console.error("Failed to reset local database:", err);
+      logger.error("Failed to reset local database:", err);
     } finally {
       setIsResetting(false);
       onOpenChange(false);

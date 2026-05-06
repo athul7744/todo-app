@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, LayoutDashboard } from "lucide-react";
+import { ChevronDown, Check, LayoutDashboard, Logs } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { APPS, type AppConfig } from "@/lib/apps";
+import { isLogViewerEnabled } from "@/lib/logger";
+import { LogViewerDialog } from "@/components/LogViewerDialog";
 
 interface AppSwitcherProps {
   current: AppConfig;
@@ -15,7 +17,9 @@ interface AppSwitcherProps {
 
 export function AppSwitcher({ current, size = "md" }: AppSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
   const Icon = current.icon;
+  const showLogViewer = isLogViewerEnabled();
 
   const trigger = useMemo(() => {
     if (size === "fab") {
@@ -59,50 +63,70 @@ export function AppSwitcher({ current, size = "md" }: AppSwitcherProps) {
   const popoverAlign = size === "fab" ? "start" : "start";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      {trigger}
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        {trigger}
 
-      <PopoverContent align={popoverAlign} side={popoverSide} sideOffset={8} className={popoverClassName}>
-        <div className="mb-0.5 flex items-center justify-between px-2 py-1.5">
-          <div className="text-xs font-medium text-muted-foreground">
-            Switch app
-          </div>
-          <Link
-            href="/"
-            onClick={() => setOpen(false)}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label="Open launcher"
-            title="Open launcher"
-          >
-            <LayoutDashboard className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-        {APPS.map((app) => {
-          const AppIcon = app.icon;
-          const isActive = app.id === current.id;
-          return (
-            <Link
-              key={app.id}
-              href={app.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent font-medium"
-                  : "hover:bg-accent/50"
+        <PopoverContent align={popoverAlign} side={popoverSide} sideOffset={8} className={popoverClassName}>
+          <div className="mb-0.5 flex items-center justify-between px-2 py-1.5">
+            <div className="text-xs font-medium text-muted-foreground">
+              Switch app
+            </div>
+            <div className="flex items-center gap-1">
+              {showLogViewer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setLogDialogOpen(true);
+                  }}
+                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label="Open logs"
+                  title="Open logs"
+                >
+                  <Logs className="h-3.5 w-3.5" />
+                </button>
               )}
-            >
-              <div className={cn("rounded-md p-1.5", app.accent.iconBg)}>
-                <AppIcon className={cn("h-4 w-4", app.accent.iconText)} />
-              </div>
-              <span className="flex-1 font-semibold tracking-tight">
-                {app.name}<span className={app.accent.iconText}>.</span>
-              </span>
-              {isActive && <Check className="h-4 w-4 text-muted-foreground" />}
-            </Link>
-          );
-        })}
-      </PopoverContent>
-    </Popover>
+              <Link
+                href="/"
+                onClick={() => setOpen(false)}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Open launcher"
+                title="Open launcher"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+          {APPS.map((app) => {
+            const AppIcon = app.icon;
+            const isActive = app.id === current.id;
+            return (
+              <Link
+                key={app.id}
+                href={app.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent font-medium"
+                    : "hover:bg-accent/50"
+                )}
+              >
+                <div className={cn("rounded-md p-1.5", app.accent.iconBg)}>
+                  <AppIcon className={cn("h-4 w-4", app.accent.iconText)} />
+                </div>
+                <span className="flex-1 font-semibold tracking-tight">
+                  {app.name}<span className={app.accent.iconText}>.</span>
+                </span>
+                {isActive && <Check className="h-4 w-4 text-muted-foreground" />}
+              </Link>
+            );
+          })}
+        </PopoverContent>
+      </Popover>
+
+      {showLogViewer && <LogViewerDialog open={logDialogOpen} onOpenChange={setLogDialogOpen} />}
+    </>
   );
 }

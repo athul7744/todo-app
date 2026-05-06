@@ -171,6 +171,7 @@ Copy `.env.example` to `.env.local` and fill in your values:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...your-publishable-key
 NEXT_PUBLIC_POWERSYNC_URL=https://your-instance.powersync.journeyapps.com
+NEXT_PUBLIC_ENABLE_LOG_VIEW=false
 ```
 
 ```bash
@@ -184,6 +185,7 @@ Notes:
 
 - `npm run dev` and `npm run build` already use the repo's configured Webpack-based Next.js commands.
 - The `/share` route is wired as the PWA web share target, so mobile share-sheet flows can be exercised locally after sign-in.
+- Set `NEXT_PUBLIC_ENABLE_LOG_VIEW=true` to expose an in-app viewer for the latest 50 logger entries from the current browser session.
 
 ## 4. Deploy to Vercel
 

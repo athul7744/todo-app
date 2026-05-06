@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { PowerSyncContext } from '@powersync/react';
 import { db, initLocal, connectCloud } from '@/lib/powersync/db';
+import { logger } from '@/lib/logger';
 
 export function PowerSyncProvider({ children }: { children: React.ReactNode }) {
   const [localReady, setLocalReady] = useState(false);
@@ -14,10 +15,10 @@ export function PowerSyncProvider({ children }: { children: React.ReactNode }) {
         setLocalReady(true);
         // Phase 2: Connect to cloud in background — doesn't block UI
         connectCloud().catch((err) =>
-          console.error("PowerSync cloud connect failed:", err)
+          logger.error("PowerSync cloud connect failed:", err)
         );
       })
-      .catch((err) => console.error("Failed to initialize local DB:", err));
+      .catch((err) => logger.error("Failed to initialize local DB:", err));
   }, []);
 
   if (!localReady) {
