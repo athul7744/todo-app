@@ -20,7 +20,7 @@ function ToolbarSkeleton() {
 /** Skeleton for the TimeGrid table */
 function TimeGridSkeleton() {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="overflow-x-auto rounded-lg border border-border overscroll-y-none [touch-action:pan-x_pan-y]">
       <table className="border-separate border-spacing-0 w-max min-w-full text-xs">
         <thead>
           <tr className="border-b border-border">

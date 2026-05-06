@@ -40,7 +40,7 @@ export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeader
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-border bg-background/95 backdrop-blur-md px-[var(--app-gutter-x)] py-4 shrink-0">
+      <header className="sticky top-0 z-20 flex shrink-0 flex-col gap-4 border-b border-border bg-background/95 px-[var(--app-gutter-x)] py-4 backdrop-blur-md [touch-action:pan-y]">
         {/* Title & Actions */}
         <div className="flex items-center justify-between">
 

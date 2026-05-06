@@ -69,7 +69,7 @@ export function MobileBottomFabs({ app, centerContent, centerShellClassName, cen
       {centerContent && (
         <div
           className={cn(
-            "sm:hidden fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-200",
+            "sm:hidden fixed inset-x-0 z-50 flex justify-center px-[var(--app-gutter-x)] transition-all duration-200",
             hasBlockingOverlay && "pointer-events-none opacity-0 translate-y-2"
           )}
           style={{
@@ -79,7 +79,7 @@ export function MobileBottomFabs({ app, centerContent, centerShellClassName, cen
           {centerUseShell ? (
             <div
               className={cn(
-                "flex items-center gap-1.5 rounded-full border border-border bg-card shadow-[0_0_40px_8px_rgba(0,0,0,0.5)]",
+                "flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card shadow-[0_0_40px_8px_rgba(0,0,0,0.5)]",
                 centerShellClassName ?? "px-3 py-2"
               )}
             >

@@ -15,7 +15,7 @@ interface ActivityToolbarProps {
 
 export function ActivityToolbar({ activities, active, onSelect }: ActivityToolbarProps) {
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-start gap-2 [touch-action:pan-y]">
       {/* Eraser - fixed at start */}
       <button
         onClick={() => onSelect(active === "__eraser__" ? null : "__eraser__")}

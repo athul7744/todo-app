@@ -186,9 +186,9 @@ export function YearRatingGrid({ year, onDayClick, headerLeft, optimisticRatings
     return (
       <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
         {/* Header skeleton */}
-        <div className="flex items-center gap-3 md:gap-4">
+        <div className="flex items-center gap-3 md:gap-4 [touch-action:pan-y]">
           {headerLeft}
-          <div className="min-w-0 flex items-center gap-1.5 overflow-x-auto">
+          <div className="min-w-0 flex items-center gap-1.5 overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-6 w-16 rounded-full bg-muted animate-pulse" />
             ))}
@@ -232,11 +232,11 @@ export function YearRatingGrid({ year, onDayClick, headerLeft, optimisticRatings
   }
 
   return (
-    <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
+      <div className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-4")}>
       {/* Header: year selector + pill legend */}
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-3 md:gap-4 [touch-action:pan-y]">
         {headerLeft}
-        <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-x-auto">
+        <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]">
           {[1, 2, 3, 4, 5].map((score) => (
             <FilterPill
               key={score}

@@ -457,7 +457,7 @@ export default function TrackerPage() {
   const years = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-w-0 flex-col overflow-x-hidden">
       <AppHeader
         app={trackerApp}
         mobileMenuItems={
@@ -472,7 +472,7 @@ export default function TrackerPage() {
       />
 
       {/* View Tabs */}
-      <div className="border-b border-border px-[var(--app-gutter-x)] flex items-center gap-1 overflow-x-auto">
+      <div className="border-b border-border px-[var(--app-gutter-x)] flex items-center gap-1 overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]">
         <button
           onClick={() => setView("week")}
           className={cn(
@@ -505,7 +505,7 @@ export default function TrackerPage() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] space-y-4 sm:pb-4 md:py-8">
+      <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] space-y-4 sm:pb-4 md:py-8">
         {/* Week View */}
         {view === "week" && (
           <>
@@ -514,8 +514,8 @@ export default function TrackerPage() {
             {showSkeleton ? (
               <WeekViewSkeleton />
             ) : (
-              <div className={cn("transition-opacity duration-150", isDataStale && "opacity-70")}>
-                <section>
+              <div className={cn("min-w-0 overflow-x-hidden transition-opacity duration-150", isDataStale && "opacity-70")}>
+                <section className="min-w-0 overflow-x-hidden [touch-action:pan-y]">
                   <ActivityToolbar
                     activities={activityTypes.map((a) => ({ name: a.name ?? "", color: a.color ?? "teal" }))}
                     active={activeActivity}
@@ -523,11 +523,11 @@ export default function TrackerPage() {
                   />
                 </section>
 
-                <section>
+                <section className="min-w-0 overflow-x-hidden">
                   <TimeGrid days={days} data={mergedGridData} colorMap={activityColorMap} onCellClick={handleCellClick} ratings={mergedRatingsMap} onRate={handleRate} />
                 </section>
 
-                <section className="mt-4 pb-16 sm:pb-0">
+                <section className="mt-4 min-w-0 overflow-x-hidden pb-16 sm:pb-0 [touch-action:pan-y]">
                   <WeekWidgets days={widgetProps.current.days} data={widgetProps.current.data} colorMap={activityColorMap} ratings={widgetProps.current.ratings} />
                 </section>
               </div>
@@ -542,7 +542,7 @@ export default function TrackerPage() {
             onDayClick={handleDayClick}
             optimisticTimeLogs={currentWeekOptimisticTimeLogs}
             headerLeft={
-              <div className="flex items-center gap-2 shrink-0 pt-1">
+              <div className="flex items-center gap-2 shrink-0 pt-1 [touch-action:pan-y]">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
                   <SelectTrigger size="sm">
@@ -567,7 +567,7 @@ export default function TrackerPage() {
             optimisticRatings={currentWeekOptimisticRatings}
             optimisticTimeLogs={currentWeekOptimisticTimeLogs}
             headerLeft={
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 [touch-action:pan-y]">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <Select value={selectedYear} onValueChange={(v: any) => setSelectedYear(parseInt(String(v), 10))}>
                   <SelectTrigger size="sm">

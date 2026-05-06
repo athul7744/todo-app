@@ -64,10 +64,14 @@ export function TimeGrid({ days, data, colorMap, onCellClick, ratings, onRate }:
   }, [weekKey]);
 
   return (
-    <div ref={wrapperRef} className="overflow-x-auto rounded-lg border border-border" key={weekKey}>
+    <div
+      ref={wrapperRef}
+      className="overflow-x-auto rounded-lg border border-border overscroll-y-none [touch-action:pan-x_pan-y]"
+      key={weekKey}
+    >
       <style>{`
         @keyframes rowSlideIn {
-          from { opacity: 0; transform: translateX(-8px); }
+          from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: none; }
         }
       `}</style>

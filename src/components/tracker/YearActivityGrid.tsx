@@ -213,7 +213,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft, optimisticTimeL
     return (
       <div ref={containerRef} className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-3")}> 
         {/* Header skeleton: year selector + activity pills */}
-        <div className="flex min-w-0 items-start gap-3 md:gap-4">
+        <div className="flex min-w-0 items-start gap-3 md:gap-4 [touch-action:pan-y]">
           {headerLeft}
           <div className="min-w-0 flex-1 overflow-x-auto pr-1">
             <div className="flex min-w-full flex-col gap-1.5 py-1">
@@ -233,7 +233,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft, optimisticTimeL
 
         {/* Grid skeleton */}
         <div className="flex-1">
-          <div className="mx-auto overflow-auto relative" style={{ width: gridMetrics.viewportWidth, height: gridMetrics.viewportHeight }}>
+          <div className="mx-auto relative overflow-x-hidden overflow-y-auto overscroll-x-none [touch-action:pan-y]" style={{ width: gridMetrics.viewportWidth, height: gridMetrics.viewportHeight }}>
             <div className="relative rounded-xl border border-border bg-card" style={{ width: gridMetrics.frameWidth }}>
               <table
                 className="border-separate border-spacing-0 text-[10px]"
@@ -300,7 +300,7 @@ export function YearActivityGrid({ year, onDayClick, headerLeft, optimisticTimeL
   return (
     <div ref={containerRef} className={cn(YEAR_VIEW_SHELL_CLASS, "space-y-3")}>
       {/* Activity filter toolbar - two rows like week view, with headerLeft */}
-      <div className="flex min-w-0 items-start gap-3 md:gap-4 animate-fade-slide-in">
+    <div className="flex min-w-0 items-start gap-3 md:gap-4 animate-fade-slide-in [touch-action:pan-y]">
         {headerLeft}
         <ActivityPillStrip
           items={legend.map((item) => ({
@@ -550,7 +550,7 @@ function ActivityCanvas({ allDays, cellMap, activeFilter, gridMetrics, selectedD
         style={{ width: gridMetrics.viewportWidth, height: viewportHeight }}
       >
         <div
-          className="relative h-full overflow-auto"
+          className="relative h-full overflow-x-hidden overflow-y-auto overscroll-x-none [touch-action:pan-y]"
           onMouseLeave={() => { setTooltip(null); hoveredRowRef.current = null; scheduleHoverRedraw(); }}
         >
           <table

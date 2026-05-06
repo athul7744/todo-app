@@ -118,7 +118,15 @@ export function ActivityPillStrip({ items, active, onSelect }: ActivityPillStrip
   const secondRow = useSingleRow ? [] : items.slice(splitIndex);
 
   return (
-    <div ref={containerRef} className={cn("min-w-0 flex-1 pr-1", (useSingleRow || layout.allowHorizontalScroll) && "overflow-x-auto")}>
+    <div
+      ref={containerRef}
+      className={cn(
+        "min-w-0 flex-1 pr-1",
+        (useSingleRow || layout.allowHorizontalScroll)
+          ? "overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]"
+          : "[touch-action:pan-y]"
+      )}
+    >
       <div ref={measureRef} className="absolute invisible pointer-events-none whitespace-nowrap">
         <div className="flex items-center gap-1.5 w-max py-1">
           {items.map((item) => (
