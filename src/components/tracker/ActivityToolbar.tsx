@@ -1,10 +1,6 @@
-"use client";
-
 import { cn } from "@/lib/utils";
-import { getActivityDotClass } from "@/lib/activities";
-import { COLOR_HEX } from "./widgets/types";
-import { FilterPill } from "./FilterPill";
 import { Eraser } from "lucide-react";
+import { ActivityPillStrip } from "./ActivityPillStrip";
 
 export interface ActivityItem {
   name: string;
@@ -18,11 +14,6 @@ interface ActivityToolbarProps {
 }
 
 export function ActivityToolbar({ activities, active, onSelect }: ActivityToolbarProps) {
-  // Split activities into two rows
-  const mid = Math.ceil(activities.length / 2);
-  const row1 = activities.slice(0, mid);
-  const row2 = activities.slice(mid);
-
   return (
     <div className="flex items-start gap-2">
       {/* Eraser - fixed at start */}
@@ -38,25 +29,14 @@ export function ActivityToolbar({ activities, active, onSelect }: ActivityToolba
         <Eraser className="h-3.5 w-3.5" />
       </button>
 
-      {/* Activities - two rows */}
-      <div className="overflow-x-auto">
-        <div className="flex flex-col gap-1.5 py-1">
-          {[row1, row2].map((row, rowIdx) => (
-            <div key={rowIdx} className="flex items-center gap-1.5 w-max">
-              {row.map((a) => (
-                <FilterPill
-                  key={a.name}
-                  label={a.name}
-                  dotClass={getActivityDotClass(a.color)}
-                  activeHex={COLOR_HEX[a.color]}
-                  active={active === a.name}
-                  onClick={() => onSelect(active === a.name ? null : a.name)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      <ActivityPillStrip
+        items={activities.map((activity) => ({
+          name: activity.name,
+          colorKey: activity.color,
+        }))}
+        active={active}
+        onSelect={onSelect}
+      />
     </div>
   );
 }
