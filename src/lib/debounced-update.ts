@@ -2,6 +2,7 @@ import { db } from '@/lib/powersync/db';
 
 const DEBOUNCE_MS = 1000;
 type SQLValue = string | number | null;
+const TABLES_WITH_UPDATED_AT = new Set(['tasks']);
 
 // ─── Debounced Field Updates (merges per record ID) ─────────────────────────
 
@@ -61,11 +62,15 @@ export function flushUpdate(id: string): Promise<any> | undefined {
   const keys = Object.keys(fields);
   if (keys.length === 0) return undefined;
 
-  const setClauses = keys.map(k => `${k} = ?`).join(', ');
+  const setClauses = keys.map(k => `${k} = ?`);
   const values = keys.map(k => fields[k]);
 
+  if (TABLES_WITH_UPDATED_AT.has(table)) {
+    setClauses.push("updated_at = datetime('now')");
+  }
+
   return db.execute(
-    `UPDATE ${table} SET ${setClauses}, updated_at = datetime('now') WHERE id = ?`,
+    `UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = ?`,
     [...values, id]
   );
 }
