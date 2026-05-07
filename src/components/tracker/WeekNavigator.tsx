@@ -61,13 +61,13 @@ export function WeekNavigatorFab({ currentDate, onDateChange }: WeekNavigatorPro
 
   return (
     <>
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={controls.goToPrev}>
-        <ChevronLeft className="h-3.5 w-3.5" />
+      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={controls.goToPrev}>
+        <ChevronLeft className="h-4 w-4" />
       </Button>
 
       <div className="flex items-center gap-1 text-xs">
         <Select value={controls.weekNum} onValueChange={controls.handleWeekChange}>
-          <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
+          <SelectTrigger size="sm" className="h-7 text-xs px-1.5">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -78,7 +78,7 @@ export function WeekNavigatorFab({ currentDate, onDateChange }: WeekNavigatorPro
         </Select>
         <span className="text-muted-foreground text-[10px]">/</span>
         <Select value={controls.year} onValueChange={controls.handleYearChange}>
-          <SelectTrigger size="sm" className="h-6 text-xs px-1.5">
+          <SelectTrigger size="sm" className="h-7 text-xs px-1.5">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -89,8 +89,8 @@ export function WeekNavigatorFab({ currentDate, onDateChange }: WeekNavigatorPro
         </Select>
       </div>
 
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={controls.goToNext}>
-        <ChevronRight className="h-3.5 w-3.5" />
+      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={controls.goToNext}>
+        <ChevronRight className="h-4 w-4" />
       </Button>
     </>
   );

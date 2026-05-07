@@ -69,8 +69,8 @@ export function MobileBottomFabs({ app, centerContent, centerShellClassName, cen
       {centerContent && (
         <div
           className={cn(
-            "sm:hidden fixed inset-x-0 z-50 flex justify-center px-[var(--app-gutter-x)] transition-all duration-200",
-            hasBlockingOverlay && "pointer-events-none opacity-0 translate-y-2"
+            "sm:hidden fixed inset-x-0 z-50 flex justify-center px-[var(--app-gutter-x)] pointer-events-none transition-all duration-200",
+            hasBlockingOverlay && "opacity-0 translate-y-2"
           )}
           style={{
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
@@ -79,14 +79,14 @@ export function MobileBottomFabs({ app, centerContent, centerShellClassName, cen
           {centerUseShell ? (
             <div
               className={cn(
-                "flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card shadow-[0_0_40px_8px_rgba(0,0,0,0.5)]",
+                "pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card shadow-[0_0_40px_8px_rgba(0,0,0,0.5)]",
                 centerShellClassName ?? "px-3 py-2"
               )}
             >
               {centerContent}
             </div>
           ) : (
-            centerContent
+            <div className="pointer-events-auto">{centerContent}</div>
           )}
         </div>
       )}

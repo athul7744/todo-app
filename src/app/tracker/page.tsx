@@ -588,6 +588,7 @@ export default function TrackerPage() {
       <MobileBottomFabs
         app={trackerApp}
         centerContent={view === "week" ? <WeekNavigatorFab currentDate={currentDate} onDateChange={setCurrentDate} /> : undefined}
+        centerShellClassName="h-12 px-2.5 py-0"
       />
     </div>
   );
