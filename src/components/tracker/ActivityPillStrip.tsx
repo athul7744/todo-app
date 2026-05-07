@@ -121,13 +121,17 @@ export function ActivityPillStrip({ items, active, onSelect }: ActivityPillStrip
     <div
       ref={containerRef}
       className={cn(
-        "min-w-0 flex-1 pr-1",
+        "relative min-w-0 flex-1 pr-1",
         (useSingleRow || layout.allowHorizontalScroll)
           ? "overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]"
-          : "[touch-action:pan-y]"
+          : "overflow-x-clip [touch-action:pan-y]"
       )}
     >
-      <div ref={measureRef} className="absolute invisible pointer-events-none whitespace-nowrap">
+      <div
+        ref={measureRef}
+        aria-hidden="true"
+        className="absolute left-0 top-0 h-0 w-0 overflow-hidden invisible pointer-events-none whitespace-nowrap"
+      >
         <div className="flex items-center gap-1.5 w-max py-1">
           {items.map((item) => (
             <div key={item.name} data-pill-measure="true">
