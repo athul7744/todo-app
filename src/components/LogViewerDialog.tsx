@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Info, Logs, Sparkles } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { getRecentLogs, subscribeToLogs, type LogEntry } from "@/lib/logger";
 
@@ -23,6 +23,35 @@ const levelIcon = {
   error: Activity,
 } satisfies Record<LogEntry["level"], typeof Info>;
 
+const toneClassName: Record<LogEntry["level"], string> = {
+  info: "text-sky-700 dark:text-sky-300",
+  warn: "text-amber-700 dark:text-amber-300",
+  error: "text-rose-700 dark:text-rose-300",
+};
+
+const LogRow = memo(function LogRow({ log }: { log: LogEntry }) {
+  const timestamp = new Date(log.timestamp);
+
+  return (
+    <article className="px-4 py-2.5" style={{ contentVisibility: "auto", containIntrinsicSize: "76px" }}>
+      <div className="min-w-0 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <span className={cn("pt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]", toneClassName[log.level])}>{log.level}</span>
+          <span className="shrink-0 pt-0.5 text-[10px] text-muted-foreground/80">
+            {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            <span className="mx-1 text-border">/</span>
+            {timestamp.toLocaleDateString()}
+          </span>
+        </div>
+
+        <pre className="overflow-x-auto font-[family:var(--font-geist-mono)] text-[11.5px] leading-5 tracking-[0.01em] text-foreground whitespace-pre-wrap break-words">
+          {log.message}
+        </pre>
+      </div>
+    </article>
+  );
+});
+
 export function LogViewerDialog({ open, onOpenChange }: LogViewerDialogProps) {
   const [logs, setLogs] = useState(() => getRecentLogs());
 
@@ -31,40 +60,62 @@ export function LogViewerDialog({ open, onOpenChange }: LogViewerDialogProps) {
     return subscribeToLogs(() => setLogs(getRecentLogs()));
   }, []);
 
+  const counts = useMemo(() => {
+    return logs.reduce(
+      (summary, log) => {
+        summary[log.level] += 1;
+        return summary;
+      },
+      { info: 0, warn: 0, error: 0 }
+    );
+  }, [logs]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border border-border/60 bg-background p-0 shadow-[0_20px_80px_-30px_rgba(0,0,0,0.45)] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl" showCloseButton={false}>
-        <DialogHeader className="relative overflow-hidden border-b border-border/60 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--color-sky-500)_10%,transparent),transparent_40%,color-mix(in_srgb,var(--color-emerald-500)_10%,transparent))] px-5 pt-5 pb-4">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--color-sky-500)_16%,transparent),transparent_42%),radial-gradient(circle_at_bottom_right,color-mix(in_srgb,var(--color-emerald-500)_14%,transparent),transparent_38%)]" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground backdrop-blur-sm">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border border-border bg-background p-0 shadow-[0_18px_60px_-28px_rgba(0,0,0,0.4)] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl" showCloseButton={false}>
+        <DialogHeader className="border-b border-border bg-background px-5 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2.5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5" />
                 Session Diagnostics
               </div>
-              <DialogTitle className="flex items-center gap-3 text-lg sm:text-xl">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur-sm">
-                  <Logs className="h-5 w-5 text-foreground" />
+              <DialogTitle className="flex items-center gap-3 text-lg font-bold sm:text-xl">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 shadow-sm dark:bg-sky-500/20 dark:text-sky-400">
+                  <Logs className="h-5 w-5" />
                 </span>
-                Recent Logs
+                <span className="font-bold tracking-tight">
+                  Logger
+                  <span className="text-sky-600 dark:text-sky-400">.</span>
+                </span>
               </DialogTitle>
             </div>
 
-            <div className="rounded-2xl border border-border/60 bg-background/80 px-3 py-2 text-right shadow-sm backdrop-blur-sm">
+            <div className="rounded-xl border border-border bg-card px-3 py-2 text-right shadow-sm">
               <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Buffer</div>
               <div className="text-lg font-semibold text-foreground">{logs.length}<span className="text-sm text-muted-foreground">/50</span></div>
+              <div className="mt-1 flex items-center justify-end gap-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <Info className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                  {counts.info}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  {counts.warn}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Activity className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                  {counts.error}
+                </span>
+              </div>
             </div>
           </div>
-
-          <DialogDescription>
-            In-memory viewer for the latest 50 logger entries in this browser session.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 overflow-y-auto bg-[linear-gradient(180deg,transparent,rgba(127,127,127,0.03))] px-4 py-4 sm:px-5">
+        <div className="min-h-0 overflow-y-auto bg-muted/20 px-4 py-4 sm:px-5" style={{ WebkitOverflowScrolling: "touch" }}>
           {logs.length === 0 ? (
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-[1.4rem] border border-dashed border-border/70 bg-card/40 px-6 py-10 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/70 bg-background shadow-sm">
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center shadow-sm">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-background shadow-sm">
                 <Logs className="h-6 w-6 text-muted-foreground" />
               </div>
               <div className="text-base font-semibold text-foreground">No logs captured yet</div>
@@ -73,39 +124,15 @@ export function LogViewerDialog({ open, onOpenChange }: LogViewerDialogProps) {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 pb-2">
+            <div className="overflow-hidden rounded-lg border border-border bg-background divide-y divide-border/70">
               {logs.map((log) => (
-                <div key={log.id} className="rounded-[1.35rem] border border-border/70 bg-card/85 p-3.5 shadow-[0_10px_30px_-22px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-colors hover:border-border hover:bg-card">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className={cn("flex h-9 w-9 items-center justify-center rounded-2xl border", levelClassName[log.level])}>
-                        {(() => {
-                          const Icon = levelIcon[log.level];
-                          return <Icon className="h-4 w-4" />;
-                        })()}
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold capitalize text-foreground">{log.level}</div>
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Log Entry</div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-[11px] font-medium text-muted-foreground">{new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
-                      <div className="mt-0.5 text-[11px] text-muted-foreground/80">{new Date(log.timestamp).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-
-                  <pre className="overflow-x-auto rounded-2xl border border-border/60 bg-background/80 px-3.5 py-3 font-mono text-[12px] leading-5 text-foreground whitespace-pre-wrap break-words">
-                    {log.message}
-                  </pre>
-                </div>
+                <LogRow key={log.id} log={log} />
               ))}
             </div>
           )}
         </div>
 
-        <DialogFooter showCloseButton className="mx-0 mb-0 border-t border-border/60 bg-card/40 backdrop-blur-sm" />
+        <DialogFooter showCloseButton className="mx-0 mb-0 border-t border-border bg-background" />
       </DialogContent>
     </Dialog>
   );
