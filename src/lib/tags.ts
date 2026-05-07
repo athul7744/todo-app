@@ -10,17 +10,18 @@ import { debouncedExecute } from "@/lib/debounced-update";
 export async function createTag(
   name: string,
   color?: string,
-  dedupeKey?: string
+  dedupeKey?: string,
+  id?: string
 ): Promise<string> {
-  const id = uuidv4();
+  const resolvedId = id ?? uuidv4();
   const resolvedColor = color ?? TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
   const userId = await getCurrentUserId();
 
   debouncedExecute(
     `INSERT INTO tags (id, user_id, name, color, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-    [id, userId, name, resolvedColor],
-    dedupeKey ?? id
+    [resolvedId, userId, name, resolvedColor],
+    dedupeKey ?? resolvedId
   );
 
-  return id;
+  return resolvedId;
 }
