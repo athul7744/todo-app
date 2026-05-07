@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const trackerApp = getApp("tracker");
+const TRACKER_TAB_ACTIVE_CLASS = "border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400";
 
 type ViewMode = "week" | "activity" | "mood";
 
@@ -484,7 +485,7 @@ export default function TrackerPage() {
           onClick={() => setView("week")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-            view === "week" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            view === "week" ? TRACKER_TAB_ACTIVE_CLASS : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
@@ -494,7 +495,7 @@ export default function TrackerPage() {
           onClick={() => setView("activity")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-            view === "activity" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            view === "activity" ? TRACKER_TAB_ACTIVE_CLASS : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <Activity className="h-3.5 w-3.5" />
@@ -504,7 +505,7 @@ export default function TrackerPage() {
           onClick={() => setView("mood")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-            view === "mood" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            view === "mood" ? TRACKER_TAB_ACTIVE_CLASS : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <Smile className="h-3.5 w-3.5" />

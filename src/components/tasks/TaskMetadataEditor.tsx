@@ -108,9 +108,13 @@ export function TaskMetadataEditor({
         </Popover>
 
         {dueDateInfo.show && (
-          <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0`}>
+          <button
+            type="button"
+            onClick={() => setIsCalendarOpen(true)}
+            className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm ${dueDateInfo.bg} ${dueDateInfo.text} whitespace-nowrap shrink-0 cursor-pointer transition-opacity hover:opacity-85`}
+          >
             {dueDateInfo.label}
-          </span>
+          </button>
         )}
 
         <Popover open={isTagSelectorOpen} onOpenChange={setIsTagSelectorOpen}>
