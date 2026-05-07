@@ -44,8 +44,14 @@ export default function TrackerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
-  const view = (searchParams.get("view") as ViewMode) || "week";
-  const setView = (v: ViewMode) => router.push(`/tracker?view=${v}`, { scroll: false });
+  const routeView = (searchParams.get("view") as ViewMode) || "week";
+  const [pendingView, setPendingView] = useState<ViewMode | null>(null);
+  const view = pendingView ?? routeView;
+  const setView = (nextView: ViewMode) => {
+    if (nextView === routeView && pendingView === null) return;
+    setPendingView(nextView);
+    router.push(`/tracker?view=${nextView}`, { scroll: false });
+  };
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
   const [optimisticTimeLogs, setOptimisticTimeLogs] = useState<Map<string, OptimisticTimeLogChange>>(new Map());
@@ -53,7 +59,12 @@ export default function TrackerPage() {
   const optimisticTimeLogsRef = useRef(optimisticTimeLogs);
   const optimisticRatingsRef = useRef(optimisticRatings);
   const seededRef = useRef(false);
-  const hasLoadedOnce = useRef(false);
+
+  useEffect(() => {
+    if (pendingView === routeView) {
+      setPendingView(null);
+    }
+  }, [pendingView, routeView]);
 
   useEffect(() => {
     optimisticTimeLogsRef.current = optimisticTimeLogs;
@@ -441,11 +452,7 @@ export default function TrackerPage() {
     [activeActivity, gridData, optimisticTimeLogs]
   );
 
-  // Track first successful load to avoid skeleton flicker on week switch
-  if (!loadingActivities && !loadingLogs) {
-    hasLoadedOnce.current = true;
-  }
-  const showSkeleton = !hasLoadedOnce.current && (loadingActivities || loadingLogs);
+  const showSkeleton = loadingActivities || loadingLogs;
 
   // When clicking a day in the year rating grid, jump to that week
   const handleDayClick = (date: Date) => {
