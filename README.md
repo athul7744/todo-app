@@ -2,6 +2,11 @@
 
 An offline-first productivity dashboard with **Task Management** and **Time Tracking**. It works offline, applies optimistic UI locally, and syncs to the cloud in the background when connectivity returns.
 
+## Docs
+
+- [SETUP.md](SETUP.md) — environment setup, Supabase, PowerSync, and deployment
+- [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md) — architecture, app structure, component map, and implementation notes for future contributors or coding agents
+
 ## Features
 
 **Tasks** — Offline-first task manager with subtasks, tags, due dates, priorities, smart filters, trash/restore, responsive masonry layout, and direct save from the system share sheet.
@@ -32,4 +37,13 @@ npm run lint
 npx tsc --noEmit
 ```
 
-> Full setup instructions (Supabase, PowerSync, deployment, project structure) are in [SETUP.md](SETUP.md).
+## How The Project Is Organized
+
+- `src/app/` contains the App Router routes for launcher, tasks, tracker, login, and share-target flows.
+- `src/components/` contains shared shell UI plus app-specific task and tracker components.
+- `src/lib/` contains app registries, data helpers, color maps, auth helpers, and debounced local write utilities.
+- `src/lib/powersync/` contains the local SQLite schema, database bootstrap, and sync connector.
+- `supabase/migrations/` contains the SQL schema used by the hosted backend.
+
+> For a deeper map of how tasks, tracker, share capture, optimistic updates, route loading, and PowerSync fit together, read [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md).
+> For environment setup and deployment, read [SETUP.md](SETUP.md).

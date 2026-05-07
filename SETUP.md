@@ -198,44 +198,7 @@ Notes:
 
 ---
 
-## Project Structure
+## Additional Documentation
 
-| Path | Description |
-|------|-------------|
-| **App Routes** | |
-| `src/app/page.tsx` | App launcher grid |
-| `src/app/share/page.tsx` | Share-target review screen that saves incoming text/links directly into tasks |
-| `src/app/tasks/page.tsx` | Tasks dashboard with filters, pagination, and task grid |
-| `src/app/tracker/page.tsx` | Time Tracker with week/year-activity/year-rating views |
-| `src/app/login/page.tsx` | Login page |
-| `src/app/layout.tsx` | Root layout with theme and PowerSync providers |
-| **Shared Components** | |
-| `src/components/AppHeader.tsx` | Shared header with app switcher, theme toggle, sync, logout |
-| `src/components/AppSwitcher.tsx` | Popover for switching between apps |
-| `src/components/MobileBottomFabs.tsx` | Shared mobile FAB shell for app switcher and per-view actions |
-| `src/components/SyncIndicator.tsx` | Sync status indicator with reconnect/reset |
-| **Task Components** | |
-| `src/components/tasks/TaskCard.tsx` | Task card with inline editing, subtasks, tags, optimistic state |
-| `src/components/tasks/TaskMetadataEditor.tsx` | Reusable due-date and tag picker shared by tasks and share capture |
-| `src/components/tasks/ManageTagsDialog.tsx` | Tag CRUD dialog |
-| **Tracker Components** | |
-| `src/components/tracker/ActivityToolbar.tsx` | Scrollable activity pill selector with eraser |
-| `src/components/tracker/TimeGrid.tsx` | 7-day × 24-hour grid with inline mood select |
-| `src/components/tracker/WeekNavigator.tsx` | Desktop week navigation plus mobile FAB navigation controls |
-| `src/components/tracker/YearActivityGrid.tsx` | 365 × 24 year activity heatmap |
-| `src/components/tracker/YearRatingGrid.tsx` | 12-month calendar mood heatmap |
-| `src/components/tracker/ManageActivitiesDialog.tsx` | Activity type CRUD dialog |
-| `src/components/tracker/widgets/` | Week stats widgets (activity pie, mood, sleep, daily stacks, productivity) |
-| **Lib** | |
-| `src/lib/apps.ts` | App registry (id, name, route, icon, accent colors) |
-| `src/lib/auth.ts` | `getCurrentUserId()` with session caching |
-| `src/lib/activities.ts` | Activity color palettes and Tailwind class maps |
-| `src/lib/colors.ts` | Tag color palettes and Tailwind class maps |
-| `src/lib/tags.ts` | Shared `createTag()` helper |
-| `src/lib/tasks.ts` | Priority definitions, due date helpers |
-| `src/lib/debounced-update.ts` | Debounced DB writes (field merge + batch) |
-| `src/lib/utils.ts` | `cn()`, `formatRelativeTime()`, `autoResizeTextarea()` |
-| **PowerSync** | |
-| `src/lib/powersync/AppSchema.ts` | Local SQLite schema (tasks, tags, time_logs, activity_types, daily_ratings) |
-| `src/lib/powersync/SupabaseConnector.ts` | PowerSync ↔ Supabase connector |
-| `src/lib/powersync/db.ts` | Database init and connection config |
+- [README.md](README.md) — concise product overview and local quick start
+- [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md) — detailed project structure, app/component map, data flow, and implementation notes for future contributors or coding agents
