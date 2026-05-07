@@ -39,6 +39,7 @@ export default function Home() {
   const [filterPriorities, setFilterPriorities] = useState<string[]>([]);
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
+  const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
   
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
@@ -134,12 +135,12 @@ export default function Home() {
       <AppHeader
         app={tasksApp}
         mobileMenuItems={
-          <ManageTagsDialog>
-            <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground">
+          <DropdownMenuItem onClick={() => setIsManageTagsOpen(true)}>
+            <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-0.5 py-0.5 text-sm outline-none transition-colors">
               <TagIcon className="h-4 w-4" />
               Manage Tags
             </div>
-          </ManageTagsDialog>
+          </DropdownMenuItem>
         }
         actions={
           <>
@@ -295,6 +296,8 @@ export default function Home() {
           </Popover>
         </div>
       </AppHeader>
+
+      <ManageTagsDialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen} hideTrigger />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8">

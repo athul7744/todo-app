@@ -4,9 +4,14 @@ const DEBOUNCE_MS = 1000;
 type SQLValue = string | number | null;
 const TABLES_WITH_UPDATED_AT = new Set(['tasks']);
 
+function getPendingUpdateKey(table: string, id: string) {
+  return `${table}:${id}`;
+}
+
 // ─── Debounced Field Updates (merges per record ID) ─────────────────────────
 
 interface PendingUpdate {
+  id: string;
   table: string;
   fields: Record<string, SQLValue>;
   timer: ReturnType<typeof setTimeout>;
@@ -14,21 +19,34 @@ interface PendingUpdate {
 
 const pendingUpdates = new Map<string, PendingUpdate>();
 
+function getPendingUpdateEntries(id: string, table?: string) {
+  const entries: Array<[string, PendingUpdate]> = [];
+
+  pendingUpdates.forEach((pending, key) => {
+    if (pending.id !== id) return;
+    if (table && pending.table !== table) return;
+    entries.push([key, pending]);
+  });
+
+  return entries;
+}
+
 /**
  * Queue a debounced UPDATE for a record field.
  * Multiple calls for the same id within DEBOUNCE_MS merge fields and reset the timer.
  */
 export function debouncedUpdate(id: string, field: string, value: SQLValue, table = 'tasks') {
-  const existing = pendingUpdates.get(id);
+  const pendingKey = getPendingUpdateKey(table, id);
+  const existing = pendingUpdates.get(pendingKey);
 
   if (existing) {
     existing.fields[field] = value;
     clearTimeout(existing.timer);
-    existing.timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
+    existing.timer = setTimeout(() => flushUpdate(id, table), DEBOUNCE_MS);
   } else {
     const fields: Record<string, SQLValue> = { [field]: value };
-    const timer = setTimeout(() => flushUpdate(id), DEBOUNCE_MS);
-    pendingUpdates.set(id, { table, fields, timer });
+    const timer = setTimeout(() => flushUpdate(id, table), DEBOUNCE_MS);
+    pendingUpdates.set(pendingKey, { id, table, fields, timer });
   }
 }
 
@@ -36,43 +54,52 @@ export function debouncedUpdate(id: string, field: string, value: SQLValue, tabl
  * Cancel a pending debounced field update for a record.
  * If no fields remain for the record, its timer is cleared and the pending update is removed.
  */
-export function cancelUpdate(id: string, field: string) {
-  const pending = pendingUpdates.get(id);
-  if (!pending || !(field in pending.fields)) return;
+export function cancelUpdate(id: string, field: string, table?: string) {
+  const entries = getPendingUpdateEntries(id, table);
 
-  delete pending.fields[field];
-  if (Object.keys(pending.fields).length > 0) return;
+  entries.forEach(([pendingKey, pending]) => {
+    if (!(field in pending.fields)) return;
 
-  clearTimeout(pending.timer);
-  pendingUpdates.delete(id);
+    delete pending.fields[field];
+    if (Object.keys(pending.fields).length > 0) return;
+
+    clearTimeout(pending.timer);
+    pendingUpdates.delete(pendingKey);
+  });
 }
 
 /**
  * Immediately flush any pending debounced update for a record.
  * Returns the promise from db.execute so callers can await it.
  */
-export function flushUpdate(id: string): Promise<any> | undefined {
-  const pending = pendingUpdates.get(id);
-  if (!pending) return undefined;
+export function flushUpdate(id: string, table?: string): Promise<any> | undefined {
+  const entries = getPendingUpdateEntries(id, table);
+  if (entries.length === 0) return undefined;
 
-  clearTimeout(pending.timer);
-  pendingUpdates.delete(id);
+  const executions = entries.flatMap(([pendingKey, pending]) => {
+    clearTimeout(pending.timer);
+    pendingUpdates.delete(pendingKey);
 
-  const { table, fields } = pending;
-  const keys = Object.keys(fields);
-  if (keys.length === 0) return undefined;
+    const keys = Object.keys(pending.fields);
+    if (keys.length === 0) return [];
 
-  const setClauses = keys.map(k => `${k} = ?`);
-  const values = keys.map(k => fields[k]);
+    const setClauses = keys.map((field) => `${field} = ?`);
+    const values = keys.map((field) => pending.fields[field]);
 
-  if (TABLES_WITH_UPDATED_AT.has(table)) {
-    setClauses.push("updated_at = datetime('now')");
-  }
+    if (TABLES_WITH_UPDATED_AT.has(pending.table)) {
+      setClauses.push("updated_at = datetime('now')");
+    }
 
-  return db.execute(
-    `UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = ?`,
-    [...values, id]
-  );
+    return [db.execute(
+      `UPDATE ${pending.table} SET ${setClauses.join(', ')} WHERE id = ?`,
+      [...values, pending.id]
+    )];
+  });
+
+  if (executions.length === 0) return undefined;
+  if (executions.length === 1) return executions[0];
+
+  return Promise.all(executions);
 }
 
 // ─── Debounced SQL Executes (for INSERTs and other one-shot writes) ─────────
@@ -148,10 +175,13 @@ export function hasPendingWrites(): boolean {
  * Flush everything — all pending updates and executes.
  */
 export async function flushAllUpdates() {
+  await flushExecutes();
+
   const updatePromises: (Promise<any> | undefined)[] = [];
-  for (const id of [...pendingUpdates.keys()]) {
+  const pendingIds = new Set(Array.from(pendingUpdates.values(), (pending) => pending.id));
+  for (const id of pendingIds) {
     updatePromises.push(flushUpdate(id));
   }
+
   await Promise.all(updatePromises.filter(Boolean));
-  await flushExecutes();
 }

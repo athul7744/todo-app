@@ -24,6 +24,7 @@ import { DEFAULT_ACTIVITIES } from "@/lib/activities";
 import { cancelExecute, cancelUpdate, debouncedExecute, debouncedUpdate } from "@/lib/debounced-update";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 const trackerApp = getApp("tracker");
 const TRACKER_TAB_ACTIVE_CLASS = "border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400";
@@ -55,6 +56,7 @@ export default function TrackerPage() {
   };
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedYear, setSelectedYear] = useState(() => getYear(new Date()));
+  const [isManageActivitiesOpen, setIsManageActivitiesOpen] = useState(false);
   const [optimisticTimeLogs, setOptimisticTimeLogs] = useState<Map<string, OptimisticTimeLogChange>>(new Map());
   const [optimisticRatings, setOptimisticRatings] = useState<Map<string, OptimisticRatingChange>>(new Map());
   const optimisticTimeLogsRef = useRef(optimisticTimeLogs);
@@ -336,7 +338,7 @@ export default function TrackerPage() {
       cancelExecute(entityId);
 
       if (nextScore === null) {
-        cancelUpdate(existingId, "score");
+        cancelUpdate(existingId, "score", "daily_ratings");
         debouncedExecute("DELETE FROM daily_ratings WHERE id = ?", [existingId], entityId);
         setOptimisticRatings((prev) => {
           const next = new Map(prev);
@@ -347,7 +349,7 @@ export default function TrackerPage() {
       }
 
       if (persistedScore === nextScore) {
-        cancelUpdate(existingId, "score");
+        cancelUpdate(existingId, "score", "daily_ratings");
         setOptimisticRatings((prev) => {
           if (!prev.has(dateStr)) return prev;
           const next = new Map(prev);
@@ -422,7 +424,7 @@ export default function TrackerPage() {
       cancelExecute(entityId);
 
       if (nextActivity === null) {
-        cancelUpdate(persistedCell.id, "activity_name");
+        cancelUpdate(persistedCell.id, "activity_name", "time_logs");
         debouncedExecute("DELETE FROM time_logs WHERE id = ?", [persistedCell.id], entityId);
         setOptimisticTimeLogs((prev) => {
           const next = new Map(prev);
@@ -433,7 +435,7 @@ export default function TrackerPage() {
       }
 
       if (persistedCell.activityName === nextActivity) {
-        cancelUpdate(persistedCell.id, "activity_name");
+        cancelUpdate(persistedCell.id, "activity_name", "time_logs");
         setOptimisticTimeLogs((prev) => {
           if (!prev.has(cellKey)) return prev;
           const next = new Map(prev);
@@ -469,15 +471,17 @@ export default function TrackerPage() {
       <AppHeader
         app={trackerApp}
         mobileMenuItems={
-          <ManageActivitiesDialog>
-            <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground">
+          <DropdownMenuItem onClick={() => setIsManageActivitiesOpen(true)}>
+            <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-0.5 py-0.5 text-sm outline-none transition-colors">
               <Timer className="h-4 w-4" />
               Manage Activities
             </div>
-          </ManageActivitiesDialog>
+          </DropdownMenuItem>
         }
         actions={<ManageActivitiesDialog />}
       />
+
+      <ManageActivitiesDialog open={isManageActivitiesOpen} onOpenChange={setIsManageActivitiesOpen} hideTrigger />
 
       {/* View Tabs */}
       <div className="border-b border-border px-[var(--app-gutter-x)] flex items-center gap-1 overflow-x-auto overscroll-y-none [touch-action:pan-x_pan-y]">

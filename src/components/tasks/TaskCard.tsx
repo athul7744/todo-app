@@ -170,7 +170,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
       setOptimisticSubtasks(prev => prev.filter(opt => opt.id !== t.id));
       // Cancel any pending INSERT and flush any pending UPDATE before deleting
       cancelExecute(t.id);
-      await flushUpdate(t.id);
+      await flushUpdate(t.id, 'tasks');
       await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);
       return;
     }
@@ -179,7 +179,7 @@ export function TaskCard({ task, subtasks, isNew, onNewCancel }: TaskCardProps) 
     if (optimisticState === 'trashed') {
       // Permanently delete — cancel/flush pending writes first, then delete immediately
       cancelExecute(t.id);
-      await flushUpdate(t.id);
+      await flushUpdate(t.id, 'tasks');
       setIsDeleting(true);
       setTimeout(async () => {
         await db.execute(`DELETE FROM tasks WHERE id = ?`, [t.id]);

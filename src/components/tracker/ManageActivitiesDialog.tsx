@@ -25,7 +25,14 @@ import {
 } from "@/lib/activities";
 import { ActivityType } from "@/lib/powersync/AppSchema";
 
-export function ManageActivitiesDialog({ children }: { children?: React.ReactNode }) {
+interface ManageActivitiesDialogProps {
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+}
+
+export function ManageActivitiesDialog({ children, open, onOpenChange, hideTrigger = false }: ManageActivitiesDialogProps) {
   const db = usePowerSync();
   const { data: activities } = useQuery<ActivityType & { id: string }>(
     "SELECT * FROM activity_types ORDER BY created_at ASC"
@@ -65,8 +72,8 @@ export function ManageActivitiesDialog({ children }: { children?: React.ReactNod
   };
 
   return (
-    <Dialog>
-      {children ? (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {!hideTrigger && (children ? (
         <DialogTrigger className="w-full">
           {children}
         </DialogTrigger>
@@ -75,7 +82,7 @@ export function ManageActivitiesDialog({ children }: { children?: React.ReactNod
           <Timer className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Activities</span>
         </DialogTrigger>
-      )}
+      ))}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Manage Activities</DialogTitle>

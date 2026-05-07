@@ -26,6 +26,7 @@ interface AppHeaderProps {
 export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeaderProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const Icon = app.icon;
 
@@ -62,12 +63,12 @@ export function AppHeader({ app, actions, mobileMenuItems, children }: AppHeader
             </div>
             {/* Right: Overflow menu */}
             <div className="flex items-center justify-end w-12">
-              <DropdownMenu>
+              <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-full h-8 w-8 hover:bg-accent transition-colors focus:outline-none">
                   <MoreVertical className="h-5 w-5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  {mobileMenuItems}
+                  {mobileMenuItems ? <div onClickCapture={() => setMobileMenuOpen(false)}>{mobileMenuItems}</div> : null}
                   {mounted && (
                     <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
                       {theme === "dark" ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
