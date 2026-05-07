@@ -226,7 +226,7 @@ export function ManageNamedColorItemsDialog<TItem extends ManagedColorItem>({
           color: overlay.color ?? defaultColor,
         }));
 
-      return [
+      const mergedItems = [
         ...optimisticItems,
         ...items.map((item) => {
           const overlay = overlays.get(item.id);
@@ -238,6 +238,15 @@ export function ManageNamedColorItemsDialog<TItem extends ManagedColorItem>({
           };
         }),
       ];
+
+      const uniqueItems = new Map<string, (typeof mergedItems)[number]>();
+      mergedItems.forEach((item) => {
+        if (!uniqueItems.has(item.id)) {
+          uniqueItems.set(item.id, item);
+        }
+      });
+
+      return Array.from(uniqueItems.values());
     },
     [defaultColor, items, overlays]
   );

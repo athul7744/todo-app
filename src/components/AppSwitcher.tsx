@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown, Check, LayoutDashboard, Logs } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -16,10 +17,18 @@ interface AppSwitcherProps {
 }
 
 export function AppSwitcher({ current, size = "md" }: AppSwitcherProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const Icon = current.icon;
   const showLogViewer = isLogViewerEnabled();
+
+  useEffect(() => {
+    APPS.forEach((app) => {
+      if (app.id === current.id) return;
+      router.prefetch(app.href);
+    });
+  }, [current.id, router]);
 
   const trigger = useMemo(() => {
     if (size === "fab") {

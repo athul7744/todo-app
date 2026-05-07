@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
+import { TasksContentSkeleton, TasksFilterRowSkeleton } from "../../components/tasks/TasksPageSkeleton";
 import { getApp } from "@/lib/apps";
 import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
 
@@ -47,7 +48,7 @@ export default function Home() {
   const [newTasks, setNewTasks] = useState<Task[]>([]);
 
   // Fetch Tags for the Filter
-  const { data: allTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
+  const { data: allTags = [], isLoading: loadingTags } = useQuery("SELECT * FROM tags ORDER BY name ASC");
 
   // Dynamic Query Builder
   let query = `SELECT * FROM tasks WHERE 1=1`;
@@ -81,7 +82,7 @@ export default function Home() {
 
   query += ` ORDER BY CASE WHEN parent_id IS NOT NULL THEN created_at END ASC, CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, due_date ASC, created_at DESC`;
   
-  const { data: allTasks } = useQuery(query, args);
+  const { data: allTasks = [], isLoading: loadingTasks } = useQuery(query, args);
 
   // Reset page when filters change
   useEffect(() => {
@@ -128,6 +129,8 @@ export default function Home() {
   const totalPages = Math.ceil(topLevelTasks.length / itemsPerPage);
   const paginatedTopLevelTasks = topLevelTasks.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
+  const isInitialLoading = loadingTags || loadingTasks;
+
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden min-w-0">
       
@@ -153,7 +156,7 @@ export default function Home() {
         }
       >
         {/* Filter Row */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 -mx-1">
+        {isInitialLoading ? <TasksFilterRowSkeleton /> : <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 -mx-1">
           <div className="flex items-center text-muted-foreground shrink-0 mr-1">
             <Filter className="h-4 w-4" />
           </div>
@@ -294,13 +297,12 @@ export default function Home() {
               </Command>
             </PopoverContent>
           </Popover>
-        </div>
+        </div>}
       </AppHeader>
 
       <ManageTagsDialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen} hideTrigger />
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8">
+      {isInitialLoading ? <TasksContentSkeleton /> : <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8">
         <div className="max-w-7xl mx-auto h-full flex flex-col">
           
           {/* Task List */}
@@ -367,7 +369,7 @@ export default function Home() {
             </div>
           )}
         </div>
-      </main>
+      </main>}
 
       <MobileBottomFabs
         app={tasksApp}
