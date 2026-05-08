@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 
 function Bone({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={cn("bg-muted animate-pulse rounded", className)} style={style} />;

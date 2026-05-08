@@ -2,7 +2,7 @@
 
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/shared/utils";
 import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";

@@ -12,7 +12,7 @@ import {
   getDay,
   isToday,
 } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { Star } from "lucide-react";
 import { DailyRating, TimeLog, ActivityType } from "@/lib/powersync/AppSchema";
 import { COLOR_HEX } from "./widgets/types";

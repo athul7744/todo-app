@@ -1,6 +1,6 @@
 import { PowerSyncBackendConnector, AbstractPowerSyncDatabase, UpdateType, CrudEntry } from '@powersync/web';
 import { createClient } from '../supabase/client';
-import { logger as log } from '../logger';
+import { logger as log } from '../shared/logger';
 
 /** Response codes that indicate a permanent/fatal error — discard the transaction. */
 const FATAL_RESPONSE_CODES = [/^22/, /^23/, /^42/];

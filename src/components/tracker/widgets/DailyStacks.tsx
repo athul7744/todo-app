@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { Moon, BarChart3 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { WidgetProps, COLOR_HEX } from "./types";
 import { WidgetHeader, ToggleButton, DismissButton, WheelOverlay } from "./shared";
 

@@ -2,7 +2,7 @@
 
 import { AppHeader } from "@/components/AppHeader";
 import { WeekViewSkeleton } from "@/components/tracker/WeekViewSkeleton";
-import { getApp } from "@/lib/apps";
+import { getApp } from "@/lib/shared/apps";
 
 const trackerApp = getApp("tracker");
 

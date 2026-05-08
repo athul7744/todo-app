@@ -2,7 +2,7 @@
 
 import { AppHeader } from "../../components/AppHeader";
 import { TasksContentSkeleton, TasksFilterRowSkeleton } from "../../components/tasks/TasksPageSkeleton";
-import { getApp } from "../../lib/apps";
+import { getApp } from "../../lib/shared/apps";
 
 const tasksApp = getApp("tasks");
 

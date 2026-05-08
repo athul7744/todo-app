@@ -1,8 +1,8 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { getActivityDotClass } from "@/lib/activities";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
+import { getActivityDotClass } from "@/lib/tracker/activities";
 import { COLOR_HEX } from "./widgets/types";
 import { FilterPill } from "./FilterPill";
 

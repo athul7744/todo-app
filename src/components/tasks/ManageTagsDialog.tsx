@@ -3,9 +3,9 @@ import { usePowerSync, useQuery } from "@powersync/react";
 import { Tag as TagIcon } from "lucide-react";
 import { ManageNamedColorItemsDialog, type ManagedColorDraft } from "@/components/ManageNamedColorItemsDialog";
 import { Tag } from "@/lib/powersync/AppSchema";
-import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/colors";
-import { createTag } from "@/lib/tags";
-import { cancelExecute, debouncedExecute } from "@/lib/debounced-update";
+import { cancelExecute, debouncedExecute } from "@/lib/shared/debounced-update";
+import { TAG_COLORS, getTagColorClasses, getTagDotClass } from "@/lib/tasks/colors";
+import { createTag } from "@/lib/tasks/tags";
 
 interface ManageTagsDialogProps {
   children?: React.ReactNode;

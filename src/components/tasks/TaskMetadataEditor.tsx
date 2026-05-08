@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getTagColorClasses, getTagDotClass } from "@/lib/colors";
+import { getTagColorClasses, getTagDotClass } from "@/lib/tasks/colors";
 import { Tag } from "@/lib/powersync/AppSchema";
-import { createTag } from "@/lib/tags";
-import { getDueDateInfo } from "@/lib/tasks";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
+import { createTag } from "@/lib/tasks/tags";
+import { getDueDateInfo } from "@/lib/tasks/tasks";
 
 interface TaskMetadataEditorProps {
   dueDate: Date | undefined;

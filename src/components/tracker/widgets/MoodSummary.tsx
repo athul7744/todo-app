@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Lightbulb, Smile } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { WidgetProps, RATING_COLORS, RATING_LABELS, COLOR_HEX } from "./types";
 import { WidgetHeader, ToggleButton, DismissButton, HatchedEmpty, ActivityItem } from "./shared";
 

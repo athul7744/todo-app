@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { X, type LucideIcon } from "lucide-react";
 import { WheelList } from "./WheelList";
 

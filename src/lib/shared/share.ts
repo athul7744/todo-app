@@ -7,6 +7,7 @@ export interface IncomingSharePayload {
   text: string;
   url: string;
 }
+
 const TASK_TITLE_MAX_LENGTH = 250;
 
 function normalizeShareValue(value: string | null): string {

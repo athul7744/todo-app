@@ -258,6 +258,7 @@ NEXT_PUBLIC_ENABLE_LOG_VIEW=false
 npm run dev
 npm run build && npm run start
 npm run lint
+npm test
 npx tsc --noEmit
 ```
 
@@ -266,6 +267,17 @@ Notes:
 - `npm run dev` and `npm run build` already use the repo's configured Webpack-based Next.js commands.
 - The `/share` route is wired as the PWA web share target, so mobile share-sheet flows can be exercised locally after sign-in.
 - Set `NEXT_PUBLIC_ENABLE_LOG_VIEW=true` to expose an in-app viewer for the latest 50 logger entries from the current browser session.
+
+### Test layout
+
+Vitest is set up for module and small integration tests.
+
+- `tests/notes/` holds notes-specific tests.
+- `tests/tasks/` holds future task-specific tests.
+- `tests/tracker/` holds future tracker-specific tests.
+- `tests/shared/` holds shared fixtures and assertion helpers used across app groups.
+
+Use `npm test` for a one-shot run and `npm run test:watch` while developing.
 
 ## 4. Deploy to Vercel
 

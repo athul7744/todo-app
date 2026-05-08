@@ -10,11 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { v4 as uuidv4 } from "uuid";
-import { cn } from "@/lib/utils";
-import { getCurrentUserId } from "@/lib/auth";
-import { PRIORITY_COLORS, PRIORITY_LEVELS } from "@/lib/tasks";
-import { autoResizeTextarea } from "@/lib/utils";
-import { debouncedUpdate, debouncedExecute, flushUpdate, cancelExecute, cancelUpdate } from "@/lib/debounced-update";
+import { getCurrentUserId } from "@/lib/shared/auth";
+import { debouncedUpdate, debouncedExecute, flushUpdate, cancelExecute, cancelUpdate } from "@/lib/shared/debounced-update";
+import { autoResizeTextarea, cn } from "@/lib/shared/utils";
+import { PRIORITY_COLORS, PRIORITY_LEVELS } from "@/lib/tasks/tasks";
 import { TaskMetadataEditor } from "@/components/tasks/TaskMetadataEditor";
 
 interface TaskCardProps {

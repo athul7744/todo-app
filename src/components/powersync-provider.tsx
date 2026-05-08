@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { PowerSyncContext } from '@powersync/react';
 import { db, initLocal, connectCloud } from '@/lib/powersync/db';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/shared/logger';
 
 export function PowerSyncProvider({ children }: { children: React.ReactNode }) {
   const [localReady, setLocalReady] = useState(false);

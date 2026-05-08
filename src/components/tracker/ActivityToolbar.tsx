@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { Eraser } from "lucide-react";
 import { ActivityPillStrip } from "./ActivityPillStrip";
 

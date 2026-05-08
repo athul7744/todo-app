@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { LayoutDashboard } from "lucide-react";
-import { APPS } from "@/lib/apps";
+import { APPS } from "@/lib/shared/apps";
 
 export default function Home() {
   return (

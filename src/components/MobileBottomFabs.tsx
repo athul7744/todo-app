@@ -2,8 +2,8 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { AppSwitcher } from "@/components/AppSwitcher";
-import { type AppConfig } from "@/lib/apps";
-import { cn } from "@/lib/utils";
+import { type AppConfig } from "@/lib/shared/apps";
+import { cn } from "@/lib/shared/utils";
 
 interface MobileBottomFabsProps {
   app: AppConfig;

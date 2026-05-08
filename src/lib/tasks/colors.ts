@@ -15,12 +15,7 @@ export const TAG_COLORS = [
   "stone"
 ];
 
-/**
- * Returns Tailwind classes for a flat pastel pill look in both light and dark mode.
- * e.g., bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700
- */
 export const getTagColorClasses = (baseColor: string) => {
-  // We use a predefined map to ensure Tailwind JIT compiles the classes
   const colorMap: Record<string, string> = {
     amber: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700",
     emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700",
@@ -41,10 +36,6 @@ export const getTagColorClasses = (baseColor: string) => {
   return colorMap[baseColor] || colorMap['slate'];
 };
 
-/**
- * Returns just the dark mode hex/dot styling for the color picker
- * e.g. "bg-amber-500"
- */
 export const getTagDotClass = (baseColor: string) => {
   const dotMap: Record<string, string> = {
     amber: "bg-amber-500",

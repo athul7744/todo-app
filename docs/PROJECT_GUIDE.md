@@ -15,6 +15,8 @@ Dash is an offline-first Next.js application with three primary apps under one s
 - `Tracker` — time-block logging on a 7-day x 24-hour grid, daily mood ratings, yearly heatmaps, and weekly widgets
 - `Notes` — a local-first PKM module built on pages, blocks, graph edges, and explicitly owned attachments
 
+Testing is organized separately under `tests/`, with app-group suites and shared helpers rather than colocated source tests.
+
 The app is designed so the browser-local database is the primary runtime source of truth. UI reads and writes happen against local SQLite through PowerSync, and cloud sync happens in the background.
 
 ## High-Level Architecture
@@ -61,7 +63,7 @@ Key runtime behavior:
 
 - `src/components/AppSwitcher.tsx`
   - App-to-app switcher used in the shell
-  - Uses the registry in `src/lib/apps.ts`
+  - Uses the registry in `src/lib/shared/apps.ts`
   - Prefetches other app routes for faster handoff
 
 - `src/components/MobileBottomFabs.tsx`
@@ -125,23 +127,36 @@ Important convention:
 - `src/components/tracker/ManageActivitiesDialog.tsx`
 - `src/components/tracker/widgets/*`
 
-### Shared libraries
+### Library folders
 
-- `src/lib/apps.ts` — app registry used by header/switcher/FAB shell
-- `src/lib/auth.ts` — current-user lookup with session caching
-- `src/lib/colors.ts` — tag palette and class maps
-- `src/lib/activities.ts` — tracker activity palette and class maps
-- `src/lib/tasks.ts` — priority and due-date helpers
-- `src/lib/share.ts` — parsing incoming share payloads and title generation
-- `src/lib/debounced-update.ts` — debounced local writes and execute batching
-- `src/lib/logger.ts` — runtime logging abstraction
+- `src/lib/shared/apps.ts` — app registry used by header/switcher/FAB shell
+- `src/lib/shared/auth.ts` — current-user lookup with session caching
+- `src/lib/shared/share.ts` — parsing incoming share payloads and title generation
+- `src/lib/shared/debounced-update.ts` — debounced local writes and execute batching
+- `src/lib/shared/logger.ts` — runtime logging abstraction
+- `src/lib/shared/ranked-order.ts` — reusable LexoRank ordering helpers that can be shared across app groups
+- `src/lib/shared/utils.ts` — shared UI/class/date helpers
+- `src/lib/tasks/colors.ts` — tag palette and class maps
+- `src/lib/tasks/tasks.ts` — priority and due-date helpers
+- `src/lib/tasks/tags.ts` — tag creation helpers
+- `src/lib/tracker/activities.ts` — tracker activity palette and class maps
 - `src/hooks/use-notes.ts` — local SQLite query hooks for note pages and blocks
+- `src/lib/notes/notes-content.ts` — note document normalization, serialization, and plain-text extraction
+- `src/lib/notes/notes-tree.ts` — tree building and visible block ordering helpers for note blocks
+- `src/lib/notes/notes.ts` — note writes, attachment upserts, and edge reconciliation
 
 ### PowerSync integration
 
 - `src/lib/powersync/AppSchema.ts` — local schema definition
 - `src/lib/powersync/db.ts` — database instance, init, connect, reconnect, reset
 - `src/lib/powersync/SupabaseConnector.ts` — sync connector implementation
+
+### Tests
+
+- `tests/notes/*` — notes-specific Vitest suites
+- `tests/tasks/*` — task-specific Vitest suites
+- `tests/tracker/*` — tracker-specific Vitest suites
+- `tests/shared/*` — shared fixtures, builders, and assertions reused across app groups
 
 ### Notes app structure
 
@@ -152,10 +167,22 @@ Primary route:
 Current responsibilities:
 
 - Registers the notes module in the shared shell and launcher
-- Reads note page counts and recent pages from local SQLite
-- Uses `src/hooks/use-notes.ts` for the first page/block local query helpers
+- Orchestrates the page list view and page editor view via `?page=` route state
+- Reads pages, blocks, backlinks, attachments, and tag mentions from local SQLite through `src/hooks/use-notes.ts`
+- Handles page metadata edits, block creation, sibling insertion, indent/outdent, delete, and focus restoration
+- Uses LexoRank-based ordering helpers for block placement and reordering
 - Preserves the shared header-first loading model used by tasks and tracker
-- Notes blocks carry `updated_at` so editor-heavy writes can adopt the existing debounced local update patterns cleanly
+- Notes pages and blocks carry `updated_at` so editor-heavy writes can use the shared debounced local update path
+
+Important child components:
+
+- `src/components/notes/NoteBlockEditor.tsx`
+  - Tiptap-based editor for a single note block
+  - Handles inline reference highlighting, key navigation, commit behavior, and local/external content reconciliation
+
+- `src/components/notes/NotesBlockTree.tsx`
+  - Builds and renders the nested visible block tree
+  - Owns block-to-block navigation wiring and empty-page creation affordance
 
 Notes attachment ownership:
 
@@ -193,7 +220,7 @@ Important child components:
 
 - `src/components/tasks/ManageTagsDialog.tsx`
   - Thin wrapper around the shared named-color CRUD dialog
-  - Tags persistence still uses the tags helper in `src/lib/tags.ts`
+  - Tags persistence still uses the tags helper in `src/lib/tasks/tags.ts`
 
 - `src/components/tasks/TasksPageSkeleton.tsx`
   - Shared loading primitives for tasks route fallback and in-page loading state
@@ -281,7 +308,7 @@ Route:
 
 This route is the PWA web share target. It:
 
-- reads incoming share params with helpers from `src/lib/share.ts`
+- reads incoming share params with helpers from `src/lib/shared/share.ts`
 - builds an initial task title from the payload
 - reuses `TaskMetadataEditor` for due date and tags
 - inserts a task directly into local SQLite and then routes the user back to `/tasks`
@@ -303,29 +330,51 @@ There are three common write patterns:
    - Example: some direct inserts/deletes via `db.execute()`
 
 2. Debounced field updates
-   - Implemented in `src/lib/debounced-update.ts`
+  - Implemented in `src/lib/shared/debounced-update.ts`
    - Used when rapid repeated edits should merge into one update
-   - Especially important for task editing
+  - Important for task editing and notes page/block updates
 
 3. Debounced execute batching
-   - Also implemented in `src/lib/debounced-update.ts`
+  - Also implemented in `src/lib/shared/debounced-update.ts`
    - Used for insert-like or one-shot writes that should batch and dedupe
 
 Important implementation notes:
 
 - Pending updates are keyed by `table:id`, not just `id`
 - `flushAllUpdates()` flushes queued executes before updates
-- `tasks` is the only table currently treated as having `updated_at`
+- `tasks`, `pages`, and `blocks` are currently treated as having `updated_at`
+
+## Testing Structure
+
+Vitest is the current test runner for fast logic-level coverage.
+
+- `tests/notes/`
+  - Note-specific tests such as content normalization and note tree ordering
+
+- `tests/tasks/`
+  - Reserved for task-specific tests
+
+- `tests/tracker/`
+  - Reserved for tracker-specific tests
+
+- `tests/shared/`
+  - Shared fixtures, builders, and assertions for cross-app behaviors such as ranked ordering
+
+Current shared testable seams:
+
+- `src/lib/notes/notes-content.ts`
+- `src/lib/notes/notes-tree.ts`
+- `src/lib/shared/ranked-order.ts`
 
 ## Auth And User Context
 
-- `src/lib/auth.ts` exposes `getCurrentUserId()`
+- `src/lib/shared/auth.ts` exposes `getCurrentUserId()`
 - Many create flows fetch the user id before local writes
 - `src/components/AppHeader.tsx` handles logout through Supabase client auth
 
 ## App Registry And Visual Identity
 
-- `src/lib/apps.ts` is the central registry for each app's route, name, icon, and accent colors
+- `src/lib/shared/apps.ts` is the central registry for each app's route, name, icon, and accent colors
 - The header, switcher, and mobile FAB shell all rely on this registry
 - If a new app is added, start there first
 

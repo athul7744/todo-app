@@ -18,11 +18,11 @@ import { YearActivityGrid } from "@/components/tracker/YearActivityGrid";
 import { YearRatingGrid } from "@/components/tracker/YearRatingGrid";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { TimeLog, ActivityType, DailyRating } from "@/lib/powersync/AppSchema";
-import { getCurrentUserId } from "@/lib/auth";
-import { getApp } from "@/lib/apps";
-import { DEFAULT_ACTIVITIES } from "@/lib/activities";
-import { cancelExecute, cancelUpdate, debouncedExecute, debouncedUpdate } from "@/lib/debounced-update";
-import { cn } from "@/lib/utils";
+import { getCurrentUserId } from "@/lib/shared/auth";
+import { getApp } from "@/lib/shared/apps";
+import { cancelExecute, cancelUpdate, debouncedExecute, debouncedUpdate } from "@/lib/shared/debounced-update";
+import { cn } from "@/lib/shared/utils";
+import { DEFAULT_ACTIVITIES } from "@/lib/tracker/activities";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 

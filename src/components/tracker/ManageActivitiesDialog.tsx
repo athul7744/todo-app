@@ -4,13 +4,13 @@ import * as React from "react";
 import { usePowerSync, useQuery } from "@powersync/react";
 import { Timer } from "lucide-react";
 import { ManageNamedColorItemsDialog, type ManagedColorDraft } from "@/components/ManageNamedColorItemsDialog";
-import { getCurrentUserId } from "@/lib/auth";
-import { cancelExecute, debouncedExecute } from "@/lib/debounced-update";
+import { getCurrentUserId } from "@/lib/shared/auth";
+import { cancelExecute, debouncedExecute } from "@/lib/shared/debounced-update";
 import {
   ACTIVITY_COLORS,
   ACTIVITY_CELL_CLASSES,
   getActivityDotClass,
-} from "@/lib/activities";
+} from "@/lib/tracker/activities";
 import { ActivityType } from "@/lib/powersync/AppSchema";
 
 interface ManageActivitiesDialogProps {

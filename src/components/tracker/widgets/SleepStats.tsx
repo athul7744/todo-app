@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { Moon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { WidgetProps } from "./types";
 import { WidgetHeader, HatchedEmpty } from "./shared";
 

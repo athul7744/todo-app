@@ -3,8 +3,8 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Info, Logs, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { getRecentLogs, subscribeToLogs, type LogEntry } from "@/lib/logger";
+import { getRecentLogs, subscribeToLogs, type LogEntry } from "@/lib/shared/logger";
+import { cn } from "@/lib/shared/utils";
 
 interface LogViewerDialogProps {
   open: boolean;

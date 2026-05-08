@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { sanitizeNextPath } from '@/lib/share'
+import { sanitizeNextPath } from '@/lib/shared/share'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({

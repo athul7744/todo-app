@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
-import { ACTIVITY_CELL_CLASSES } from "@/lib/activities";
+import { cn } from "@/lib/shared/utils";
+import { ACTIVITY_CELL_CLASSES } from "@/lib/tracker/activities";
 import { format } from "date-fns";
 import {
   Select,

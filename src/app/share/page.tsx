@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import {
   buildSharedTaskTitle,
   readIncomingSharePayload,
-} from "@/lib/share";
-import { getCurrentUserId } from "@/lib/auth";
+} from "@/lib/shared/share";
+import { getCurrentUserId } from "@/lib/shared/auth";
 import { TaskMetadataEditor } from "@/components/tasks/TaskMetadataEditor";
 
 export default function SharePage() {

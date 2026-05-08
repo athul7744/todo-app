@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import { TAG_COLORS } from "@/lib/colors";
-import { getCurrentUserId } from "@/lib/auth";
-import { debouncedExecute } from "@/lib/debounced-update";
+
+import { getCurrentUserId } from "@/lib/shared/auth";
+import { debouncedExecute } from "@/lib/shared/debounced-update";
+import { TAG_COLORS } from "@/lib/tasks/colors";
 
 /**
  * Insert a new tag into the local PowerSync database.

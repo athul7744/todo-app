@@ -9,8 +9,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { SyncIndicator } from "@/components/SyncIndicator";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { createClient } from "@/lib/supabase/client";
-import { type AppConfig } from "@/lib/apps";
-import { cn } from "@/lib/utils";
+import { type AppConfig } from "@/lib/shared/apps";
+import { cn } from "@/lib/shared/utils";
 
 interface AppHeaderProps {
   /** The active app config */

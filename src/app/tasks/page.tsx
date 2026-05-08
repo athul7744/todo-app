@@ -8,16 +8,16 @@ import { Task, Tag } from '@/lib/powersync/AppSchema';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { ManageTagsDialog } from '@/components/tasks/ManageTagsDialog';
 import { v4 as uuidv4 } from 'uuid';
-import { cn } from '@/lib/utils';
-import { getTagColorClasses, getTagDotClass } from '@/lib/colors';
+import { cn } from '@/lib/shared/utils';
+import { getTagColorClasses, getTagDotClass } from '@/lib/tasks/colors';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { TasksContentSkeleton, TasksFilterRowSkeleton } from "../../components/tasks/TasksPageSkeleton";
-import { getApp } from "@/lib/apps";
-import { hasPendingWrites, flushAllUpdates } from "@/lib/debounced-update";
+import { getApp } from "@/lib/shared/apps";
+import { hasPendingWrites, flushAllUpdates } from "@/lib/shared/debounced-update";
 
 const tasksApp = getApp("tasks");
 

@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Check, LayoutDashboard, Logs } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { APPS, type AppConfig } from "@/lib/apps";
-import { isLogViewerEnabled } from "@/lib/logger";
+import { APPS, type AppConfig } from "@/lib/shared/apps";
+import { isLogViewerEnabled } from "@/lib/shared/logger";
+import { cn } from "@/lib/shared/utils";
 import { LogViewerDialog } from "@/components/LogViewerDialog";
 
 interface AppSwitcherProps {

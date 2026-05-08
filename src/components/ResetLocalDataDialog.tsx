@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { resetLocalDatabase } from "@/lib/powersync/db";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/shared/logger";
 
 interface ResetLocalDataDialogProps {
   open: boolean;
