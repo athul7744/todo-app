@@ -42,7 +42,7 @@ function BlockNodeView({
   nextBlockIdById: ReadonlyMap<string, string | null>;
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
-  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue) => void;
+  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -75,7 +75,7 @@ function BlockNodeView({
               onCommit={(nextContent) => {
                 onCommitContent(node.block.id, nextContent as JsonValue);
               }}
-              onCreateSibling={(nextContent) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue)}
+              onCreateSibling={(nextContent, nextSiblingContent) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined)}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
               onNavigateDown={nextBlockId ? () => onFocusBlock(nextBlockId, "start") : undefined}
               onIndent={() => {
@@ -142,7 +142,7 @@ export function NotesBlockTree({
   focusPlacement?: "start" | "end";
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
-  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue) => void;
+  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;

@@ -238,3 +238,127 @@
 .dark .note-ref-token-tag {
   background: color-mix(in oklab, var(--color-chart-1) 22%, transparent);
 }
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror p,
+.ProseMirror blockquote {
+  margin: 0;
+}
+
+.ProseMirror h1 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.125rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.ProseMirror blockquote {
+  border-left: 2px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  padding-left: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+.ProseMirror hr {
+  margin: 0.4rem 0;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+}
+
+.ProseMirror code {
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in oklab, var(--color-foreground) 8%, var(--color-background));
+  padding: 0.08rem 0.38rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: color-mix(in oklab, var(--color-foreground) 92%, var(--color-primary));
+}
+
+.ProseMirror pre {
+  margin: 0;
+  overflow-x: auto;
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-foreground) 6%, var(--color-background));
+  padding: 0.75rem 0.9rem;
+}
+
+.ProseMirror pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.82rem;
+}
+
+.ProseMirror a {
+  color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-primary) 42%, transparent);
+  text-underline-offset: 0.14em;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 0.22rem;
+  flex: 0 0 auto;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  padding: 0.45rem 0.6rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.ProseMirror th {
+  background: color-mix(in oklab, var(--color-foreground) 4%, var(--color-background));
+  font-weight: 600;
+}
+
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.9rem;
+}

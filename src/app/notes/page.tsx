@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Copy, FileText, Files, Hash
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { NotesBlockTree } from "@/components/notes/NotesBlockTree";
+import { MobileRailDrawer } from "../../components/notes/MobileRailDrawer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +21,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages } from "@/hooks/use-notes";
@@ -33,11 +33,6 @@ import { getRankAfterItem, getRankAtParentEnd } from "@/lib/shared/ranked-order"
 import { formatRelativeTime } from "@/lib/shared/utils";
 
 const notesApp = getApp("notes");
-const mobileDrawerTriggerClassName = [
-  "h-8 rounded-full border border-border/70 bg-card/90 px-3 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm",
-  "transition-colors hover:border-border hover:bg-accent hover:text-foreground",
-  "dark:bg-card/75",
-].join(" ");
 
 function formatTimestampLabel(value: string | null | undefined) {
   if (!value) return null;
@@ -194,7 +189,12 @@ export default function NotesPage() {
     }
   };
 
-  const handleCreateSiblingBlock = async (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue) => {
+  const handleCreateSiblingBlock = async (
+    blockId: string,
+    parentBlockId: string | null | undefined,
+    nextContent: JsonValue,
+    nextSiblingContent?: JsonValue
+  ) => {
     if (!selectedPageId || isCreatingBlock) return;
 
     setIsCreatingBlock(true);
@@ -221,7 +221,7 @@ export default function NotesPage() {
         parentBlockId: parentBlockId ?? null,
         sortRank: getSortRankAfterBlock(blockId, parentBlockId),
         type: "text",
-        content: createBlockDocument(),
+        content: nextSiblingContent ?? createBlockDocument(),
       });
       setFocusTarget({ blockId: nextBlockId, placement: "end" });
     } finally {
@@ -501,20 +501,22 @@ export default function NotesPage() {
   );
 
   const navigationRail = (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <NotebookTabs className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">Pages</p>
-          <p className="text-xs text-muted-foreground">Local notebook index</p>
-        </div>
+    <div className="space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
+      <div className="flex min-w-0 items-start gap-2.5">
+          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/12 text-amber-700 dark:bg-amber-500/18 dark:text-amber-300">
+            <NotebookTabs className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Pages</p>
+            <p className="text-[12px] text-muted-foreground">Local notebook index</p>
+          </div>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 rounded-2xl bg-muted/35 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {isLoading ? (
-          <div className="px-1 py-4 text-sm text-muted-foreground">Loading pages…</div>
+          <div className="px-2 py-4 text-sm text-muted-foreground">Loading pages…</div>
         ) : normalizedPages.length === 0 ? (
-          <div className="px-1 py-4 text-sm text-muted-foreground">No pages yet. Create one to start writing.</div>
+          <div className="rounded-xl px-2 py-4 text-sm text-muted-foreground">No pages yet. Create one to start writing.</div>
         ) : (
           normalizedPages.map((page) => (
             <Link
@@ -522,17 +524,17 @@ export default function NotesPage() {
               href={`/notes?page=${page.id}`}
               className={`block rounded-xl px-3 py-2.5 transition-colors ${
                 page.id === selectedPageId
-                  ? "bg-amber-500/10 text-foreground"
+                  ? "bg-amber-500/10 text-foreground ring-1 ring-amber-500/25"
                   : "text-foreground hover:bg-accent"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-2">
                   <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <p className="truncate text-sm font-medium">{page.title || "Untitled page"}</p>
                   <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{page.title || "Untitled page"}</p>
                     {page.summary ? (
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{page.summary}</p>
+                      <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-muted-foreground">{page.summary}</p>
                     ) : null}
                   </div>
                 </div>
@@ -870,38 +872,26 @@ export default function NotesPage() {
           ) : (
             <>
               <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 lg:hidden">
-                <Drawer direction="left">
-                  <DrawerTrigger asChild>
-                    <Button variant="ghost" size="sm" className={`min-w-0 justify-self-start whitespace-nowrap gap-1.5 ${mobileDrawerTriggerClassName}`}>
-                      <NotebookTabs className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      Pages
-                    </Button>
-                  </DrawerTrigger>
-                  <DrawerContent className="p-0">
-                    <DrawerHeader>
-                      <DrawerTitle className="flex items-center justify-center gap-2"><NotebookTabs className="h-4 w-4" />Pages</DrawerTitle>
-                      <DrawerDescription>Browse and create notes pages.</DrawerDescription>
-                    </DrawerHeader>
-                    <div className="px-[var(--app-gutter-x)] pb-4">{navigationRail}</div>
-                  </DrawerContent>
-                </Drawer>
+                <MobileRailDrawer
+                  direction="left"
+                  triggerIcon={NotebookTabs}
+                  triggerLabel="Pages"
+                  title="Pages"
+                  description="Browse and create notes pages."
+                >
+                  {navigationRail}
+                </MobileRailDrawer>
 
                 {detailsRail ? (
-                  <Drawer direction="right">
-                    <DrawerTrigger asChild>
-                      <Button variant="ghost" size="sm" className={`min-w-0 justify-self-end whitespace-nowrap gap-1.5 ${mobileDrawerTriggerClassName}`}>
-                        <Files className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                        Details
-                      </Button>
-                    </DrawerTrigger>
-                    <DrawerContent className="flex h-full flex-col overflow-hidden p-0">
-                      <DrawerHeader className="sr-only">
-                        <DrawerTitle>Details</DrawerTitle>
-                        <DrawerDescription>Summary, tags, files, timestamps, and actions for the current page.</DrawerDescription>
-                      </DrawerHeader>
-                      <div className="min-h-0 flex-1 overflow-y-auto px-[var(--app-gutter-x)] py-4">{detailsRail}</div>
-                    </DrawerContent>
-                  </Drawer>
+                  <MobileRailDrawer
+                    direction="right"
+                    triggerIcon={Files}
+                    triggerLabel="Details"
+                    title="Details"
+                    description="Summary, tags, files, timestamps, and actions for the current page."
+                  >
+                    {detailsRail}
+                  </MobileRailDrawer>
                 ) : <div />}
               </div>
 
