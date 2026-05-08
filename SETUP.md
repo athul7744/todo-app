@@ -24,7 +24,7 @@ graph LR
 1. The app reads/writes directly to a local SQLite database (via WASM in the browser)
 2. PowerSync streams changes bidirectionally between local SQLite and Supabase Postgres
 3. The service worker caches all app assets so the UI and database logic load without internet
-4. CRUD uploads are debounced to batch rapid edits into fewer network calls while task and tracker views keep the UI responsive with optimistic local state
+4. CRUD uploads are debounced to batch rapid edits into fewer network calls while task, tracker, and notes views keep the UI responsive with optimistic or local-first state
 
 ---
 
@@ -278,6 +278,16 @@ Vitest is set up for module and small integration tests.
 - `tests/shared/` holds shared fixtures and assertion helpers used across app groups.
 
 Use `npm test` for a one-shot run and `npm run test:watch` while developing.
+
+### Notes editor setup notes
+
+The notes module uses a rich Tiptap schema. After dependencies install successfully, note blocks support:
+
+- markdown-style shortcuts for headings, blockquotes, horizontal rules, links, task lists, code blocks, tables, and images
+- slash commands for common block transforms
+- outliner-aware key behavior so `Enter` and `Backspace` behave differently for plain blocks, task lists, and code blocks
+
+If you update Tiptap packages, keep the versions aligned instead of mixing minor lines. The repo pins the Tiptap packages together so schema extensions resolve consistently.
 
 ## 4. Deploy to Vercel
 

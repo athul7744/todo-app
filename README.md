@@ -13,7 +13,7 @@ An offline-first productivity dashboard with **Task Management**, **Time Trackin
 
 **Time Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings (1–5), year activity heatmap, year rating calendar, and mobile-friendly week navigation with shared bottom FAB controls. User-defined activity types with a color palette.
 
-**Notes** — Local-first PKM outliner with page and block editing, nested blocks, LexoRank ordering, inline `[[page]]` and `#tag` references, backlinks, and owned attachments routed through the shared shell.
+**Notes** — Local-first PKM outliner with page and block editing, nested blocks, LexoRank ordering, inline `[[page]]` and `#tag` references, backlinks, owned attachments, markdown-style editing, slash commands, and polished mobile rails for pages and details.
 
 **Week Widgets** — Activity breakdown donut chart, mood insights with sleep correlation, daily stacked bars, sleep stats (avg/range/per-night chart), and productivity ratio bar.
 
@@ -21,7 +21,7 @@ An offline-first productivity dashboard with **Task Management**, **Time Trackin
 
 ## Tech Stack
 
-Next.js 16 · PowerSync · Supabase · Tailwind CSS v4 · Shadcn/UI · Tiptap · Vitest · Serwist
+Next.js 16 · PowerSync · Supabase · Tailwind CSS v4 · Shadcn/UI · Tiptap 3.22.5 · Vitest · Serwist
 
 ## Quick Start
 
@@ -49,6 +49,12 @@ Vitest is configured for fast logic-level coverage.
 - `tests/tracker/` is reserved for tracker-specific tests.
 - `tests/shared/` contains reusable fixtures, builders, and assertions shared across app groups.
 
+Notes editor behavior:
+
+- markdown shortcuts for headings, quotes, horizontal rules, links, inline code, code blocks, task lists, tables, and images
+- slash commands for common block transforms
+- outliner-aware Enter and Backspace behavior for plain blocks, task lists, and code blocks
+
 ## How The Project Is Organized
 
 - `src/app/` contains the App Router routes for launcher, tasks, tracker, notes, login, and share-target flows.
@@ -57,6 +63,12 @@ Vitest is configured for fast logic-level coverage.
 - `src/lib/powersync/` contains the local SQLite schema, database bootstrap, and sync connector.
 - `tests/` contains Vitest suites grouped by app plus shared test helpers.
 - `SETUP.md` contains the SQL you need to create the hosted Supabase schema and PowerSync stream configuration.
+
+Notable notes components:
+
+- `src/components/notes/NoteBlockEditor.tsx` owns the rich Tiptap editor, markdown shortcuts, slash commands, and block-specific key handling.
+- `src/components/notes/NotesBlockTree.tsx` renders the nested visible block tree and handles sibling creation plumbing.
+- `src/components/notes/MobileRailDrawer.tsx` provides the shared mobile slide-out shell used by the notes page rails.
 
 > For a deeper map of how tasks, tracker, share capture, optimistic updates, route loading, and PowerSync fit together, read [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md).
 > For environment setup and deployment, read [SETUP.md](SETUP.md).

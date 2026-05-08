@@ -1,6 +1,6 @@
 # Project Guide
 
-This document is the best starting point for a developer or coding agent that needs to understand, modify, or debug Dash after coming back to the project later.
+This document is the best starting point for a developer or coding agent that needs to understand, modify, or debug Dash.
 
 Use this together with:
 
@@ -127,6 +127,12 @@ Important convention:
 - `src/components/tracker/ManageActivitiesDialog.tsx`
 - `src/components/tracker/widgets/*`
 
+### Notes-specific components
+
+- `src/components/notes/NoteBlockEditor.tsx`
+- `src/components/notes/NotesBlockTree.tsx`
+- `src/components/notes/MobileRailDrawer.tsx`
+
 ### Library folders
 
 - `src/lib/shared/apps.ts` — app registry used by header/switcher/FAB shell
@@ -164,13 +170,14 @@ Primary route:
 
 - `src/app/notes/page.tsx`
 
-Current responsibilities:
+Responsibilities:
 
 - Registers the notes module in the shared shell and launcher
 - Orchestrates the page list view and page editor view via `?page=` route state
 - Reads pages, blocks, backlinks, attachments, and tag mentions from local SQLite through `src/hooks/use-notes.ts`
 - Handles page metadata edits, block creation, sibling insertion, indent/outdent, delete, and focus restoration
 - Uses LexoRank-based ordering helpers for block placement and reordering
+- Owns the pages/details rail layout, including compact mobile slide-out drawers
 - Preserves the shared header-first loading model used by tasks and tracker
 - Notes pages and blocks carry `updated_at` so editor-heavy writes can use the shared debounced local update path
 
@@ -178,17 +185,29 @@ Important child components:
 
 - `src/components/notes/NoteBlockEditor.tsx`
   - Tiptap-based editor for a single note block
-  - Handles inline reference highlighting, key navigation, commit behavior, and local/external content reconciliation
+  - Handles inline reference highlighting, markdown shortcuts, slash commands, richer block types, commit behavior, and local/external content reconciliation
+  - Special-cases task-list and code-block key behavior so the outliner model stays predictable
 
 - `src/components/notes/NotesBlockTree.tsx`
   - Builds and renders the nested visible block tree
-  - Owns block-to-block navigation wiring and empty-page creation affordance
+  - Owns block-to-block navigation wiring, sibling creation plumbing, and empty-page creation affordance
+
+- `src/components/notes/MobileRailDrawer.tsx`
+  - Shared mobile drawer shell used by both the pages rail and the details rail on the notes route
+  - Keeps trigger styling and bounded drawer scrolling logic in one place
 
 Notes attachment ownership:
 
 - attachments are owned by either a page or a block, never both
 - page-owned attachments cover page-level assets such as cover images stored in page properties
 - block-owned attachments cover inline embedded assets rendered by the editor
+
+Notes editor capabilities:
+
+- supported markdown-style transforms include headings, quotes, horizontal rules, links, inline code, code blocks, task lists, tables, and images
+- slash commands are implemented locally in the block editor rather than as a global command palette
+- `Enter` creates sibling outline blocks by default, but task-list blocks intentionally create the next sibling preconfigured as another task-list block
+- empty task-list and code blocks collapse back to a normal empty block on `Backspace` instead of deleting immediately
 
 ## Tasks App Structure
 
