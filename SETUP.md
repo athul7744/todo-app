@@ -32,7 +32,7 @@ graph LR
 
 1. Create a project at [supabase.com](https://supabase.com)
 2. Note your **Project URL** and **Publishable API Key** from **Settings → API**
-3. Run in **SQL Editor** (or apply the migrations from `supabase/migrations/`):
+3. Run this in the Supabase **SQL Editor**:
 
 ```sql
 -- Tasks table
@@ -89,12 +89,61 @@ CREATE TABLE public.daily_ratings (
   UNIQUE (user_id, rating_date)
 );
 
+-- Notes pages table
+CREATE TABLE public.pages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  properties JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Notes blocks table
+CREATE TABLE public.blocks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL REFERENCES public.pages(id) ON DELETE CASCADE,
+  parent_block_id UUID REFERENCES public.blocks(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  content JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sort_rank TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Notes graph edges table
+CREATE TABLE public.edges (
+  source_block_id UUID NOT NULL REFERENCES public.blocks(id) ON DELETE CASCADE,
+  target_id UUID NOT NULL,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  PRIMARY KEY (source_block_id, target_id, type)
+);
+
+-- Notes attachments table
+CREATE TABLE public.attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  page_id UUID REFERENCES public.pages(id) ON DELETE CASCADE,
+  block_id UUID REFERENCES public.blocks(id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL,
+  sync_state TEXT NOT NULL DEFAULT 'pending',
+  CHECK (
+    (page_id IS NOT NULL AND block_id IS NULL)
+    OR (page_id IS NULL AND block_id IS NOT NULL)
+  )
+);
+
 -- Row Level Security
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.time_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.edges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can CRUD own tasks" ON public.tasks
   FOR ALL USING (auth.uid() = user_id)
@@ -116,11 +165,34 @@ CREATE POLICY "Users can CRUD own daily_ratings" ON public.daily_ratings
   FOR ALL USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can CRUD own pages" ON public.pages
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can CRUD own blocks" ON public.blocks
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can CRUD own edges" ON public.edges
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can CRUD own attachments" ON public.attachments
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 -- Indexes
 CREATE INDEX idx_time_logs_user_start ON time_logs (user_id, start_timestamp);
+CREATE INDEX idx_pages_user_title ON pages (user_id, title);
+CREATE INDEX idx_blocks_page_sort_rank ON blocks (page_id, sort_rank);
+CREATE INDEX idx_blocks_parent ON blocks (parent_block_id);
+CREATE INDEX idx_edges_target_type ON edges (user_id, target_id, type);
+CREATE INDEX idx_attachments_page ON attachments (page_id) WHERE page_id IS NOT NULL;
+CREATE INDEX idx_attachments_block ON attachments (block_id) WHERE block_id IS NOT NULL;
+CREATE INDEX idx_attachments_user_path ON attachments (user_id, file_path);
 
 -- Publication for PowerSync replication
-CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags, public.time_logs, public.activity_types, public.daily_ratings;
+CREATE PUBLICATION powersync FOR TABLE public.tasks, public.tags, public.time_logs, public.activity_types, public.daily_ratings, public.pages, public.blocks, public.edges, public.attachments;
 ```
 
 4. Go to **Authentication → Users → Add User** to create your account
@@ -155,9 +227,17 @@ streams:
       - SELECT * FROM time_logs WHERE time_logs.user_id = auth.user_id()
       - SELECT * FROM activity_types WHERE activity_types.user_id = auth.user_id()
       - SELECT * FROM daily_ratings WHERE daily_ratings.user_id = auth.user_id()
+      - SELECT * FROM pages WHERE pages.user_id = auth.user_id()
+      - SELECT * FROM blocks WHERE blocks.user_id = auth.user_id()
+      - SELECT * FROM edges WHERE edges.user_id = auth.user_id()
+      - SELECT * FROM attachments WHERE attachments.user_id = auth.user_id()
 ```
 
 4. Note your **PowerSync Instance URL**
+
+This needs to stay aligned with the tables created in the Supabase SQL Editor. If you add or rename synced tables later, update both the publication and the PowerSync stream queries together.
+
+Attachment ownership is explicit: each attachment belongs to either a page or a block. Use page-owned attachments for page-level assets like cover images, and block-owned attachments for embedded files inside note content.
 
 ## 3. Local Development
 

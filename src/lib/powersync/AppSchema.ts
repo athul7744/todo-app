@@ -41,12 +41,49 @@ export const dailyRatingsTable = new Table({
   created_at: column.text
 });
 
+export const pagesTable = new Table({
+  user_id: column.text,
+  title: column.text,
+  properties: column.text, // stored as JSON string
+  created_at: column.text,
+  updated_at: column.text
+});
+
+export const blocksTable = new Table({
+  user_id: column.text,
+  page_id: column.text,
+  parent_block_id: column.text,
+  type: column.text,
+  content: column.text, // stored as JSON string
+  sort_rank: column.text,
+  updated_at: column.text
+});
+
+export const edgesTable = new Table({
+  source_block_id: column.text,
+  target_id: column.text,
+  user_id: column.text,
+  type: column.text
+});
+
+export const attachmentsTable = new Table({
+  user_id: column.text,
+  page_id: column.text,
+  block_id: column.text,
+  file_path: column.text,
+  sync_state: column.text
+});
+
 export const AppSchema = new Schema({
   tasks: tasksTable,
   tags: tagsTable,
   time_logs: timeLogsTable,
   activity_types: activityTypesTable,
-  daily_ratings: dailyRatingsTable
+  daily_ratings: dailyRatingsTable,
+  pages: pagesTable,
+  blocks: blocksTable,
+  edges: edgesTable,
+  attachments: attachmentsTable
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -55,3 +92,7 @@ export type Tag = Database['tags'];
 export type TimeLog = Database['time_logs'];
 export type ActivityType = Database['activity_types'];
 export type DailyRating = Database['daily_ratings'];
+export type PageRecord = Database['pages'];
+export type BlockRecord = Database['blocks'];
+export type EdgeRecord = Database['edges'];
+export type AttachmentRecord = Database['attachments'];

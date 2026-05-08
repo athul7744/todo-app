@@ -1,4 +1,4 @@
-import { ListTodo, Clock, type LucideIcon } from "lucide-react";
+import { ListTodo, Clock, FileText, type LucideIcon } from "lucide-react";
 
 export interface AppAccent {
   /** Icon background: e.g. "bg-indigo-500/10 dark:bg-indigo-500/20" */
@@ -37,6 +37,17 @@ export const APPS: AppConfig[] = [
     accent: {
       iconBg: "bg-teal-500/10 dark:bg-teal-500/20",
       iconText: "text-teal-600 dark:text-teal-400",
+    },
+  },
+  {
+    id: "notes",
+    name: "Notes",
+    description: "Capture linked notes in a local-first outliner",
+    href: "/notes",
+    icon: FileText,
+    accent: {
+      iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
+      iconText: "text-amber-700 dark:text-amber-400",
     },
   },
 ];

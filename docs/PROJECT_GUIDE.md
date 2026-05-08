@@ -9,10 +9,11 @@ Use this together with:
 
 ## What Dash Is
 
-Dash is an offline-first Next.js application with two primary apps under one shell:
+Dash is an offline-first Next.js application with three primary apps under one shell:
 
 - `Tasks` — todo management with subtasks, tags, due dates, priorities, trash/restore, and share-target capture
 - `Tracker` — time-block logging on a 7-day x 24-hour grid, daily mood ratings, yearly heatmaps, and weekly widgets
+- `Notes` — a local-first PKM module built on pages, blocks, graph edges, and explicitly owned attachments
 
 The app is designed so the browser-local database is the primary runtime source of truth. UI reads and writes happen against local SQLite through PowerSync, and cloud sync happens in the background.
 
@@ -95,6 +96,7 @@ Important convention:
 - `src/app/share/page.tsx` — PWA share target review and save flow
 - `src/app/tasks/page.tsx` — tasks dashboard
 - `src/app/tracker/page.tsx` — tracker dashboard
+- `src/app/notes/page.tsx` — notes dashboard shell
 
 ### Shared components
 
@@ -133,12 +135,33 @@ Important convention:
 - `src/lib/share.ts` — parsing incoming share payloads and title generation
 - `src/lib/debounced-update.ts` — debounced local writes and execute batching
 - `src/lib/logger.ts` — runtime logging abstraction
+- `src/hooks/use-notes.ts` — local SQLite query hooks for note pages and blocks
 
 ### PowerSync integration
 
 - `src/lib/powersync/AppSchema.ts` — local schema definition
 - `src/lib/powersync/db.ts` — database instance, init, connect, reconnect, reset
 - `src/lib/powersync/SupabaseConnector.ts` — sync connector implementation
+
+### Notes app structure
+
+Primary route:
+
+- `src/app/notes/page.tsx`
+
+Current responsibilities:
+
+- Registers the notes module in the shared shell and launcher
+- Reads note page counts and recent pages from local SQLite
+- Uses `src/hooks/use-notes.ts` for the first page/block local query helpers
+- Preserves the shared header-first loading model used by tasks and tracker
+- Notes blocks carry `updated_at` so editor-heavy writes can adopt the existing debounced local update patterns cleanly
+
+Notes attachment ownership:
+
+- attachments are owned by either a page or a block, never both
+- page-owned attachments cover page-level assets such as cover images stored in page properties
+- block-owned attachments cover inline embedded assets rendered by the editor
 
 ## Tasks App Structure
 
@@ -305,6 +328,8 @@ Important implementation notes:
 - `src/lib/apps.ts` is the central registry for each app's route, name, icon, and accent colors
 - The header, switcher, and mobile FAB shell all rely on this registry
 - If a new app is added, start there first
+
+The `Notes` module follows that same pattern, so future work should extend the shared shell instead of introducing notes-specific chrome.
 
 ## PowerSync Notes
 
