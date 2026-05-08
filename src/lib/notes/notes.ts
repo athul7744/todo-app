@@ -153,6 +153,15 @@ export function updateNotePageProperties(pageId: string, properties: Record<stri
   debouncedUpdate(pageId, "properties", JSON.stringify(properties), "pages");
 }
 
+export async function deleteNotePage(pageId: string) {
+  await db.execute(`DELETE FROM attachments WHERE block_id IN (SELECT id FROM blocks WHERE page_id = ?)`, [pageId]);
+  await db.execute(`DELETE FROM attachments WHERE page_id = ?`, [pageId]);
+  await db.execute(`DELETE FROM edges WHERE source_block_id IN (SELECT id FROM blocks WHERE page_id = ?)`, [pageId]);
+  await db.execute(`DELETE FROM edges WHERE target_id = ? AND type = 'page_ref'`, [pageId]);
+  await db.execute(`DELETE FROM blocks WHERE page_id = ?`, [pageId]);
+  await db.execute(`DELETE FROM pages WHERE id = ?`, [pageId]);
+}
+
 export async function createNoteBlock(input: CreateBlockInput) {
   const blockId = input.id ?? uuidv4();
   const userId = await getCurrentUserId();
