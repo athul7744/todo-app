@@ -1,7 +1,7 @@
 "use client";
 
 import { AppHeader } from "@/components/AppHeader";
-import { getApp } from "@/lib/apps";
+import { getApp } from "@/lib/shared/apps";
 
 const notesApp = getApp("notes");
 

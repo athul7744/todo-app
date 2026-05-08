@@ -211,3 +211,30 @@
 .transition-smooth {
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.note-ref-token {
+  display: inline;
+  border-radius: 0.55rem;
+  padding: 0.02rem 0.24rem;
+  font-weight: 600;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.note-ref-token-page {
+  background: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  color: color-mix(in oklab, var(--color-primary) 80%, var(--color-foreground));
+}
+
+.note-ref-token-tag {
+  background: color-mix(in oklab, var(--color-chart-1) 36%, transparent);
+  color: color-mix(in oklab, var(--color-foreground) 82%, var(--color-chart-1));
+}
+
+.dark .note-ref-token-page {
+  background: color-mix(in oklab, var(--color-primary) 24%, transparent);
+}
+
+.dark .note-ref-token-tag {
+  background: color-mix(in oklab, var(--color-chart-1) 22%, transparent);
+}
