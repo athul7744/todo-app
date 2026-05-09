@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { parseSerializedRecord } from "@/lib/notes/notes-content";
 import type { JsonValue } from "@/lib/notes/notes";
 import { formatRelativeTime } from "@/lib/shared/utils";
 import { TAG_COLORS } from "@/lib/tasks/colors";
@@ -131,15 +132,8 @@ export function createBlockDocument(text = ""): JsonValue {
   };
 }
 
-export function parseProperties(raw: string | null) {
-  if (!raw) return {} as Record<string, unknown>;
-
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {} as Record<string, unknown>;
-  }
+export function parseProperties(raw: unknown) {
+  return parseSerializedRecord(raw) ?? {};
 }
 
 export function getDeterministicTagColor(tag: string | null | undefined) {

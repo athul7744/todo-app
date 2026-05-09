@@ -42,7 +42,8 @@ export default function NotesPage() {
   const [pageTitleDraft, setPageTitleDraft] = useState("");
   const [pageTitleError, setPageTitleError] = useState<string | null>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [pageEmojiDraft, setPageEmojiDraft] = useState<string | null>(null);
+  const [pageEmojiDraft, setPageEmojiDraft] = useState<string | null | undefined>(undefined);
+  const [resolvedPageEmoji, setResolvedPageEmoji] = useState<string | null | undefined>(undefined);
   const [summaryDraft, setSummaryDraft] = useState("");
   const [tagsDraft, setTagsDraft] = useState("");
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
@@ -184,7 +185,11 @@ export default function NotesPage() {
     blockContentDrafts,
     pageSearchQuery,
   });
-  const activePageEmoji = pageEmojiDraft;
+  const activePageEmoji = pageEmojiDraft !== undefined
+    ? pageEmojiDraft
+    : resolvedPageEmoji !== undefined
+      ? resolvedPageEmoji
+      : selectedPageEmoji;
   const absoluteUpdatedTimeTimeoutRef = useRef<number | null>(null);
 
   const revealAbsoluteUpdatedTime = () => {
@@ -204,7 +209,8 @@ export default function NotesPage() {
     if (!selectedPage) {
       setPageTitleDraft("");
       setPageTitleError(null);
-      setPageEmojiDraft(null);
+      setPageEmojiDraft(undefined);
+      setResolvedPageEmoji(undefined);
       setSummaryDraft("");
       setTagsDraft("");
       setBlockContentDrafts({});
@@ -216,7 +222,8 @@ export default function NotesPage() {
 
     setPageTitleDraft(selectedPage?.title ?? "");
     setPageTitleError(null);
-    setPageEmojiDraft(selectedPageEmoji);
+    setPageEmojiDraft(undefined);
+  setResolvedPageEmoji(selectedPageEmoji);
     setSummaryDraft(selectedPageSummary ?? "");
     setTagsDraft(selectedPageTags.join(", "));
     setBlockContentDrafts({});
@@ -224,6 +231,24 @@ export default function NotesPage() {
     setShowAbsoluteUpdatedTime(false);
     setFocusTarget(null);
   }, [selectedPage?.id]);
+
+  useEffect(() => {
+    if (!selectedPage) {
+      return;
+    }
+
+    setResolvedPageEmoji(selectedPageEmoji);
+  }, [selectedPage, selectedPageEmoji]);
+
+  useEffect(() => {
+    if (!selectedPage || pageEmojiDraft === undefined) {
+      return;
+    }
+
+    if (pageEmojiDraft === selectedPageEmoji) {
+      setPageEmojiDraft(undefined);
+    }
+  }, [pageEmojiDraft, selectedPage?.id, selectedPageEmoji]);
 
   useEffect(() => {
     return () => {

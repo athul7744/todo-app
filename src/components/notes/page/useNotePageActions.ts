@@ -34,7 +34,7 @@ type UseNotePageActionsParams = {
   selectedBlockMap: Map<string, NoteBlockRow>;
   setPageTitleDraft: Dispatch<SetStateAction<string>>;
   setPageTitleError: Dispatch<SetStateAction<string | null>>;
-  setPageEmojiDraft: Dispatch<SetStateAction<string | null>>;
+  setPageEmojiDraft: Dispatch<SetStateAction<string | null | undefined>>;
   setIsEmojiPickerOpen: Dispatch<SetStateAction<boolean>>;
   setIsDeletingPage: Dispatch<SetStateAction<boolean>>;
   setIsDeleteDialogOpen: Dispatch<SetStateAction<boolean>>;

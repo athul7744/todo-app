@@ -117,18 +117,30 @@ export function createNoteDocumentFromText(text: string) {
   };
 }
 
-function parseSerializedDocument(raw: string): Record<string, unknown> | null {
+export function parseSerializedRecord(raw: unknown): Record<string, unknown> | null {
+  if (!raw) {
+    return null;
+  }
+
+  if (isRecord(raw)) {
+    return raw;
+  }
+
+  if (typeof raw !== "string") {
+    return null;
+  }
+
   try {
     const parsed = JSON.parse(raw) as unknown;
 
-    if (isNoteDocument(parsed)) {
+    if (isRecord(parsed)) {
       return parsed;
     }
 
     if (typeof parsed === "string") {
       try {
         const reparsed = JSON.parse(parsed) as unknown;
-        return isNoteDocument(reparsed) ? reparsed : null;
+        return isRecord(reparsed) ? reparsed : null;
       } catch {
         return null;
       }
@@ -138,6 +150,12 @@ function parseSerializedDocument(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function parseSerializedDocument(raw: string): Record<string, unknown> | null {
+  const parsedRecord = parseSerializedRecord(raw);
+
+  return isNoteDocument(parsedRecord) ? parsedRecord : null;
 }
 
 export function normalizeNoteDocument(raw: unknown) {
