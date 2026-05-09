@@ -1,0 +1,226 @@
+"use client";
+
+import { ChevronDown, Clock3, Hash, PanelLeftClose, Star, Tags } from "lucide-react";
+
+import { NotesNavigationRailSkeleton } from "@/components/notes/NotesPageSkeleton";
+import { Button } from "@/components/ui/button";
+
+import { DetailsSection } from "./ui";
+import type { NormalizedNotePage, TagDirectoryEntry } from "./types";
+import { NavigationPageLink } from "./items";
+
+type PageRailSectionState = {
+  favorites: boolean;
+  recent: boolean;
+  tags: boolean;
+};
+
+export function NotesNavigationRailHeader({
+  areAllSectionsOpen,
+  showDesktopPagesRail,
+  onToggleAllSections,
+  onHideDesktopPagesRail,
+}: {
+  areAllSectionsOpen: boolean;
+  showDesktopPagesRail: boolean;
+  onToggleAllSections: () => void;
+  onHideDesktopPagesRail: () => void;
+}) {
+  if (!showDesktopPagesRail) {
+    return null;
+  }
+
+  return (
+    <div className="hidden w-full items-center justify-between gap-3 sm:flex">
+      <p className="text-sm font-semibold text-foreground">Pages</p>
+      <div className="flex items-center gap-1.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onToggleAllSections}
+          className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          {areAllSectionsOpen ? "Collapse all" : "Expand all"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onHideDesktopPagesRail}
+          className="size-8 rounded-full text-muted-foreground hover:text-foreground"
+          aria-label="Hide pages panel"
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function NotesNavigationRail({
+  isLoading,
+  normalizedPages,
+  favoritePages,
+  recentAccessPages,
+  tagDirectory,
+  tagDirectoryOpen,
+  pageRailSectionOpen,
+  selectedPageId,
+  areAllSectionsOpen,
+  onToggleAllSections,
+  onTogglePageRailSection,
+  onToggleTagDirectoryGroup,
+  onSelectPage,
+}: {
+  isLoading: boolean;
+  normalizedPages: NormalizedNotePage[];
+  favoritePages: NormalizedNotePage[];
+  recentAccessPages: NormalizedNotePage[];
+  tagDirectory: TagDirectoryEntry[];
+  tagDirectoryOpen: Record<string, boolean>;
+  pageRailSectionOpen: PageRailSectionState;
+  selectedPageId: string | null;
+  areAllSectionsOpen: boolean;
+  onToggleAllSections: () => void;
+  onTogglePageRailSection: (section: keyof PageRailSectionState) => void;
+  onToggleTagDirectoryGroup: (key: string) => void;
+  onSelectPage: (pageId: string) => void;
+}) {
+  return (
+    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
+      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
+        <div className="flex items-center justify-between gap-3 sm:hidden">
+          <p className="text-sm font-semibold text-foreground">Pages</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onToggleAllSections}
+            className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            {areAllSectionsOpen ? "Collapse all" : "Expand all"}
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="px-1 py-1">
+            <NotesNavigationRailSkeleton showHeader={false} />
+          </div>
+        ) : normalizedPages.length === 0 ? (
+          <div className="px-2 py-4 text-[13px] text-muted-foreground">No pages yet. Create one to start writing.</div>
+        ) : (
+          <div className="space-y-4">
+            <DetailsSection
+              title="Favorites"
+              icon={Star}
+              accentClassName="bg-amber-500/12 text-amber-700 dark:bg-amber-500/18 dark:text-amber-300"
+              isOpen={pageRailSectionOpen.favorites}
+              onToggle={() => onTogglePageRailSection("favorites")}
+            >
+              <div className="space-y-1">
+                {favoritePages.length === 0 ? (
+                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No favorites yet.</div>
+                ) : (
+                  favoritePages.map((page) => (
+                    <NavigationPageLink
+                      key={page.id}
+                      page={page}
+                      selectedPageId={selectedPageId}
+                      onSelectPage={onSelectPage}
+                      trailing={<Star className="mt-0.5 h-4 w-4 shrink-0 fill-current text-amber-500" />}
+                    />
+                  ))
+                )}
+              </div>
+            </DetailsSection>
+
+            <DetailsSection
+              title="Recently accessed"
+              icon={Clock3}
+              accentClassName="bg-sky-500/12 text-sky-700 dark:bg-sky-500/18 dark:text-sky-300"
+              isOpen={pageRailSectionOpen.recent}
+              onToggle={() => onTogglePageRailSection("recent")}
+            >
+              <div className="space-y-1">
+                {recentAccessPages.length === 0 ? (
+                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No recent pages yet.</div>
+                ) : (
+                  recentAccessPages.map((page) => (
+                    <NavigationPageLink
+                      key={page.id}
+                      page={page}
+                      selectedPageId={selectedPageId}
+                      onSelectPage={onSelectPage}
+                    />
+                  ))
+                )}
+              </div>
+            </DetailsSection>
+
+            <DetailsSection
+              title="Tags"
+              icon={Tags}
+              accentClassName="bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/18 dark:text-emerald-300"
+              isOpen={pageRailSectionOpen.tags}
+              onToggle={() => onTogglePageRailSection("tags")}
+            >
+              <div className="space-y-1">
+                {tagDirectory.length === 0 ? (
+                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No tags yet.</div>
+                ) : (
+                  tagDirectory.map((entry) => {
+                    const isOpen = tagDirectoryOpen[entry.key] ?? false;
+
+                    return (
+                      <div key={entry.key} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => onToggleTagDirectoryGroup(entry.key)}
+                          aria-expanded={isOpen}
+                          aria-controls={`tag-directory-${entry.key}`}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors hover:text-foreground"
+                        >
+                          <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground">
+                              <Hash className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[13px] font-medium text-foreground">#{entry.label}</span>
+                              <span className="block text-[11px] leading-5 text-muted-foreground">{entry.count} page{entry.count === 1 ? "" : "s"}</span>
+                            </span>
+                          </span>
+                          <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : "rotate-0"}`} />
+                        </button>
+
+                        <div
+                          id={`tag-directory-${entry.key}`}
+                          className={`grid overflow-hidden transition-all duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                        >
+                          <div className="min-h-0" inert={!isOpen}>
+                            <div className={`space-y-1 pl-8 transition-all duration-200 ease-out ${isOpen ? "translate-y-0" : "-translate-y-1"}`} aria-hidden={!isOpen}>
+                              {entry.pages.map((page) => (
+                                <NavigationPageLink
+                                  key={page.id}
+                                  page={page}
+                                  selectedPageId={selectedPageId}
+                                  onSelectPage={onSelectPage}
+                                  showTags={false}
+                                  className="px-3 py-1.5"
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </DetailsSection>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
