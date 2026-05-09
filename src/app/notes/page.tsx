@@ -4,7 +4,7 @@ import Link from "next/link";
 import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
@@ -281,6 +281,7 @@ export default function NotesPage() {
     recent: true,
     tags: true,
   });
+  const [showEditorAppHeader, setShowEditorAppHeader] = useState(false);
   const [showDesktopPagesRail, setShowDesktopPagesRail] = useState(true);
   const [showDesktopDetailsRail, setShowDesktopDetailsRail] = useState(false);
   const [tagDirectoryOpen, setTagDirectoryOpen] = useState<Record<string, boolean>>({});
@@ -469,6 +470,78 @@ export default function NotesPage() {
         content: nextSiblingContent ?? createBlockDocument(),
       });
       setFocusTarget({ blockId: nextBlockId, placement: "end" });
+    } finally {
+      setIsCreatingBlock(false);
+    }
+  };
+
+  const handleCreateEmptySiblingBlock = async (blockId: string, parentBlockId: string | null | undefined) => {
+    if (!selectedPageId || isCreatingBlock) return;
+
+    setIsCreatingBlock(true);
+
+    try {
+      const nextBlockId = await createNoteBlock({
+        pageId: selectedPageId,
+        parentBlockId: parentBlockId ?? null,
+        sortRank: getSortRankAfterBlock(blockId, parentBlockId),
+        type: "text",
+        content: createBlockDocument(),
+      });
+      setFocusTarget({ blockId: nextBlockId, placement: "end" });
+    } finally {
+      setIsCreatingBlock(false);
+    }
+  };
+
+  const handleCreateSiblingBlocks = async (
+    blockId: string,
+    parentBlockId: string | null | undefined,
+    nextContent: JsonValue,
+    nextSiblingContents: JsonValue[]
+  ) => {
+    if (!selectedPageId || isCreatingBlock) return;
+    if (nextSiblingContents.length === 0) return;
+
+    setIsCreatingBlock(true);
+
+    try {
+      const serializedContent = JSON.stringify(nextContent);
+
+      flushSync(() => {
+        setBlockContentDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [blockId]: serializedContent,
+        }));
+      });
+
+      updateNoteBlock({
+        blockId,
+        pageId: selectedPageId ?? undefined,
+        content: nextContent,
+      });
+
+      await flushUpdate(blockId, "blocks");
+
+      let previousBlockId = blockId;
+      let lastCreatedBlockId: string | null = null;
+
+      for (const siblingContent of nextSiblingContents) {
+        const createdBlockId = await createNoteBlock({
+          pageId: selectedPageId,
+          parentBlockId: parentBlockId ?? null,
+          sortRank: getSortRankAfterBlock(previousBlockId, parentBlockId),
+          type: "text",
+          content: siblingContent,
+        });
+
+        previousBlockId = createdBlockId;
+        lastCreatedBlockId = createdBlockId;
+      }
+
+      if (lastCreatedBlockId) {
+        setFocusTarget({ blockId: lastCreatedBlockId, placement: "end" });
+      }
     } finally {
       setIsCreatingBlock(false);
     }
@@ -1048,7 +1121,7 @@ export default function NotesPage() {
             ) : null}
           </div>
         </div>
-        {trailing ?? <ArrowRight className={`mt-0.5 h-4 w-4 shrink-0 ${page.id === selectedPageId ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground"}`} />}
+        {trailing ?? null}
       </div>
       {showTags && page.tags.length > 0 ? (
         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -1065,12 +1138,65 @@ export default function NotesPage() {
     </Link>
   );
 
-  const navigationRailHeader = (
-    <div className="flex w-full items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <NotebookTabs className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">Pages</p>
-      </div>
+  const desktopPagesRestoreButton = !showDesktopPagesRail ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={() => setShowDesktopPagesRail(true)}
+      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
+      aria-label="Show pages panel"
+    >
+      <PanelLeftOpen className="h-4 w-4" />
+    </Button>
+  ) : null;
+
+  const desktopDetailsRestoreButton = !showDesktopDetailsRail ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={() => setShowDesktopDetailsRail(true)}
+      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
+      aria-label="Show details panel"
+    >
+      <PanelRightOpen className="h-4 w-4" />
+    </Button>
+  ) : null;
+
+  const mobileNavigationRailHeader = (
+    <div className="flex items-center justify-between gap-3 lg:hidden">
+      <p className="text-sm font-semibold text-foreground">Pages</p>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={toggleAllPageRailSections}
+        className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+      >
+        {areAllPageRailSectionsOpen ? "Collapse all" : "Expand all"}
+      </Button>
+    </div>
+  );
+
+  const mobileDetailsRailHeader = (
+    <div className="flex items-center justify-between gap-3 lg:hidden">
+      <p className="text-sm font-semibold text-foreground">Details</p>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={toggleAllDetailsSections}
+        className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+      >
+        {areAllDetailsSectionsOpen ? "Collapse all" : "Expand all"}
+      </Button>
+    </div>
+  );
+
+  const desktopNavigationRailHeader = showDesktopPagesRail ? (
+    <div className="hidden w-full items-center justify-between gap-3 lg:flex">
+      <p className="text-sm font-semibold text-foreground">Pages</p>
       <div className="flex items-center gap-1.5">
         <Button
           type="button"
@@ -1084,23 +1210,20 @@ export default function NotesPage() {
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => setShowDesktopPagesRail(false)}
-          className="hidden h-8 rounded-full px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground lg:inline-flex"
+          className="size-8 rounded-full text-muted-foreground hover:text-foreground"
           aria-label="Hide pages panel"
         >
-          <PanelLeftClose className="h-3.5 w-3.5" />
+          <PanelLeftClose className="h-4 w-4" />
         </Button>
       </div>
     </div>
-  );
+  ) : null;
 
-  const detailsRailHeader = (
-    <div className="flex w-full items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <Files className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">Details</p>
-      </div>
+  const desktopDetailsRailHeader = showDesktopDetailsRail ? (
+    <div className="hidden w-full items-center justify-between gap-3 lg:flex">
+      <p className="text-sm font-semibold text-foreground">Details</p>
       <div className="flex items-center gap-1.5">
         <Button
           type="button"
@@ -1114,48 +1237,22 @@ export default function NotesPage() {
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => setShowDesktopDetailsRail(false)}
-          className="hidden h-8 rounded-full px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground lg:inline-flex"
+          className="size-8 rounded-full text-muted-foreground hover:text-foreground"
           aria-label="Hide details panel"
         >
-          <PanelRightClose className="h-3.5 w-3.5" />
+          <PanelRightClose className="h-4 w-4" />
         </Button>
       </div>
     </div>
-  );
-
-  const desktopPagesRestoreButton = !showDesktopPagesRail ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={() => setShowDesktopPagesRail(true)}
-      className="hidden h-8 w-8 items-center justify-center rounded-full px-0 text-muted-foreground hover:text-foreground lg:inline-flex"
-      aria-label="Show pages panel"
-    >
-      <PanelLeftOpen className="h-3.5 w-3.5" />
-    </Button>
-  ) : null;
-
-  const desktopDetailsRestoreButton = !showDesktopDetailsRail ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={() => setShowDesktopDetailsRail(true)}
-      className="hidden h-8 w-8 items-center justify-center rounded-full px-0 text-muted-foreground hover:text-foreground lg:inline-flex"
-      aria-label="Show details panel"
-    >
-      <PanelRightOpen className="h-3.5 w-3.5" />
-    </Button>
   ) : null;
 
   const navigationRail = (
     <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="lg:hidden">{navigationRailHeader}</div>
-
       <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        {mobileNavigationRailHeader}
+
         {isLoading ? (
           <div className="px-1 py-1">
             <NotesNavigationRailSkeleton showHeader={false} />
@@ -1183,7 +1280,7 @@ export default function NotesPage() {
             </DetailsSection>
 
             <DetailsSection
-              title="Recent / Frequent"
+              title="Recently accessed"
               icon={Clock3}
               accentClassName="bg-sky-500/12 text-sky-700 dark:bg-sky-500/18 dark:text-sky-300"
               isOpen={pageRailSectionOpen.recent}
@@ -1199,7 +1296,7 @@ export default function NotesPage() {
             </DetailsSection>
 
             <DetailsSection
-              title="Tag Directory"
+              title="Tags"
               icon={Tags}
               accentClassName="bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/18 dark:text-emerald-300"
               isOpen={pageRailSectionOpen.tags}
@@ -1260,9 +1357,9 @@ export default function NotesPage() {
 
   const detailsRail = selectedPage ? (
     <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="lg:hidden">{detailsRailHeader}</div>
-
       <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          {mobileDetailsRailHeader}
+
           <DetailsSection
             title="Outline"
             icon={Files}
@@ -1512,21 +1609,23 @@ export default function NotesPage() {
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
-      <AppHeader
-        app={notesApp}
-        actions={isDisplayingOverview ? (
-          <Button
-            onClick={handleCreateStarterPage}
-            variant="ghost"
-            size="sm"
-            disabled={isCreatingPage}
-            className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-amber-700 dark:hover:text-amber-400"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>{isCreatingPage ? "Creating..." : "Page"}</span>
-          </Button>
-        ) : undefined}
-      />
+      {isDisplayingOverview || showEditorAppHeader ? (
+        <AppHeader
+          app={notesApp}
+          actions={isDisplayingOverview ? (
+            <Button
+              onClick={handleCreateStarterPage}
+              variant="ghost"
+              size="sm"
+              disabled={isCreatingPage}
+              className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-amber-700 dark:hover:text-amber-400"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{isCreatingPage ? "Creating..." : "Page"}</span>
+            </Button>
+          ) : undefined}
+        />
+      ) : null}
 
       <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8 lg:overflow-hidden">
         <div className="mx-auto max-w-[1600px] space-y-4 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:space-y-0">
@@ -1607,7 +1706,6 @@ export default function NotesPage() {
                                   ) : null}
                                 </div>
                               </div>
-                              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                             </div>
                             {page.tags.length > 0 ? (
                               <div className="mt-3 flex flex-wrap gap-2">
@@ -1647,7 +1745,7 @@ export default function NotesPage() {
                   {navigationRail}
                 </MobileRailDrawer>
 
-                <div className="min-w-0 flex-1 px-2 text-center">
+                <div className="min-w-0 flex flex-1 items-center justify-center gap-1.5 px-2 text-center">
                   {showMobileUpdatedTimestamp ? (
                     <button
                       type="button"
@@ -1658,6 +1756,16 @@ export default function NotesPage() {
                       {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
                     </button>
                   ) : <span className="block h-4" aria-hidden="true" />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowEditorAppHeader((current) => !current)}
+                    className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                    aria-label={showEditorAppHeader ? "Hide app header" : "Show app header"}
+                  >
+                    {showEditorAppHeader ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
                 </div>
 
                 {detailsRail || showSelectedPageLoading ? (
@@ -1673,15 +1781,30 @@ export default function NotesPage() {
                 ) : <div />}
               </div>
 
-              <section className={`grid gap-4 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] ${desktopGridColumns}`}>
+              <section className={`grid gap-4 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] lg:gap-y-2 ${desktopGridColumns}`}>
                 {showDesktopPagesRail ? (
-                  <div className="hidden h-8 items-center lg:flex">{navigationRailHeader}</div>
+                  <div className="hidden h-8 items-center lg:flex">
+                    {desktopNavigationRailHeader}
+                  </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center lg:flex">{desktopPagesRestoreButton}</div>
+                  <div className="hidden h-8 items-center justify-center lg:flex">
+                    {desktopPagesRestoreButton}
+                  </div>
                 )}
 
                 <div className="hidden h-8 items-center lg:flex">
-                  <div className="mx-auto w-full max-w-3xl pl-8 md:pl-9">
+                  <div className="mx-auto grid w-full max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1 md:gap-x-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        transitionToOverview();
+                        router.push("/notes");
+                      }}
+                      className="-ml-2 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground md:size-9"
+                      aria-label="Back to notes list"
+                    >
+                      <ArrowLeft className="h-6 w-6 md:h-7 md:w-7" />
+                    </Button>
                     {showDesktopUpdatedTimestamp ? (
                       <button
                         type="button"
@@ -1692,15 +1815,27 @@ export default function NotesPage() {
                         {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
                       </button>
                     ) : <span className="block h-4 w-32" aria-hidden="true" />}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowEditorAppHeader((current) => !current)}
+                      className="mt-1 flex size-8 shrink-0 items-center justify-center justify-self-end rounded-full text-muted-foreground hover:text-foreground md:size-9"
+                      aria-label={showEditorAppHeader ? "Hide app header" : "Show app header"}
+                    >
+                      {showEditorAppHeader ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
 
                 {showDesktopDetailsRail ? (
                   <div className="hidden h-8 items-center lg:flex">
-                    {detailsRail ?? showSelectedPageLoading ? detailsRailHeader : null}
+                    {desktopDetailsRailHeader}
                   </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center lg:flex">{desktopDetailsRestoreButton}</div>
+                  <div className="hidden h-8 items-center justify-center lg:flex">
+                    {desktopDetailsRestoreButton}
+                  </div>
                 )}
 
                 {showDesktopPagesRail ? (
@@ -1719,7 +1854,7 @@ export default function NotesPage() {
                   ) : (
                     <div className="relative mx-auto max-w-3xl">
                       <div className={showEditorOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-                        <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
+                        <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 lg:grid-cols-[auto_minmax(0,1fr)_auto] ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
                           <div className="contents">
                           <Button
                             variant="ghost"
@@ -1727,7 +1862,7 @@ export default function NotesPage() {
                               transitionToOverview();
                               router.push("/notes");
                             }}
-                            className="-ml-2 -mr-1 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground md:size-9"
+                            className="hidden -ml-2 -mr-1 size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground md:size-9"
                             aria-label="Back to notes list"
                           >
                             <ArrowLeft className="h-6 w-6 md:h-7 md:w-7" />
@@ -1741,12 +1876,12 @@ export default function NotesPage() {
                               }
                             }}
                             readOnly={showEditorOverlay}
-                            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl"
+                            className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl lg:col-start-2 lg:pl-0"
                             placeholder="Untitled"
                           />
                           <Button
                             variant="ghost"
-                            className={`mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 ${editorContentToRender.favorite ? "text-amber-500" : "text-muted-foreground"}`}
+                            className={`col-start-2 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 lg:col-start-3 ${editorContentToRender.favorite ? "text-amber-500" : "text-muted-foreground"}`}
                             onClick={handleToggleFavorite}
                             aria-label="Toggle favorite"
                           >
@@ -1754,14 +1889,14 @@ export default function NotesPage() {
                           </Button>
                           </div>
 
-                          <div className={`col-start-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
+                          <div className={`col-span-2 flex flex-wrap items-center gap-2 pl-3 text-xs text-muted-foreground lg:col-span-1 lg:col-start-2 lg:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Files className="h-3 w-3" />{editorContentToRender.blockCount} blocks</span>
                               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Link2 className="h-3 w-3" />{editorContentToRender.backlinkCount} backlinks</span>
                             </div>
                           </div>
 
-                          <div className={`col-start-2 col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
+                          <div className={`col-span-2 lg:col-start-2 lg:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
                             <NotesBlockTree
                               blocks={editorContentToRender.blocks}
                               onCreateFirstBlock={handleCreateRootBlock}
@@ -1770,6 +1905,8 @@ export default function NotesPage() {
                               onFocusApplied={() => setFocusTarget(null)}
                               onFocusBlock={(blockId, placement) => setFocusTarget({ blockId, placement })}
                               onCreateSibling={handleCreateSiblingBlock}
+                              onCreateEmptySibling={handleCreateEmptySiblingBlock}
+                              onCreateSiblings={handleCreateSiblingBlocks}
                               onCommitContent={handleCommitBlockContent}
                               onIndent={handleIndentBlock}
                               onOutdent={handleOutdentBlock}

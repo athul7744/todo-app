@@ -26,9 +26,13 @@ import TableRow from "@tiptap/extension-table-row";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { DOMParser as ProseMirrorDOMParser, DOMSerializer } from "@tiptap/pm/model";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
 import Text from "@tiptap/extension-text";
+import { marked } from "marked";
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
 import { normalizeNoteDocument } from "@/lib/notes/notes-content";
@@ -38,6 +42,112 @@ const referenceDecorationsKey = new PluginKey("noteReferenceDecorations");
 const markdownLinkInputRegex = /(?:^|\s)\[([^\]]+)\]\((\S+?)\)$/;
 const markdownLinkPasteRegex = /(?:^|\s)\[([^\]]+)\]\((\S+?)\)/g;
 const markdownImageBlockRegex = /^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]+)")?\)$/;
+const markdownBlockHintRegex = /(^|\n)\s*(#{1,6}\s|>\s|[-*+]\s|\d+\.\s|```|~~~|\|.+\||!\[[^\]]*\]\(|\[[^\]]+\]\([^\)]+\)|-{3,}|\*\*[^*]+\*\*|_[^_]+_)/;
+const markdownLinkOrImageRegex = /!\[[^\]]*\]\([^\)]+\)|\[[^\]]+\]\([^\)]+\)/;
+const markdownTableSeparatorRegex = /(^|\n)\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*($|\n)/;
+const markdownTaskListRegex = /(^|\n)\s*[-*+]\s\[[ xX]\]\s/;
+const notePageReferenceRegex = /\[\[[^\]]+\]\]/g;
+const noteInlineTagRegex = /(^|[\s(])#([a-z0-9][a-z0-9_/-]*)/gi;
+
+const turndownService = new TurndownService({
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  headingStyle: "atx",
+});
+
+turndownService.use(gfm);
+turndownService.addRule("taskListItems", {
+  filter(node: Node) {
+    return node.nodeName === "LI" && (node as HTMLElement).getAttribute("data-type") === "taskItem";
+  },
+  replacement(content: string, node: Node) {
+    const element = node as HTMLElement;
+    const checkbox = element.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    const isChecked = checkbox?.checked || element.getAttribute("data-checked") === "true";
+    const normalizedContent = content.replace(/^\s*\[[ xX]\]\s*/, "").trim();
+    return `\n- [${isChecked ? "x" : " "}] ${normalizedContent}\n`;
+  },
+});
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function protectNoteTokens(text: string) {
+  const tokens: string[] = [];
+  const createPlaceholder = (value: string) => {
+    const index = tokens.push(value) - 1;
+    return `NOTESCLIPTOK${index}END`;
+  };
+
+  const withProtectedReferences = text.replace(notePageReferenceRegex, (match) => createPlaceholder(match));
+  const protectedText = withProtectedReferences.replace(noteInlineTagRegex, (_, prefix: string, tag: string) => `${prefix}${createPlaceholder(`#${tag}`)}`);
+
+  return { protectedText, tokens };
+}
+
+function restoreProtectedTokens(value: string, tokens: string[], escape = false) {
+  return value.replace(/NOTESCLIPTOK(\d+)END/g, (_, index: string) => {
+    const token = tokens[Number(index)] ?? "";
+    return escape ? escapeHtml(token) : token;
+  });
+}
+
+function normalizeExportedMarkdownTokens(markdown: string) {
+  return markdown
+    .replace(/\\\[\\\[/g, "[[")
+    .replace(/\\\]\\\]/g, "]]")
+    .replace(/(^|[\s(])\\#([a-z0-9][a-z0-9_/-]*)/gi, "$1#$2");
+}
+
+function getMarkdownClipboardText(event: ClipboardEvent) {
+  const explicitMarkdown = event.clipboardData?.getData("text/markdown")?.trim() ?? "";
+  if (explicitMarkdown) {
+    return explicitMarkdown;
+  }
+
+  const clipboardText = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+  if (!clipboardText) {
+    return null;
+  }
+
+  const lineCount = clipboardText.split(/\r?\n/).length;
+  const hasMarkdownLinkOrImage = markdownLinkOrImageRegex.test(clipboardText);
+  const hasMarkdownTable = markdownTableSeparatorRegex.test(clipboardText);
+  const hasTaskList = markdownTaskListRegex.test(clipboardText);
+  const hasBlockSyntax = markdownBlockHintRegex.test(clipboardText);
+
+  if (hasMarkdownLinkOrImage || hasMarkdownTable || hasTaskList) {
+    return clipboardText;
+  }
+
+  if (lineCount > 1 && hasBlockSyntax) {
+    return clipboardText;
+  }
+
+  return null;
+}
+
+function parseMarkdownClipboardText(text: string) {
+  const { protectedText, tokens } = protectNoteTokens(text);
+  const rendered = marked.parse(protectedText, {
+    async: false,
+    breaks: true,
+    gfm: true,
+  });
+
+  if (typeof rendered !== "string") {
+    return "";
+  }
+
+  return restoreProtectedTokens(rendered, tokens, true);
+}
 
 type SlashCommandSection = "basic" | "structure" | "media";
 
@@ -138,6 +248,12 @@ const MarkdownLink = Link.extend({
   },
 });
 
+const NotesHorizontalRule = HorizontalRule.extend({
+  addInputRules() {
+    return [];
+  },
+});
+
 function emptyDocument(): JSONContent {
   return {
     type: "doc",
@@ -181,6 +297,13 @@ function emptyCodeBlockDocument(): JSONContent {
   return {
     type: "doc",
     content: [{ type: "codeBlock", attrs: { language: null }, content: [] }],
+  };
+}
+
+function emptyHorizontalRuleDocument(): JSONContent {
+  return {
+    type: "doc",
+    content: [{ type: "horizontalRule" }],
   };
 }
 
@@ -350,6 +473,52 @@ function getEditorPlainText(view: EditorView) {
   return view.state.doc.textBetween(0, view.state.doc.content.size, "\n").trim();
 }
 
+function getSelectionHtml(view: EditorView) {
+  const fragment = view.state.selection.content().content;
+  if (fragment.childCount === 0) {
+    return "";
+  }
+
+  const serializer = DOMSerializer.fromSchema(view.state.schema);
+  const wrapper = document.createElement("div");
+  wrapper.appendChild(serializer.serializeFragment(fragment));
+  return wrapper.innerHTML;
+}
+
+function getSelectionMarkdown(view: EditorView) {
+  const html = getSelectionHtml(view);
+  if (!html) {
+    return "";
+  }
+
+  return normalizeExportedMarkdownTokens(turndownService.turndown(html).trim());
+}
+
+function parseHtmlDocument(view: EditorView, html: string): JSONContent | null {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = html;
+
+  const parser = ProseMirrorDOMParser.fromSchema(view.state.schema);
+  const documentNode = parser.parse(wrapper);
+  return documentNode.toJSON() as JSONContent;
+}
+
+function parseMarkdownClipboardDocuments(view: EditorView, text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  return lines.map((line) => {
+    const nextHtml = parseMarkdownClipboardText(line);
+    return parseHtmlDocument(view, nextHtml) ?? createScaffoldDocument(line);
+  });
+}
+
 function splitMarkdownTableRow(line: string) {
   const normalized = line.trim().replace(/^\||\|$/g, "");
   return normalized.split("|").map((cell) => cell.trim());
@@ -430,6 +599,13 @@ function parseMarkdownImage(text: string): JSONContent | null {
 }
 
 function tryConvertMarkdownBlock(editor: Editor) {
+  const plainText = getEditorPlainText(editor.view).trim();
+
+  if (/^(?:---|___|\*\*\*)$/.test(plainText)) {
+    editor.commands.setContent(emptyHorizontalRuleDocument(), { emitUpdate: true });
+    return true;
+  }
+
   const nextImageDocument = parseMarkdownImage(getEditorPlainText(editor.view));
   if (nextImageDocument) {
     editor.commands.setContent(nextImageDocument, { emitUpdate: true });
@@ -473,6 +649,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onChange,
   onCommit,
   onCreateSibling,
+  onCreateSiblings,
   onNavigateUp,
   onNavigateDown,
   onIndent,
@@ -486,6 +663,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onChange: (content: JSONContent) => void;
   onCommit?: (content: JSONContent) => void;
   onCreateSibling: (content: JSONContent, nextSiblingContent?: JSONContent) => void;
+  onCreateSiblings?: (content: JSONContent, siblingContents: JSONContent[]) => Promise<void> | void;
   onNavigateUp?: () => void;
   onNavigateDown?: () => void;
   onIndent: () => void;
@@ -496,6 +674,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
   const onCreateSiblingRef = useRef(onCreateSibling);
+  const onCreateSiblingsRef = useRef(onCreateSiblings);
   const onNavigateUpRef = useRef(onNavigateUp);
   const onNavigateDownRef = useRef(onNavigateDown);
   const onIndentRef = useRef(onIndent);
@@ -595,12 +774,13 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     onChangeRef.current = onChange;
     onCommitRef.current = onCommit;
     onCreateSiblingRef.current = onCreateSibling;
+    onCreateSiblingsRef.current = onCreateSiblings;
     onNavigateUpRef.current = onNavigateUp;
     onNavigateDownRef.current = onNavigateDown;
     onIndentRef.current = onIndent;
     onOutdentRef.current = onOutdent;
     onDeleteEmptyRef.current = onDeleteEmpty;
-  }, [onChange, onCommit, onCreateSibling, onDeleteEmpty, onIndent, onNavigateDown, onNavigateUp, onOutdent]);
+  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onNavigateDown, onNavigateUp, onOutdent]);
 
   useEffect(() => {
     slashQueryRef.current = slashQuery;
@@ -642,7 +822,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       Heading.configure({
         levels: [1, 2, 3],
       }),
-      HorizontalRule,
+      NotesHorizontalRule,
       MarkdownLink,
       Image,
       TaskList,
@@ -682,6 +862,78 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
           return false;
         },
+        copy(view, event) {
+          const clipboardEvent = event as ClipboardEvent;
+          if (!clipboardEvent.clipboardData || view.state.selection.empty) {
+            return false;
+          }
+
+          const markdown = getSelectionMarkdown(view);
+          if (!markdown) {
+            return false;
+          }
+
+          clipboardEvent.preventDefault();
+          clipboardEvent.clipboardData.setData("text/plain", markdown);
+          clipboardEvent.clipboardData.setData("text/markdown", markdown);
+          clipboardEvent.clipboardData.setData("text/html", getSelectionHtml(view));
+          return true;
+        },
+        cut(view, event) {
+          const clipboardEvent = event as ClipboardEvent;
+          if (!clipboardEvent.clipboardData || view.state.selection.empty) {
+            return false;
+          }
+
+          const markdown = getSelectionMarkdown(view);
+          if (!markdown) {
+            return false;
+          }
+
+          clipboardEvent.preventDefault();
+          clipboardEvent.clipboardData.setData("text/plain", markdown);
+          clipboardEvent.clipboardData.setData("text/markdown", markdown);
+          clipboardEvent.clipboardData.setData("text/html", getSelectionHtml(view));
+          view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+          return true;
+        },
+      },
+      handlePaste(view, event) {
+        const markdownClipboardText = getMarkdownClipboardText(event);
+
+        if (!markdownClipboardText) {
+          return false;
+        }
+
+        const nextDocuments = parseMarkdownClipboardDocuments(view, markdownClipboardText);
+        if (nextDocuments.length === 0) {
+          return false;
+        }
+
+        if (nextDocuments.length > 1) {
+          const [nextContent, ...nextSiblingContents] = nextDocuments;
+
+          event.preventDefault();
+          pendingLocalContentRef.current = JSON.stringify(nextContent);
+          editor?.commands.setContent(nextContent, { emitUpdate: true });
+          void onCreateSiblingsRef.current?.(nextContent, nextSiblingContents);
+          updateSlashQuery(editor ?? view as unknown as Editor);
+          return true;
+        }
+
+        const nextHtml = parseMarkdownClipboardText(markdownClipboardText);
+        if (!nextHtml) {
+          return false;
+        }
+
+        event.preventDefault();
+        editor?.commands.insertContent(nextHtml, {
+          parseOptions: {
+            preserveWhitespace: false,
+          },
+        });
+        updateSlashQuery(editor ?? view as unknown as Editor);
+        return true;
       },
       handleKeyDown(view: EditorView, event: KeyboardEvent) {
         if (slashQueryRef.current !== null) {
@@ -727,6 +979,15 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
               applySlashCommand(nextCommand);
               return true;
             }
+          }
+        }
+
+        if (event.key === "Enter" && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          if (editor?.isActive("codeBlock") || editor?.isActive("table")) {
+            event.preventDefault();
+            const nextContent = flushEditorContent() ?? editor.getJSON();
+            onCreateSiblingRef.current(nextContent);
+            return true;
           }
         }
 

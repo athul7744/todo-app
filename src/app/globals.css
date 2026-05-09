@@ -276,9 +276,23 @@
 }
 
 .ProseMirror hr {
-  margin: 0.4rem 0;
   border: 0;
-  border-top: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  height: 1.5rem;
+  margin: 0;
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(50% - 0.5px),
+    color-mix(in oklab, var(--color-foreground) 16%, transparent) calc(50% - 0.5px),
+    color-mix(in oklab, var(--color-foreground) 16%, transparent) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  background-repeat: no-repeat;
+}
+
+.ProseMirror hr + p:has(> .ProseMirror-trailingBreak:only-child) {
+  height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .ProseMirror code {

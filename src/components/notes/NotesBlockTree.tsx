@@ -1,5 +1,7 @@
 "use client";
 
+import { Plus } from "lucide-react";
+
 import { NoteBlockEditor } from "@/components/notes/NoteBlockEditor";
 import type { NoteBlockRow } from "@/hooks/use-notes";
 import { extractNoteText } from "@/lib/notes/notes-content";
@@ -25,6 +27,7 @@ function BlockNodeView({
   onFocusApplied,
   onFocusBlock,
   onCreateSibling,
+  onCreateSiblings,
   onCommitContent,
   onIndent,
   onOutdent,
@@ -43,6 +46,7 @@ function BlockNodeView({
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
+  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -76,6 +80,7 @@ function BlockNodeView({
                 onCommitContent(node.block.id, nextContent as JsonValue);
               }}
               onCreateSibling={(nextContent, nextSiblingContent) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined)}
+              onCreateSiblings={onCreateSiblings ? (nextContent, nextSiblingContents) => onCreateSiblings(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContents as JsonValue[]) : undefined}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
               onNavigateDown={nextBlockId ? () => onFocusBlock(nextBlockId, "start") : undefined}
               onIndent={() => {
@@ -130,6 +135,8 @@ export function NotesBlockTree({
   onFocusApplied,
   onFocusBlock,
   onCreateSibling,
+  onCreateEmptySibling,
+  onCreateSiblings,
   onCommitContent,
   onIndent,
   onOutdent,
@@ -143,6 +150,8 @@ export function NotesBlockTree({
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
+  onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void;
+  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -151,6 +160,7 @@ export function NotesBlockTree({
 }) {
   const tree = buildNoteBlockTree(blocks);
   const { previousBlockIdById, nextBlockIdById } = createVisibleNoteBlockNeighbors(blocks);
+  const lastRootBlock = tree[tree.length - 1]?.block ?? null;
 
   if (tree.length === 0) {
     return (
@@ -192,6 +202,7 @@ export function NotesBlockTree({
           onFocusApplied={onFocusApplied}
           onFocusBlock={onFocusBlock}
           onCreateSibling={onCreateSibling}
+            onCreateSiblings={onCreateSiblings}
           onCommitContent={onCommitContent}
           onIndent={onIndent}
           onOutdent={onOutdent}
@@ -199,6 +210,25 @@ export function NotesBlockTree({
           onUpdateContent={onUpdateContent}
         />
       ))}
+
+      {lastRootBlock ? (
+        <div className="group mt-2 px-0 py-1">
+          <button
+            type="button"
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={() => onCreateEmptySibling(lastRootBlock.id, null)}
+            className="flex min-h-6 w-full items-center gap-px rounded-sm px-0 py-0 text-xs text-muted-foreground/80 opacity-0 outline-none transition-all group-hover:opacity-100 group-focus-within:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:text-foreground"
+            aria-label="Add block below"
+          >
+            <div className="flex w-3.5 shrink-0 items-center justify-start" aria-hidden="true">
+              <Plus className="h-2.5 w-2.5" />
+            </div>
+            <div className="min-w-0 flex-1 text-left leading-5">Add block</div>
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
