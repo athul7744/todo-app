@@ -6,7 +6,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, Dr
 
 const mobileDrawerTriggerClassName = [
   "h-8 rounded-full border border-border/70 bg-card/90 px-3 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm",
-  "transition-colors hover:border-border hover:bg-accent hover:text-foreground",
+  "transition-smooth hover:border-border hover:bg-accent hover:text-foreground",
   "dark:bg-card/75",
 ].join(" ");
 
@@ -33,12 +33,12 @@ export function MobileRailDrawer({
           {triggerLabel}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="flex h-full flex-col overflow-hidden p-0">
+      <DrawerContent className="flex h-full flex-col overflow-hidden p-0 transition-smooth">
         <DrawerHeader className="sr-only">
           <DrawerTitle>{title}</DrawerTitle>
           <DrawerDescription>{description}</DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--app-gutter-x)] py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--app-gutter-x)] py-4 animate-fade-slide-in">{children}</div>
       </DrawerContent>
     </Drawer>
   );
