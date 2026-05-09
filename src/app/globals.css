@@ -179,6 +179,28 @@
   50% { opacity: 0.5; }
 }
 
+@keyframes notesSearchPopupAnchorIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes notesSearchPopupAnchorOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 /* Utility classes */
 .animate-fade-slide-in {
   animation: fadeSlideIn 0.24s cubic-bezier(0.2, 0.9, 0.2, 1) both;
@@ -214,6 +236,19 @@
   transition-timing-function: cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
+.notes-search-popup-anchor {
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
+.notes-search-popup-anchor[data-open] {
+  animation: notesSearchPopupAnchorIn 150ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.notes-search-popup-anchor[data-closed] {
+  animation: notesSearchPopupAnchorOut 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 .note-ref-token {
   display: inline;
   border-radius: 0.55rem;
@@ -226,6 +261,7 @@
 .note-ref-token-page {
   background: color-mix(in oklab, var(--color-primary) 14%, transparent);
   color: color-mix(in oklab, var(--color-primary) 80%, var(--color-foreground));
+  cursor: pointer;
 }
 
 .note-ref-token-tag {

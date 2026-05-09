@@ -139,7 +139,7 @@ export function NotesDetailsRailSkeleton({ showHeader = true }: NotesDetailsRail
 export function NotesPageSkeleton({ mode = "editor", showDesktopHeaderRow = true }: NotesPageSkeletonProps) {
   if (mode === "overview") {
     return (
-      <section className="grid gap-10 lg:grid-cols-2 animate-fade-slide-in">
+      <section className="grid gap-10 sm:grid-cols-2 animate-fade-slide-in">
         {Array.from({ length: 2 }).map((_, index) => (
           <section key={index} className="space-y-4">
             <div className="flex items-center gap-2">
@@ -154,10 +154,10 @@ export function NotesPageSkeleton({ mode = "editor", showDesktopHeaderRow = true
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px] animate-fade-slide-in">
+    <section className="grid gap-4 sm:grid-cols-[280px_minmax(0,1fr)_320px] animate-fade-slide-in">
       {showDesktopHeaderRow ? (
         <>
-          <div className="hidden h-8 items-center lg:flex">
+          <div className="hidden h-8 items-center sm:flex">
             <div className="flex w-full items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Bone className="h-4 w-4 rounded-full" />
@@ -167,13 +167,13 @@ export function NotesPageSkeleton({ mode = "editor", showDesktopHeaderRow = true
             </div>
           </div>
 
-          <div className="hidden h-8 items-center lg:flex">
+          <div className="hidden h-8 items-center sm:flex">
             <div className="pl-8 md:pl-9">
               <Bone className="h-4 w-28" />
             </div>
           </div>
 
-          <div className="hidden h-8 items-center lg:flex">
+          <div className="hidden h-8 items-center sm:flex">
             <div className="flex w-full items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Bone className="h-4 w-4 rounded-full" />
@@ -185,13 +185,13 @@ export function NotesPageSkeleton({ mode = "editor", showDesktopHeaderRow = true
         </>
       ) : null}
 
-      <div className="hidden lg:block">
+      <div className="hidden sm:block">
         <NotesNavigationRailSkeleton showHeader={false} />
       </div>
 
       <NotesEditorMainSkeleton />
 
-      <div className="hidden lg:block">
+      <div className="hidden sm:block">
         <NotesDetailsRailSkeleton showHeader={false} />
       </div>
     </section>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Search, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
@@ -22,12 +22,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { CommandEmpty, CommandGroup, CommandItem, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import { SEARCH_POPUP_CLOSE_ANIMATION_MS, SearchPopup } from "@/components/ui/search-popup";
 import { Textarea } from "@/components/ui/textarea";
-import { useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages, type NoteBlockRow, type NotePageRow } from "@/hooks/use-notes";
+import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages, type NoteBlockRow, type NotePageRow } from "@/hooks/use-notes";
 import { extractNoteText } from "@/lib/notes/notes-content";
 import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
-import { createNoteBlock, createStarterPage, deleteNoteBlock, deleteNotePage, moveNoteBlock, updateNoteBlock, updateNotePageProperties, updateNotePageTitle, type JsonValue } from "@/lib/notes/notes";
+import { createNoteBlock, createStarterPage, deleteNoteBlock, deleteNotePage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, isNotePageTitleAvailable, moveNoteBlock, normalizeNotePageTitle, updateNoteBlock, updateNotePageProperties, updateNotePageTitle, type JsonValue } from "@/lib/notes/notes";
 import { getApp } from "@/lib/shared/apps";
 import { flushAllUpdates, flushUpdate, hasPendingWrites } from "@/lib/shared/debounced-update";
 import { getRankAfterItem, getRankAtParentEnd } from "@/lib/shared/ranked-order";
@@ -267,7 +269,10 @@ export default function NotesPage() {
   const [pendingSurfaceKey, setPendingSurfaceKey] = useState<string | null>(null);
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [isCreatingBlock, setIsCreatingBlock] = useState(false);
+  const [isPageSearchOpen, setIsPageSearchOpen] = useState(false);
+  const [pageSearchQuery, setPageSearchQuery] = useState("");
   const [pageTitleDraft, setPageTitleDraft] = useState("");
+  const [pageTitleError, setPageTitleError] = useState<string | null>(null);
   const [summaryDraft, setSummaryDraft] = useState("");
   const [tagsDraft, setTagsDraft] = useState("");
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
@@ -298,11 +303,12 @@ export default function NotesPage() {
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
-      if (!hasPendingWrites()) {
+      if (!hasPendingWrites() && !hasPendingNoteEdgeReconciles()) {
         return;
       }
 
       flushAllUpdates();
+      void flushPendingNoteEdgeReconciles();
       event.preventDefault();
     };
 
@@ -345,6 +351,7 @@ export default function NotesPage() {
   }, [showDesktopDetailsRail, showDesktopPagesRail]);
 
   const { isLoading: isLoadingCounts } = useNoteCounts();
+  const { pages: allPages = [] } = useAllNotePages();
   const { pages: recentPages = [], isLoading: isLoadingRecentPages } = useRecentNotePages(8);
   const { page: selectedPage, blocks: selectedBlocks, isLoading: isLoadingSelectedPage } = useNotePageWithBlocks(selectedPageId);
   const { attachments: selectedPageAttachments, isLoading: isLoadingAttachments } = usePageAttachments(selectedPageId);
@@ -401,19 +408,8 @@ export default function NotesPage() {
   };
 
   const handleCreateStarterPage = async () => {
-    if (isCreatingPage) return;
-
-    setIsCreatingPage(true);
-
-    try {
-      const pageId = await createStarterPage();
-      transitionToEditor(pageId);
-      startTransition(() => {
-        router.push(`/notes?page=${pageId}`);
-      });
-    } finally {
-      setIsCreatingPage(false);
-    }
+    setPageSearchQuery("");
+    setIsPageSearchOpen(true);
   };
 
   const handleCreateRootBlock = async () => {
@@ -656,6 +652,78 @@ export default function NotesPage() {
     [recentPages]
   );
 
+  const allNormalizedPages = useMemo<NormalizedNotePage[]>(
+    () =>
+      allPages.map((page) => {
+        const properties = parseProperties(page.properties);
+        const summary = typeof properties.summary === "string" ? properties.summary : null;
+        const tags = Array.isArray(properties.tags)
+          ? properties.tags.filter((tag): tag is string => typeof tag === "string")
+          : [];
+
+        return {
+          ...page,
+          summary,
+          tags,
+        };
+      }),
+    [allPages]
+  );
+
+  const notePageTitles = useMemo(() => {
+    const seenTitles = new Set<string>();
+
+    return allPages.flatMap((page) => {
+      const normalizedTitle = normalizeNotePageTitle(page.title) || "Untitled";
+      const key = normalizedTitle.toLocaleLowerCase();
+
+      if (seenTitles.has(key)) {
+        return [];
+      }
+
+      seenTitles.add(key);
+      return [normalizedTitle];
+    });
+  }, [allPages]);
+
+  const notePageIdByTitle = useMemo(() => {
+    const titleMap = new Map<string, string>();
+
+    allPages.forEach((page) => {
+      const normalizedTitle = normalizeNotePageTitle(page.title) || "Untitled";
+      const key = normalizedTitle.toLocaleLowerCase();
+
+      if (!titleMap.has(key)) {
+        titleMap.set(key, page.id);
+      }
+    });
+
+    return titleMap;
+  }, [allPages]);
+
+  const normalizedSearchQuery = useMemo(() => normalizeNotePageTitle(pageSearchQuery), [pageSearchQuery]);
+  const filteredSearchPages = useMemo(() => {
+    const nextQuery = normalizedSearchQuery.toLocaleLowerCase();
+
+    if (!nextQuery) {
+      return allNormalizedPages;
+    }
+
+    return allNormalizedPages.filter((page) => {
+      const title = (normalizeNotePageTitle(page.title) || "Untitled").toLocaleLowerCase();
+      const summary = (page.summary ?? "").toLocaleLowerCase();
+      const tags = page.tags.join(" ").toLocaleLowerCase();
+      return title.includes(nextQuery) || summary.includes(nextQuery) || tags.includes(nextQuery);
+    });
+  }, [allNormalizedPages, normalizedSearchQuery]);
+
+  const exactSearchMatch = useMemo(
+    () => notePageIdByTitle.get(normalizedSearchQuery.toLocaleLowerCase()) ?? null,
+    [notePageIdByTitle, normalizedSearchQuery]
+  );
+
+  const canCreatePageFromSearch = normalizedSearchQuery.length > 0 && !exactSearchMatch;
+
   const selectedPageProperties = useMemo(
     () => parseProperties(selectedPage?.properties ?? null),
     [selectedPage?.properties]
@@ -758,6 +826,7 @@ export default function NotesPage() {
   useEffect(() => {
     if (!selectedPage) {
       setPageTitleDraft("");
+      setPageTitleError(null);
       setSummaryDraft("");
       setTagsDraft("");
       setBlockContentDrafts({});
@@ -768,6 +837,7 @@ export default function NotesPage() {
     }
 
     setPageTitleDraft(selectedPage?.title ?? "");
+  setPageTitleError(null);
     setSummaryDraft(selectedPageSummary ?? "");
     setTagsDraft(selectedPageTags.join(", "));
     setBlockContentDrafts({});
@@ -919,6 +989,156 @@ export default function NotesPage() {
   const transitionToEditor = (pageId: string) => {
     setPendingSurfaceKey(`editor:${pageId}`);
   };
+
+  const openPageById = (pageId: string) => {
+    transitionToEditor(pageId);
+    startTransition(() => {
+      router.push(`/notes?page=${pageId}`);
+    });
+  };
+
+  const handleSelectPageFromSearch = (pageId: string) => {
+    setIsPageSearchOpen(false);
+    openPageById(pageId);
+  };
+
+  const handleCreatePageFromSearch = async (title: string) => {
+    const normalizedTitle = normalizeNotePageTitle(title);
+    if (!normalizedTitle || isCreatingPage) return;
+
+    const existingPageId = notePageIdByTitle.get(normalizedTitle.toLocaleLowerCase());
+    if (existingPageId) {
+      handleSelectPageFromSearch(existingPageId);
+      return;
+    }
+
+    setIsCreatingPage(true);
+
+    try {
+      const pageId = await createStarterPage(normalizedTitle);
+      setIsPageSearchOpen(false);
+      openPageById(pageId);
+    } finally {
+      setIsCreatingPage(false);
+    }
+  };
+
+  const handleOpenPageReference = (title: string) => {
+    const targetPageId = notePageIdByTitle.get(title.trim().toLocaleLowerCase());
+    if (!targetPageId) {
+      return;
+    }
+
+    openPageById(targetPageId);
+  };
+
+  const commitPageTitleDraft = async () => {
+    if (!selectedPageId) {
+      return;
+    }
+
+    const normalizedDraft = normalizeNotePageTitle(pageTitleDraft) || "Untitled page";
+
+    if (normalizeNotePageTitle(selectedPage?.title) === normalizedDraft) {
+      setPageTitleDraft(normalizedDraft);
+      setPageTitleError(null);
+      return;
+    }
+
+    const isAvailable = await isNotePageTitleAvailable(normalizedDraft, selectedPageId);
+    if (!isAvailable) {
+      setPageTitleError("Page titles must be unique.");
+      setPageTitleDraft(selectedPage?.title ?? "");
+      return;
+    }
+
+    setPageTitleError(null);
+    setPageTitleDraft(normalizedDraft);
+    updateNotePageTitle(selectedPageId, normalizedDraft);
+  };
+
+  const overviewSearchTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (isPageSearchOpen || pageSearchQuery.length === 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPageSearchQuery("");
+    }, SEARCH_POPUP_CLOSE_ANIMATION_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isPageSearchOpen, pageSearchQuery]);
+
+  const pageSearchResults = (
+    <>
+      <CommandEmpty>
+        {canCreatePageFromSearch ? (
+          <div className="px-2 py-2 text-left text-sm text-muted-foreground">
+            No matching pages. Create <span className="font-medium text-foreground">{normalizedSearchQuery}</span>.
+          </div>
+        ) : "No pages found."}
+      </CommandEmpty>
+      <CommandGroup heading="Pages">
+        {filteredSearchPages.map((page) => (
+          <CommandItem
+            key={page.id}
+            value={page.id}
+            onSelect={() => handleSelectPageFromSearch(page.id)}
+            className="items-start gap-3 rounded-lg px-3 py-2"
+          >
+            <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-foreground">{page.title || "Untitled page"}</div>
+              {page.summary ? <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{page.summary}</div> : null}
+            </div>
+          </CommandItem>
+        ))}
+      </CommandGroup>
+      {canCreatePageFromSearch ? (
+        <>
+          <CommandSeparator />
+          <CommandGroup heading="Create">
+            <CommandItem
+              value={`create:${normalizedSearchQuery}`}
+              onSelect={() => {
+                void handleCreatePageFromSearch(normalizedSearchQuery);
+              }}
+              className="rounded-lg px-3 py-2"
+            >
+              <Plus className="h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0 flex-1 truncate">
+                <span className="font-medium text-foreground">Create page</span>
+                <span className="mx-2 text-muted-foreground/60">-</span>
+                <span className="text-muted-foreground">{normalizedSearchQuery}</span>
+              </div>
+              <CommandShortcut>{isCreatingPage ? "..." : "Enter"}</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+        </>
+      ) : null}
+    </>
+  );
+
+  const overviewSearchTrigger = (
+    <div className="flex justify-center">
+      <button
+        ref={overviewSearchTriggerRef}
+        type="button"
+        onClick={() => setIsPageSearchOpen(true)}
+        className="flex h-10 w-full max-w-xl items-center gap-3 rounded-full border border-border/70 bg-card/85 px-4 text-left text-sm text-muted-foreground shadow-sm transition-colors hover:border-border hover:text-foreground"
+        aria-label="Search pages"
+        aria-expanded={isPageSearchOpen}
+      >
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">Search or create pages</span>
+        <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">Search</span>
+      </button>
+    </div>
+  );
 
   const handleToggleFavorite = () => {
     if (!selectedPageId) return;
@@ -1082,12 +1302,12 @@ export default function NotesPage() {
   const showDesktopUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay && !isLoading && !showSelectedPageLoading && selectedPage);
   const showMobileUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay);
   const desktopGridColumns = showDesktopPagesRail && showDesktopDetailsRail
-    ? "lg:grid-cols-[280px_minmax(0,1fr)_320px]"
+    ? "sm:grid-cols-[280px_minmax(0,1fr)_320px]"
     : showDesktopPagesRail
-      ? "lg:grid-cols-[280px_minmax(0,1fr)_44px]"
+      ? "sm:grid-cols-[280px_minmax(0,1fr)_44px]"
       : showDesktopDetailsRail
-        ? "lg:grid-cols-[44px_minmax(0,1fr)_320px]"
-        : "lg:grid-cols-[44px_minmax(0,1fr)_44px]";
+        ? "sm:grid-cols-[44px_minmax(0,1fr)_320px]"
+        : "sm:grid-cols-[44px_minmax(0,1fr)_44px]";
 
   const renderNavigationPageLink = (
     page: NormalizedNotePage,
@@ -1144,7 +1364,7 @@ export default function NotesPage() {
       variant="ghost"
       size="icon"
       onClick={() => setShowDesktopPagesRail(true)}
-      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
+      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground sm:inline-flex"
       aria-label="Show pages panel"
     >
       <PanelLeftOpen className="h-4 w-4" />
@@ -1157,7 +1377,7 @@ export default function NotesPage() {
       variant="ghost"
       size="icon"
       onClick={() => setShowDesktopDetailsRail(true)}
-      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
+      className="hidden size-8 rounded-full text-muted-foreground hover:text-foreground sm:inline-flex"
       aria-label="Show details panel"
     >
       <PanelRightOpen className="h-4 w-4" />
@@ -1165,7 +1385,7 @@ export default function NotesPage() {
   ) : null;
 
   const mobileNavigationRailHeader = (
-    <div className="flex items-center justify-between gap-3 lg:hidden">
+    <div className="flex items-center justify-between gap-3 sm:hidden">
       <p className="text-sm font-semibold text-foreground">Pages</p>
       <Button
         type="button"
@@ -1180,7 +1400,7 @@ export default function NotesPage() {
   );
 
   const mobileDetailsRailHeader = (
-    <div className="flex items-center justify-between gap-3 lg:hidden">
+    <div className="flex items-center justify-between gap-3 sm:hidden">
       <p className="text-sm font-semibold text-foreground">Details</p>
       <Button
         type="button"
@@ -1195,7 +1415,7 @@ export default function NotesPage() {
   );
 
   const desktopNavigationRailHeader = showDesktopPagesRail ? (
-    <div className="hidden w-full items-center justify-between gap-3 lg:flex">
+    <div className="hidden w-full items-center justify-between gap-3 sm:flex">
       <p className="text-sm font-semibold text-foreground">Pages</p>
       <div className="flex items-center gap-1.5">
         <Button
@@ -1222,7 +1442,7 @@ export default function NotesPage() {
   ) : null;
 
   const desktopDetailsRailHeader = showDesktopDetailsRail ? (
-    <div className="hidden w-full items-center justify-between gap-3 lg:flex">
+    <div className="hidden w-full items-center justify-between gap-3 sm:flex">
       <p className="text-sm font-semibold text-foreground">Details</p>
       <div className="flex items-center gap-1.5">
         <Button
@@ -1249,8 +1469,8 @@ export default function NotesPage() {
   ) : null;
 
   const navigationRail = (
-    <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
+      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
         {mobileNavigationRailHeader}
 
         {isLoading ? (
@@ -1356,8 +1576,8 @@ export default function NotesPage() {
   );
 
   const detailsRail = selectedPage ? (
-    <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
+      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
           {mobileDetailsRailHeader}
 
           <DetailsSection
@@ -1627,10 +1847,13 @@ export default function NotesPage() {
         />
       ) : null}
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8 lg:overflow-hidden">
-        <div className="mx-auto max-w-[1600px] space-y-4 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:space-y-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:overflow-hidden sm:pb-4 md:py-8 md:pb-8">
+        <div className="mx-auto max-w-[1600px] space-y-4 sm:flex sm:h-full sm:min-h-0 sm:flex-col sm:space-y-0">
           {isDisplayingOverview ? (
-            <section className="grid gap-10 lg:grid-cols-2 animate-fade-slide-in">
+            <section className="space-y-6 animate-fade-slide-in">
+              {overviewSearchTrigger}
+
+              <div className="grid gap-10 sm:grid-cols-2">
               <section>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -1731,10 +1954,12 @@ export default function NotesPage() {
                   ) : null}
                 </div>
               </section>
+
+              </div>
             </section>
           ) : (
             <>
-              <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 lg:hidden">
+              <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 sm:hidden">
                 <MobileRailDrawer
                   direction="left"
                   triggerIcon={NotebookTabs}
@@ -1781,18 +2006,18 @@ export default function NotesPage() {
                 ) : <div />}
               </div>
 
-              <section className={`grid gap-4 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] lg:gap-y-2 ${desktopGridColumns}`}>
+              <section className={`grid gap-4 sm:h-full sm:min-h-0 sm:grid-rows-[auto_minmax(0,1fr)] sm:gap-y-2 ${desktopGridColumns}`}>
                 {showDesktopPagesRail ? (
-                  <div className="hidden h-8 items-center lg:flex">
+                  <div className="hidden h-8 items-center sm:flex">
                     {desktopNavigationRailHeader}
                   </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center lg:flex">
+                  <div className="hidden h-8 items-center justify-center sm:flex">
                     {desktopPagesRestoreButton}
                   </div>
                 )}
 
-                <div className="hidden h-8 items-center lg:flex">
+                <div className="hidden h-8 items-center sm:flex">
                   <div className="mx-auto grid w-full max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1 md:gap-x-2">
                     <Button
                       variant="ghost"
@@ -1829,20 +2054,20 @@ export default function NotesPage() {
                 </div>
 
                 {showDesktopDetailsRail ? (
-                  <div className="hidden h-8 items-center lg:flex">
+                  <div className="hidden h-8 items-center sm:flex">
                     {desktopDetailsRailHeader}
                   </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center lg:flex">
+                  <div className="hidden h-8 items-center justify-center sm:flex">
                     {desktopDetailsRestoreButton}
                   </div>
                 )}
 
                 {showDesktopPagesRail ? (
-                  <aside className="hidden lg:block lg:min-h-0 lg:overflow-hidden">{isLoading ? <NotesNavigationRailSkeleton showHeader={false} /> : navigationRail}</aside>
-                ) : <div className="hidden lg:block" aria-hidden="true" />}
+                  <aside className="hidden sm:block sm:min-h-0 sm:overflow-hidden">{isLoading ? <NotesNavigationRailSkeleton showHeader={false} /> : navigationRail}</aside>
+                ) : <div className="hidden sm:block" aria-hidden="true" />}
 
-                <section className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
+                <section className="min-w-0 sm:min-h-0 sm:overflow-y-auto">
                   {showSelectedPageLoading && !editorContentToRender ? (
                     <div className="mx-auto max-w-3xl">
                       <NotesEditorMainSkeleton />
@@ -1854,7 +2079,7 @@ export default function NotesPage() {
                   ) : (
                     <div className="relative mx-auto max-w-3xl">
                       <div className={showEditorOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-                        <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 lg:grid-cols-[auto_minmax(0,1fr)_auto] ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
+                        <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
                           <div className="contents">
                           <Button
                             variant="ghost"
@@ -1871,17 +2096,25 @@ export default function NotesPage() {
                             value={showEditorOverlay ? editorContentToRender.title : pageTitleDraft}
                             onChange={(event) => {
                               setPageTitleDraft(event.target.value);
-                              if (selectedPageId) {
-                                updateNotePageTitle(selectedPageId, event.target.value || "Untitled page");
+                              setPageTitleError(null);
+                            }}
+                            onBlur={() => {
+                              void commitPageTitleDraft();
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void commitPageTitleDraft();
+                                event.currentTarget.blur();
                               }
                             }}
                             readOnly={showEditorOverlay}
-                            className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl lg:col-start-2 lg:pl-0"
+                            className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
                             placeholder="Untitled"
                           />
                           <Button
                             variant="ghost"
-                            className={`col-start-2 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 lg:col-start-3 ${editorContentToRender.favorite ? "text-amber-500" : "text-muted-foreground"}`}
+                            className={`col-start-2 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 sm:col-start-3 ${editorContentToRender.favorite ? "text-amber-500" : "text-muted-foreground"}`}
                             onClick={handleToggleFavorite}
                             aria-label="Toggle favorite"
                           >
@@ -1889,14 +2122,15 @@ export default function NotesPage() {
                           </Button>
                           </div>
 
-                          <div className={`col-span-2 flex flex-wrap items-center gap-2 pl-3 text-xs text-muted-foreground lg:col-span-1 lg:col-start-2 lg:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
+                          <div className={`col-span-2 flex flex-wrap items-center gap-2 pl-3 text-xs text-muted-foreground sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
+                            {pageTitleError ? <span className="text-destructive">{pageTitleError}</span> : null}
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Files className="h-3 w-3" />{editorContentToRender.blockCount} blocks</span>
                               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Link2 className="h-3 w-3" />{editorContentToRender.backlinkCount} backlinks</span>
                             </div>
                           </div>
 
-                          <div className={`col-span-2 lg:col-start-2 lg:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
+                          <div className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
                             <NotesBlockTree
                               blocks={editorContentToRender.blocks}
                               onCreateFirstBlock={handleCreateRootBlock}
@@ -1904,6 +2138,8 @@ export default function NotesPage() {
                               focusPlacement={focusTarget?.placement ?? "end"}
                               onFocusApplied={() => setFocusTarget(null)}
                               onFocusBlock={(blockId, placement) => setFocusTarget({ blockId, placement })}
+                              notePageTitles={notePageTitles}
+                              onOpenPageReference={handleOpenPageReference}
                               onCreateSibling={handleCreateSiblingBlock}
                               onCreateEmptySibling={handleCreateEmptySiblingBlock}
                               onCreateSiblings={handleCreateSiblingBlocks}
@@ -1926,8 +2162,8 @@ export default function NotesPage() {
                 </section>
 
                 {showDesktopDetailsRail ? (
-                  <aside className="hidden lg:block lg:min-h-0 lg:overflow-hidden">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton showHeader={false} /> : null)}</aside>
-                ) : <div className="hidden lg:block" aria-hidden="true" />}
+                  <aside className="hidden sm:block sm:min-h-0 sm:overflow-hidden">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton showHeader={false} /> : null)}</aside>
+                ) : <div className="hidden sm:block" aria-hidden="true" />}
               </section>
             </>
           )}
@@ -1949,6 +2185,19 @@ export default function NotesPage() {
           </Button>
         ) : undefined}
       />
+
+      <SearchPopup
+        open={isPageSearchOpen}
+        onOpenChange={setIsPageSearchOpen}
+        title="Find or create page"
+        description="Search all note pages by title, summary, or tags."
+        placeholder="Search pages or type a new title..."
+        query={pageSearchQuery}
+        onQueryChange={setPageSearchQuery}
+        anchorRef={overviewSearchTriggerRef}
+      >
+        {pageSearchResults}
+      </SearchPopup>
     </div>
   );
 }

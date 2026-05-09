@@ -25,7 +25,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { DOMParser as ProseMirrorDOMParser, DOMSerializer } from "@tiptap/pm/model";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -641,8 +641,95 @@ function getSlashQuery(editor: Editor) {
   return text.slice(1);
 }
 
+type PageReferenceQuery = {
+  query: string;
+  from: number;
+  to: number;
+};
+
+type ResolvedPageReference = {
+  title: string;
+  from: number;
+  to: number;
+};
+
+function getPageReferenceQuery(editor: Editor): PageReferenceQuery | null {
+  const { state } = editor;
+
+  if (!state.selection.empty) {
+    return null;
+  }
+
+  const { $from, from } = state.selection;
+  const textBefore = $from.parent.textBetween(0, $from.parentOffset, "", "\0");
+  const triggerIndex = textBefore.lastIndexOf("[[");
+  if (triggerIndex < 0) {
+    return null;
+  }
+
+  const lastClosedIndex = textBefore.lastIndexOf("]]"
+  );
+  if (lastClosedIndex > triggerIndex) {
+    return null;
+  }
+
+  const textAfter = $from.parent.textBetween($from.parentOffset, $from.parent.content.size, "", "\0");
+  const closingIndex = textAfter.indexOf("]]"
+  );
+  const suffix = closingIndex >= 0 ? textAfter.slice(0, closingIndex) : "";
+  const prefix = textBefore.slice(triggerIndex + 2);
+  const query = `${textBefore.slice(triggerIndex + 2)}${suffix}`;
+
+  if (closingIndex === 0 && prefix.trim().length === 0) {
+    return null;
+  }
+
+  if (query.includes("[[") || query.includes("]]")) {
+    return null;
+  }
+
+  return {
+    query,
+    from: $from.start() + triggerIndex,
+    to: closingIndex >= 0 ? from + closingIndex + 2 : from,
+  };
+}
+
+function getResolvedPageReferenceAtPosition(editor: Editor, position: number): ResolvedPageReference | null {
+  const boundedPosition = Math.max(0, Math.min(position, editor.state.doc.content.size));
+  const resolvedPosition = editor.state.doc.resolve(boundedPosition);
+  const parentText = resolvedPosition.parent.textBetween(0, resolvedPosition.parent.content.size, "", "\0");
+  const parentOffset = resolvedPosition.parentOffset;
+
+  for (const match of parentText.matchAll(/\[\[([^\]]+)\]\]/g)) {
+    if (match.index === undefined) {
+      continue;
+    }
+
+    const from = match.index;
+    const to = from + match[0].length;
+    if (parentOffset < from || parentOffset > to) {
+      continue;
+    }
+
+    const title = (match[1] ?? "").trim();
+    if (!title) {
+      return null;
+    }
+
+    return {
+      title,
+      from,
+      to,
+    };
+  }
+
+  return null;
+}
+
 export const NoteBlockEditor = memo(function NoteBlockEditor({
   content,
+  notePageTitles,
   shouldFocus = false,
   focusPlacement = "end",
   onFocusApplied,
@@ -650,6 +737,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onCommit,
   onCreateSibling,
   onCreateSiblings,
+  onOpenPageReference,
   onNavigateUp,
   onNavigateDown,
   onIndent,
@@ -657,6 +745,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onDeleteEmpty,
 }: {
   content: string | null | undefined;
+  notePageTitles: string[];
   shouldFocus?: boolean;
   focusPlacement?: "start" | "end";
   onFocusApplied?: () => void;
@@ -664,6 +753,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onCommit?: (content: JSONContent) => void;
   onCreateSibling: (content: JSONContent, nextSiblingContent?: JSONContent) => void;
   onCreateSiblings?: (content: JSONContent, siblingContents: JSONContent[]) => Promise<void> | void;
+  onOpenPageReference?: (title: string) => void;
   onNavigateUp?: () => void;
   onNavigateDown?: () => void;
   onIndent: () => void;
@@ -675,6 +765,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const onCommitRef = useRef(onCommit);
   const onCreateSiblingRef = useRef(onCreateSibling);
   const onCreateSiblingsRef = useRef(onCreateSiblings);
+  const onOpenPageReferenceRef = useRef(onOpenPageReference);
   const onNavigateUpRef = useRef(onNavigateUp);
   const onNavigateDownRef = useRef(onNavigateDown);
   const onIndentRef = useRef(onIndent);
@@ -685,9 +776,14 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const suppressBlurCommitRef = useRef(false);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+  const [pageReferenceQuery, setPageReferenceQuery] = useState<PageReferenceQuery | null>(null);
+  const [selectedPageReferenceIndex, setSelectedPageReferenceIndex] = useState(0);
   const slashQueryRef = useRef<string | null>(null);
   const filteredSlashCommandsRef = useRef<SlashCommand[]>([]);
   const slashItemRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const pageReferenceQueryRef = useRef<PageReferenceQuery | null>(null);
+  const filteredPageReferenceTitlesRef = useRef<string[]>([]);
+  const pageReferenceItemRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const filteredSlashCommands = useMemo(() => {
     if (slashQuery === null) {
@@ -717,6 +813,19 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       .filter((section) => section.commands.length > 0);
   }, [filteredSlashCommands]);
 
+  const filteredPageReferenceTitles = useMemo(() => {
+    if (pageReferenceQuery === null) {
+      return [];
+    }
+
+    const normalizedQuery = pageReferenceQuery.query.trim().toLocaleLowerCase();
+    if (!normalizedQuery) {
+      return notePageTitles;
+    }
+
+    return notePageTitles.filter((title) => title.toLocaleLowerCase().includes(normalizedQuery));
+  }, [notePageTitles, pageReferenceQuery]);
+
   const emitEditorContentIfChanged = () => {
     if (!editor) return null;
 
@@ -740,6 +849,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     setSlashQuery(nextQuery);
   };
 
+  const updatePageReferenceQuery = (nextEditor: Editor) => {
+    const nextQuery = getPageReferenceQuery(nextEditor);
+    setPageReferenceQuery(nextQuery);
+  };
+
   const applySlashCommand = (command: SlashCommand) => {
     if (!editor) return;
 
@@ -752,6 +866,29 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     requestAnimationFrame(() => {
       editor.chain().focus("end").run();
     });
+  };
+
+  const applyPageReference = (title: string) => {
+    if (!editor) return;
+
+    const nextQuery = pageReferenceQueryRef.current;
+    if (!nextQuery) return;
+
+    const nextReference = `[[${title}]]`;
+
+    editor.chain().focus().command(({ tr, dispatch }) => {
+      tr.insertText(nextReference, nextQuery.from, nextQuery.to);
+      tr.setSelection(TextSelection.create(tr.doc, nextQuery.from + nextReference.length));
+
+      if (dispatch) {
+        dispatch(tr.scrollIntoView());
+      }
+
+      return true;
+    }).run();
+
+    setPageReferenceQuery(null);
+    setSelectedPageReferenceIndex(0);
   };
 
   const flushEditorContent = () => {
@@ -775,17 +912,20 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     onCommitRef.current = onCommit;
     onCreateSiblingRef.current = onCreateSibling;
     onCreateSiblingsRef.current = onCreateSiblings;
+    onOpenPageReferenceRef.current = onOpenPageReference;
     onNavigateUpRef.current = onNavigateUp;
     onNavigateDownRef.current = onNavigateDown;
     onIndentRef.current = onIndent;
     onOutdentRef.current = onOutdent;
     onDeleteEmptyRef.current = onDeleteEmpty;
-  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onNavigateDown, onNavigateUp, onOutdent]);
+  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent]);
 
   useEffect(() => {
     slashQueryRef.current = slashQuery;
     filteredSlashCommandsRef.current = filteredSlashCommands;
-  }, [filteredSlashCommands, slashQuery]);
+    pageReferenceQueryRef.current = pageReferenceQuery;
+    filteredPageReferenceTitlesRef.current = filteredPageReferenceTitles;
+  }, [filteredPageReferenceTitles, filteredSlashCommands, pageReferenceQuery, slashQuery]);
 
   useEffect(() => {
     setSelectedSlashIndex((currentIndex) => {
@@ -798,6 +938,16 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   }, [filteredSlashCommands.length]);
 
   useEffect(() => {
+    setSelectedPageReferenceIndex((currentIndex) => {
+      if (filteredPageReferenceTitles.length === 0) {
+        return 0;
+      }
+
+      return Math.min(currentIndex, filteredPageReferenceTitles.length - 1);
+    });
+  }, [filteredPageReferenceTitles.length]);
+
+  useEffect(() => {
     if (slashQuery === null) {
       slashItemRefs.current = [];
       return;
@@ -806,6 +956,16 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     const nextItem = slashItemRefs.current[selectedSlashIndex];
     nextItem?.scrollIntoView({ block: "nearest" });
   }, [selectedSlashIndex, slashQuery]);
+
+  useEffect(() => {
+    if (pageReferenceQuery === null) {
+      pageReferenceItemRefs.current = [];
+      return;
+    }
+
+    const nextItem = pageReferenceItemRefs.current[selectedPageReferenceIndex];
+    nextItem?.scrollIntoView({ block: "nearest" });
+  }, [pageReferenceQuery, selectedPageReferenceIndex]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -848,6 +1008,28 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           "min-h-6 rounded-none border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground outline-none focus:outline-none cursor-text",
       },
       handleDOMEvents: {
+        click(view, event) {
+          const target = event.target;
+          if (!(target instanceof HTMLElement) || !target.closest(".note-ref-token-page")) {
+            return false;
+          }
+
+          const nextEditor = editor ?? view as unknown as Editor;
+          const position = view.posAtDOM(target, 0);
+          const reference = getResolvedPageReferenceAtPosition(nextEditor, position);
+          if (!reference) {
+            return false;
+          }
+
+          const canOpenReference = notePageTitles.some((title) => title.localeCompare(reference.title, undefined, { sensitivity: "accent" }) === 0);
+          if (!canOpenReference) {
+            return false;
+          }
+
+          event.preventDefault();
+          onOpenPageReferenceRef.current?.(reference.title);
+          return true;
+        },
         blur() {
           if (suppressBlurCommitRef.current) {
             suppressBlurCommitRef.current = false;
@@ -918,6 +1100,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           editor?.commands.setContent(nextContent, { emitUpdate: true });
           void onCreateSiblingsRef.current?.(nextContent, nextSiblingContents);
           updateSlashQuery(editor ?? view as unknown as Editor);
+          updatePageReferenceQuery(editor ?? view as unknown as Editor);
           return true;
         }
 
@@ -933,9 +1116,56 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           },
         });
         updateSlashQuery(editor ?? view as unknown as Editor);
+        updatePageReferenceQuery(editor ?? view as unknown as Editor);
         return true;
       },
       handleKeyDown(view: EditorView, event: KeyboardEvent) {
+        if (pageReferenceQueryRef.current !== null) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            view.focus();
+            setSelectedPageReferenceIndex((currentIndex) => {
+              const titles = filteredPageReferenceTitlesRef.current;
+              if (titles.length === 0) {
+                return 0;
+              }
+
+              return (currentIndex + 1) % titles.length;
+            });
+            return true;
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            view.focus();
+            setSelectedPageReferenceIndex((currentIndex) => {
+              const titles = filteredPageReferenceTitlesRef.current;
+              if (titles.length === 0) {
+                return 0;
+              }
+
+              return (currentIndex - 1 + titles.length) % titles.length;
+            });
+            return true;
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setPageReferenceQuery(null);
+            setSelectedPageReferenceIndex(0);
+            return true;
+          }
+
+          if (event.key === "Enter" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            const nextTitle = filteredPageReferenceTitlesRef.current[selectedPageReferenceIndex] ?? null;
+            if (nextTitle) {
+              event.preventDefault();
+              applyPageReference(nextTitle);
+              return true;
+            }
+          }
+        }
+
         if (slashQueryRef.current !== null) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -1083,6 +1313,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       pendingLocalContentRef.current = JSON.stringify(nextContent);
       onChangeRef.current(nextContent);
       updateSlashQuery(nextEditor);
+      updatePageReferenceQuery(nextEditor);
     },
   }, []);
 
@@ -1116,6 +1347,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     pendingLocalContentRef.current = null;
     editor.commands.setContent(nextContent, { emitUpdate: false });
     updateSlashQuery(editor);
+    updatePageReferenceQuery(editor);
   }, [content, editor]);
 
   useEffect(() => {
@@ -1144,7 +1376,44 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       }}
     >
       <EditorContent editor={editor} />
-      {slashQuery !== null ? (
+      {pageReferenceQuery !== null ? (
+        <div className="mt-2 max-w-md rounded-xl border border-border/60 bg-popover/95 p-1.5 shadow-lg backdrop-blur-sm">
+          <Command shouldFilter={false} className="rounded-xl! bg-transparent p-0">
+            <CommandList className="max-h-64">
+              <CommandEmpty>No pages found.</CommandEmpty>
+              <CommandGroup
+                heading={
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    <Link2 className="h-3 w-3" />
+                    Pages
+                  </span>
+                }
+              >
+                {filteredPageReferenceTitles.map((title, index) => (
+                  <CommandItem
+                    key={title}
+                    value={title}
+                    ref={(element) => {
+                      pageReferenceItemRefs.current[index] = element;
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                    }}
+                    onSelect={() => applyPageReference(title)}
+                    className={index === selectedPageReferenceIndex ? "bg-muted/80 text-foreground" : "text-foreground/95"}
+                  >
+                    <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div className="min-w-0 flex-1 truncate text-[13px] leading-5">
+                      <span className="font-medium text-foreground">{title}</span>
+                    </div>
+                    <CommandShortcut className="text-[10px] tracking-[0.12em]">[[</CommandShortcut>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      ) : slashQuery !== null ? (
         <div className="mt-2 max-w-md rounded-xl border border-border/60 bg-popover/95 p-1.5 shadow-lg backdrop-blur-sm">
           <Command shouldFilter={false} className="rounded-xl! bg-transparent p-0">
             <CommandList className="max-h-64">

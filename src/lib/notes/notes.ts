@@ -50,6 +50,7 @@ interface UpsertAttachmentInput {
 interface ReplaceEdgesInput {
   sourceBlockId: string;
   edges: Array<{
+    id?: string;
     targetId: string;
     type: string;
   }>;
@@ -60,12 +61,23 @@ type PageLookupRow = {
   title: string | null;
 };
 
+type NotePageTitleLookupRow = {
+  id: string;
+  title: string | null;
+};
+
+const pendingEdgeReconciles = new Map<string, JsonValue | undefined>();
+
 function toJson(value: JsonValue | undefined) {
   return JSON.stringify(value ?? {});
 }
 
 function toNullableOwner(ownerId?: string | null) {
   return ownerId ?? null;
+}
+
+export function normalizeNotePageTitle(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ");
 }
 
 function normalizeReferenceToken(value: string) {
@@ -89,15 +101,43 @@ function touchNotePage(pageId: string | null | undefined) {
   );
 }
 
-function getBlockFlushOptions(pageId: string | null | undefined) {
+async function flushScheduledNoteBlockEdgeReconcile(blockId: string) {
+  if (!pendingEdgeReconciles.has(blockId)) {
+    return;
+  }
+
+  const content = pendingEdgeReconciles.get(blockId);
+  await reconcileNoteBlockEdges(blockId, content);
+
+  if (pendingEdgeReconciles.has(blockId) && pendingEdgeReconciles.get(blockId) === content) {
+    pendingEdgeReconciles.delete(blockId);
+  }
+}
+
+function getBlockFlushOptions(pageId: string | null | undefined, blockId?: string) {
   if (!pageId) {
-    return { debounceMs: NOTES_DEBOUNCE_MS };
+    return {
+      debounceMs: NOTES_DEBOUNCE_MS,
+      afterFlush: async () => {
+        if (!blockId) {
+          return;
+        }
+
+        await flushScheduledNoteBlockEdgeReconcile(blockId);
+      },
+    };
   }
 
   return {
     debounceMs: NOTES_DEBOUNCE_MS,
     afterFlush: async () => {
       await db.execute("UPDATE pages SET updated_at = datetime('now') WHERE id = ?", [pageId]);
+
+      if (!blockId) {
+        return;
+      }
+
+      await flushScheduledNoteBlockEdgeReconcile(blockId);
     },
   };
 }
@@ -159,7 +199,31 @@ async function reconcileNoteBlockEdges(blockId: string, content: JsonValue | und
   });
 }
 
+function scheduleNoteBlockEdgeReconcile(blockId: string, content: JsonValue | undefined) {
+  pendingEdgeReconciles.set(blockId, content);
+}
+
+function cancelNoteBlockEdgeReconcile(blockId: string) {
+  pendingEdgeReconciles.delete(blockId);
+}
+
+export function hasPendingNoteEdgeReconciles() {
+  return pendingEdgeReconciles.size > 0;
+}
+
+export async function flushPendingNoteEdgeReconciles() {
+  const pendingBlockIds = [...pendingEdgeReconciles.keys()];
+  await Promise.all(pendingBlockIds.map((blockId) => flushScheduledNoteBlockEdgeReconcile(blockId)));
+}
+
 export async function createNotePage(input: CreatePageInput = {}) {
+  const normalizedTitle = normalizeNotePageTitle(input.title) || "Untitled";
+  const existingPageId = await findNotePageIdByTitle(normalizedTitle);
+
+  if (existingPageId) {
+    throw new Error("A page with this title already exists.");
+  }
+
   const pageId = input.id ?? uuidv4();
   const userId = await getCurrentUserId();
   const now = new Date().toISOString();
@@ -167,10 +231,33 @@ export async function createNotePage(input: CreatePageInput = {}) {
   await db.execute(
     `INSERT INTO pages (id, user_id, title, properties, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [pageId, userId, input.title?.trim() || "Untitled", toJson(input.properties), now, now]
+    [pageId, userId, normalizedTitle, toJson(input.properties), now, now]
   );
 
   return pageId;
+}
+
+export async function findNotePageIdByTitle(title: string, excludePageId?: string | null) {
+  const normalizedTitle = normalizeNotePageTitle(title);
+  if (!normalizedTitle) {
+    return null;
+  }
+
+  const pageRows = await db.getAll<NotePageTitleLookupRow>("SELECT id, title FROM pages");
+  const matchingPage = pageRows.find((page) => {
+    if (excludePageId && page.id === excludePageId) {
+      return false;
+    }
+
+    return normalizeNotePageTitle(page.title).toLocaleLowerCase() === normalizedTitle.toLocaleLowerCase();
+  });
+
+  return matchingPage?.id ?? null;
+}
+
+export async function isNotePageTitleAvailable(title: string, excludePageId?: string | null) {
+  const existingPageId = await findNotePageIdByTitle(title, excludePageId);
+  return existingPageId === null;
 }
 
 export function updateNotePageTitle(pageId: string, title: string) {
@@ -218,22 +305,29 @@ export async function createNoteBlock(input: CreateBlockInput) {
 
 export function updateNoteBlock(input: UpdateBlockInput) {
   if (input.type !== undefined) {
-    debouncedUpdate(input.blockId, "type", input.type, "blocks", getBlockFlushOptions(input.pageId));
+    debouncedUpdate(input.blockId, "type", input.type, "blocks", getBlockFlushOptions(input.pageId, input.blockId));
   }
 
   if (input.content !== undefined) {
-    debouncedUpdate(input.blockId, "content", serializeNoteDocument(input.content), "blocks", getBlockFlushOptions(input.pageId));
-    void reconcileNoteBlockEdges(input.blockId, input.content);
+    scheduleNoteBlockEdgeReconcile(input.blockId, input.content);
+    debouncedUpdate(
+      input.blockId,
+      "content",
+      serializeNoteDocument(input.content),
+      "blocks",
+      getBlockFlushOptions(input.pageId, input.blockId)
+    );
   }
 }
 
 export function moveNoteBlock(input: MoveBlockInput) {
-  const blockFlushOptions = getBlockFlushOptions(input.pageId);
+  const blockFlushOptions = getBlockFlushOptions(input.pageId, input.blockId);
   debouncedUpdate(input.blockId, "parent_block_id", toNullableOwner(input.parentBlockId), "blocks", blockFlushOptions);
   debouncedUpdate(input.blockId, "sort_rank", input.sortRank, "blocks", blockFlushOptions);
 }
 
 export async function deleteNoteBlock(blockId: string, pageId?: string) {
+  cancelNoteBlockEdgeReconcile(blockId);
   await db.execute(`DELETE FROM edges WHERE source_block_id = ?`, [blockId]);
   await db.execute(`DELETE FROM blocks WHERE id = ?`, [blockId]);
   touchNotePage(pageId);
@@ -274,9 +368,11 @@ export async function replaceNoteEdges(input: ReplaceEdgesInput) {
   await db.execute(`DELETE FROM edges WHERE source_block_id = ?`, [input.sourceBlockId]);
 
   for (const edge of input.edges) {
+    const edgeId = edge.id ?? uuidv4();
+
     await db.execute(
-      `INSERT INTO edges (source_block_id, target_id, user_id, type) VALUES (?, ?, ?, ?)`,
-      [input.sourceBlockId, edge.targetId, userId, edge.type]
+      `INSERT INTO edges (id, source_block_id, target_id, user_id, type) VALUES (?, ?, ?, ?, ?)`,
+      [edgeId, input.sourceBlockId, edge.targetId, userId, edge.type]
     );
   }
 }

@@ -5,6 +5,35 @@ import { logger as log } from '../shared/logger';
 /** Response codes that indicate a permanent/fatal error — discard the transaction. */
 const FATAL_RESPONSE_CODES = [/^22/, /^23/, /^42/];
 
+const PUT_TABLE_ORDER = [
+  'pages',
+  'blocks',
+  'edges',
+  'attachments',
+];
+
+const DELETE_TABLE_ORDER = [
+  'attachments',
+  'edges',
+  'blocks',
+  'pages',
+];
+
+function orderTables(tables: string[], preferredOrder: string[]) {
+  const preferredIndex = new Map(preferredOrder.map((table, index) => [table, index]));
+
+  return [...tables].sort((left, right) => {
+    const leftIndex = preferredIndex.get(left) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = preferredIndex.get(right) ?? Number.MAX_SAFE_INTEGER;
+
+    if (leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+
+    return left.localeCompare(right);
+  });
+}
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
   client = createClient();
 
@@ -69,7 +98,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     try {
       // Execute bulk PUTs (upsert) per table
-      for (const table of Object.keys(putOps)) {
+      for (const table of orderTables(Object.keys(putOps), PUT_TABLE_ORDER)) {
         const records = putOps[table];
         log.info(`BATCH PUT ${table}: ${records.length} record(s)`);
         const { error } = await this.client.from(table).upsert(records);
@@ -77,7 +106,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       }
 
       // Execute bulk DELETEs per table
-      for (const table of Object.keys(deleteOps)) {
+      for (const table of orderTables(Object.keys(deleteOps), DELETE_TABLE_ORDER)) {
         const ids = deleteOps[table];
         log.info(`BATCH DELETE ${table}: ${ids.length} record(s)`);
         const { error } = await this.client.from(table).delete().in('id', ids);

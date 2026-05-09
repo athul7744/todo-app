@@ -8,7 +8,7 @@ type NoteCountRow = { count: number };
 
 export type NotePageRow = PageRecord & { id: string };
 export type NoteBlockRow = BlockRecord & { id: string };
-export type NoteEdgeRow = EdgeRecord & { id?: string };
+export type NoteEdgeRow = EdgeRecord & { id: string };
 export type NoteAttachmentRow = AttachmentRecord & { id: string };
 export type LinkedNoteReferenceRow = {
   source_block_id: string;
@@ -24,10 +24,10 @@ export type NoteTagMentionRow = {
 
 const EMPTY_PAGE_QUERY = "SELECT id, user_id, title, properties, created_at, updated_at FROM pages WHERE 1 = 0";
 const EMPTY_BLOCKS_QUERY = "SELECT id, user_id, page_id, parent_block_id, type, content, sort_rank, updated_at FROM blocks WHERE 1 = 0";
-const EMPTY_EDGES_QUERY = "SELECT source_block_id, target_id, user_id, type FROM edges WHERE 1 = 0";
+const EMPTY_EDGES_QUERY = "SELECT id, source_block_id, target_id, user_id, type FROM edges WHERE 1 = 0";
 const EMPTY_ATTACHMENTS_QUERY = "SELECT id, user_id, page_id, block_id, file_path, sync_state FROM attachments WHERE 1 = 0";
 const EMPTY_LINKED_REFS_QUERY = [
-  "SELECT",
+  "SELECT DISTINCT",
   "  e.source_block_id AS source_block_id,",
   "  b.page_id AS source_page_id,",
   "  p.title AS source_page_title,",
@@ -107,6 +107,21 @@ export function useRecentNotePages(limit = 8) {
   };
 }
 
+export function useAllNotePages() {
+  const { data = [], isLoading } = useQuery<NotePageRow>(
+    [
+      "SELECT id, user_id, title, properties, created_at, updated_at",
+      "FROM pages",
+      "ORDER BY title COLLATE NOCASE ASC, updated_at DESC, created_at DESC"
+    ].join(" ")
+  );
+
+  return {
+    pages: data,
+    isLoading,
+  };
+}
+
 export function usePageAttachments(pageId?: string | null) {
   const query = pageId
     ? "SELECT id, user_id, page_id, block_id, file_path, sync_state FROM attachments WHERE page_id = ? ORDER BY id ASC"
@@ -136,7 +151,7 @@ export function useBlockAttachments(blockId?: string | null) {
 export function useLinkedNoteReferences(pageId?: string | null) {
   const query = pageId
     ? [
-        "SELECT",
+        "SELECT DISTINCT",
         "  e.source_block_id AS source_block_id,",
         "  b.page_id AS source_page_id,",
         "  p.title AS source_page_title,",
