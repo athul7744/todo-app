@@ -6,6 +6,96 @@ function isNoteDocument(value: unknown): value is Record<string, unknown> & { ty
   return isRecord(value) && typeof value.type === "string";
 }
 
+function normalizeObjectEntries(record: Record<string, unknown>) {
+  const normalizedEntries = Object.entries(record)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => [key, normalizeUnknownValue(value)] as const)
+    .filter(([, value]) => value !== undefined);
+
+  normalizedEntries.sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+  return Object.fromEntries(normalizedEntries);
+}
+
+function normalizeUnknownValue(value: unknown): unknown {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeUnknownValue(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (isRecord(value)) {
+    return normalizeObjectEntries(value);
+  }
+
+  return value;
+}
+
+function normalizeNoteMark(mark: unknown) {
+  if (!isRecord(mark) || typeof mark.type !== "string") {
+    return null;
+  }
+
+  const normalizedMark: Record<string, unknown> = {
+    type: mark.type,
+  };
+
+  if (isRecord(mark.attrs)) {
+    const attrs = normalizeObjectEntries(mark.attrs);
+    if (Object.keys(attrs).length > 0) {
+      normalizedMark.attrs = attrs;
+    }
+  }
+
+  return normalizedMark;
+}
+
+function normalizeNoteNode(node: unknown): Record<string, unknown> | null {
+  if (!isRecord(node) || typeof node.type !== "string") {
+    return null;
+  }
+
+  const normalizedNode: Record<string, unknown> = {
+    type: node.type,
+  };
+
+  if (isRecord(node.attrs)) {
+    const attrs = normalizeObjectEntries(node.attrs);
+    if (Object.keys(attrs).length > 0) {
+      normalizedNode.attrs = attrs;
+    }
+  }
+
+  if (typeof node.text === "string") {
+    normalizedNode.text = node.text;
+  }
+
+  if (Array.isArray(node.marks)) {
+    const marks = node.marks
+      .map((mark) => normalizeNoteMark(mark))
+      .filter((mark): mark is Record<string, unknown> => mark !== null);
+
+    if (marks.length > 0) {
+      normalizedNode.marks = marks;
+    }
+  }
+
+  if (Array.isArray(node.content)) {
+    const content = node.content
+      .map((child) => normalizeNoteNode(child))
+      .filter((child): child is Record<string, unknown> => child !== null);
+
+    if (content.length > 0) {
+      normalizedNode.content = content;
+    }
+  }
+
+  return normalizedNode;
+}
+
 export function createEmptyNoteDocument() {
   return {
     type: "doc",
@@ -51,12 +141,14 @@ function parseSerializedDocument(raw: string): Record<string, unknown> | null {
 }
 
 export function normalizeNoteDocument(raw: unknown) {
+  const normalizeResolvedDocument = (value: unknown) => normalizeNoteNode(value) ?? createEmptyNoteDocument();
+
   if (!raw) {
     return createEmptyNoteDocument();
   }
 
   if (isNoteDocument(raw)) {
-    return raw;
+    return normalizeResolvedDocument(raw);
   }
 
   if (typeof raw !== "string") {
@@ -65,14 +157,14 @@ export function normalizeNoteDocument(raw: unknown) {
 
   const parsedDocument = parseSerializedDocument(raw);
   if (parsedDocument) {
-    return parsedDocument;
+    return normalizeResolvedDocument(parsedDocument);
   }
 
   if (raw.trim().length === 0) {
     return createEmptyNoteDocument();
   }
 
-  return createNoteDocumentFromText(raw);
+  return normalizeResolvedDocument(createNoteDocumentFromText(raw));
 }
 
 export function serializeNoteDocument(raw: unknown) {

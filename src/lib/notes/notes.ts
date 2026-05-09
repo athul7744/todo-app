@@ -89,6 +89,19 @@ function touchNotePage(pageId: string | null | undefined) {
   );
 }
 
+function getBlockFlushOptions(pageId: string | null | undefined) {
+  if (!pageId) {
+    return { debounceMs: NOTES_DEBOUNCE_MS };
+  }
+
+  return {
+    debounceMs: NOTES_DEBOUNCE_MS,
+    afterFlush: async () => {
+      await db.execute("UPDATE pages SET updated_at = datetime('now') WHERE id = ?", [pageId]);
+    },
+  };
+}
+
 function parseReferenceTokens(text: string) {
   const pageTitles = new Set<string>();
   const tags = new Set<string>();
@@ -205,21 +218,19 @@ export async function createNoteBlock(input: CreateBlockInput) {
 
 export function updateNoteBlock(input: UpdateBlockInput) {
   if (input.type !== undefined) {
-    debouncedUpdate(input.blockId, "type", input.type, "blocks", NOTES_DEBOUNCE_MS);
+    debouncedUpdate(input.blockId, "type", input.type, "blocks", getBlockFlushOptions(input.pageId));
   }
 
   if (input.content !== undefined) {
-    debouncedUpdate(input.blockId, "content", serializeNoteDocument(input.content), "blocks", NOTES_DEBOUNCE_MS);
+    debouncedUpdate(input.blockId, "content", serializeNoteDocument(input.content), "blocks", getBlockFlushOptions(input.pageId));
     void reconcileNoteBlockEdges(input.blockId, input.content);
   }
-
-  touchNotePage(input.pageId);
 }
 
 export function moveNoteBlock(input: MoveBlockInput) {
-  debouncedUpdate(input.blockId, "parent_block_id", toNullableOwner(input.parentBlockId), "blocks", NOTES_DEBOUNCE_MS);
-  debouncedUpdate(input.blockId, "sort_rank", input.sortRank, "blocks", NOTES_DEBOUNCE_MS);
-  touchNotePage(input.pageId);
+  const blockFlushOptions = getBlockFlushOptions(input.pageId);
+  debouncedUpdate(input.blockId, "parent_block_id", toNullableOwner(input.parentBlockId), "blocks", blockFlushOptions);
+  debouncedUpdate(input.blockId, "sort_rank", input.sortRank, "blocks", blockFlushOptions);
 }
 
 export async function deleteNoteBlock(blockId: string, pageId?: string) {

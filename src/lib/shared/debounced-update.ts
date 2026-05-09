@@ -1,8 +1,16 @@
 import { db } from '@/lib/powersync/db';
+import { serializeNoteDocument } from '@/lib/notes/notes-content';
 
 const DEBOUNCE_MS = 1000;
 type SQLValue = string | number | null;
 const TABLES_WITH_UPDATED_AT = new Set(['tasks', 'pages', 'blocks']);
+
+type AfterFlushCallback = () => Promise<void> | void;
+
+interface DebouncedUpdateOptions {
+  debounceMs?: number;
+  afterFlush?: AfterFlushCallback;
+}
 
 function getPendingUpdateKey(table: string, id: string) {
   return `${table}:${id}`;
@@ -13,10 +21,23 @@ interface PendingUpdate {
   table: string;
   fields: Record<string, SQLValue>;
   debounceMs: number;
+  afterFlush?: AfterFlushCallback;
   timer: ReturnType<typeof setTimeout>;
 }
 
 const pendingUpdates = new Map<string, PendingUpdate>();
+
+function areSQLValuesEqual(table: string, field: string, currentValue: SQLValue, nextValue: SQLValue) {
+  if (currentValue === nextValue) {
+    return true;
+  }
+
+  if (table === 'blocks' && field === 'content' && typeof currentValue === 'string' && typeof nextValue === 'string') {
+    return serializeNoteDocument(currentValue) === serializeNoteDocument(nextValue);
+  }
+
+  return false;
+}
 
 function getPendingUpdateEntries(id: string, table?: string) {
   const entries: Array<[string, PendingUpdate]> = [];
@@ -30,19 +51,40 @@ function getPendingUpdateEntries(id: string, table?: string) {
   return entries;
 }
 
-export function debouncedUpdate(id: string, field: string, value: SQLValue, table = 'tasks', debounceMs = DEBOUNCE_MS) {
+function normalizeDebouncedUpdateOptions(optionsOrDebounceMs?: DebouncedUpdateOptions | number) {
+  if (typeof optionsOrDebounceMs === 'number') {
+    return {
+      debounceMs: optionsOrDebounceMs,
+    };
+  }
+
+  return {
+    afterFlush: optionsOrDebounceMs?.afterFlush,
+    debounceMs: optionsOrDebounceMs?.debounceMs ?? DEBOUNCE_MS,
+  };
+}
+
+export function debouncedUpdate(
+  id: string,
+  field: string,
+  value: SQLValue,
+  table = 'tasks',
+  optionsOrDebounceMs: DebouncedUpdateOptions | number = DEBOUNCE_MS
+) {
+  const { afterFlush, debounceMs } = normalizeDebouncedUpdateOptions(optionsOrDebounceMs);
   const pendingKey = getPendingUpdateKey(table, id);
   const existing = pendingUpdates.get(pendingKey);
 
   if (existing) {
     existing.fields[field] = value;
     existing.debounceMs = debounceMs;
+    existing.afterFlush = afterFlush ?? existing.afterFlush;
     clearTimeout(existing.timer);
     existing.timer = setTimeout(() => flushUpdate(id, table), debounceMs);
   } else {
     const fields: Record<string, SQLValue> = { [field]: value };
     const timer = setTimeout(() => flushUpdate(id, table), debounceMs);
-    pendingUpdates.set(pendingKey, { id, table, fields, debounceMs, timer });
+    pendingUpdates.set(pendingKey, { id, table, fields, debounceMs, afterFlush, timer });
   }
 }
 
@@ -60,34 +102,51 @@ export function cancelUpdate(id: string, field: string, table?: string) {
   });
 }
 
-export function flushUpdate(id: string, table?: string): Promise<any> | undefined {
+export async function flushUpdate(id: string, table?: string): Promise<any> {
   const entries = getPendingUpdateEntries(id, table);
   if (entries.length === 0) return undefined;
 
-  const executions = entries.flatMap(([pendingKey, pending]) => {
+  const executions = await Promise.all(entries.map(async ([pendingKey, pending]) => {
     clearTimeout(pending.timer);
     pendingUpdates.delete(pendingKey);
 
     const keys = Object.keys(pending.fields);
-    if (keys.length === 0) return [];
+    if (keys.length === 0) return undefined;
 
-    const setClauses = keys.map((field) => `${field} = ?`);
-    const values = keys.map((field) => pending.fields[field]);
+    const currentRow = await db.getOptional<Record<string, SQLValue>>(
+      `SELECT ${keys.join(', ')} FROM ${pending.table} WHERE id = ? LIMIT 1`,
+      [pending.id]
+    );
+
+    const changedKeys = currentRow
+      ? keys.filter((field) => !areSQLValuesEqual(pending.table, field, currentRow[field], pending.fields[field]))
+      : keys;
+
+    if (changedKeys.length === 0) {
+      return undefined;
+    }
+
+    const setClauses = changedKeys.map((field) => `${field} = ?`);
+    const values = changedKeys.map((field) => pending.fields[field]);
 
     if (TABLES_WITH_UPDATED_AT.has(pending.table)) {
       setClauses.push("updated_at = datetime('now')");
     }
 
-    return [db.execute(
+    await db.execute(
       `UPDATE ${pending.table} SET ${setClauses.join(', ')} WHERE id = ?`,
       [...values, pending.id]
-    )];
-  });
+    );
 
-  if (executions.length === 0) return undefined;
-  if (executions.length === 1) return executions[0];
+    await pending.afterFlush?.();
+    return true;
+  }));
 
-  return Promise.all(executions);
+  const completedExecutions = executions.filter(Boolean);
+  if (completedExecutions.length === 0) return undefined;
+  if (completedExecutions.length === 1) return completedExecutions[0];
+
+  return completedExecutions;
 }
 
 interface PendingExecute {
