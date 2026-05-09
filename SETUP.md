@@ -113,11 +113,12 @@ CREATE TABLE public.blocks (
 
 -- Notes graph edges table
 CREATE TABLE public.edges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_block_id UUID NOT NULL REFERENCES public.blocks(id) ON DELETE CASCADE,
   target_id UUID NOT NULL,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
-  PRIMARY KEY (source_block_id, target_id, type)
+  UNIQUE (source_block_id, target_id, type)
 );
 
 -- Notes attachments table
@@ -286,6 +287,13 @@ The notes module uses a rich Tiptap schema. After dependencies install successfu
 - markdown-style shortcuts for headings, blockquotes, horizontal rules, links, task lists, code blocks, tables, and images
 - slash commands for common block transforms
 - outliner-aware key behavior so `Enter` and `Backspace` behave differently for plain blocks, task lists, and code blocks
+
+The route-level notes screen is intentionally split across feature-local modules in `src/components/notes/page/`:
+
+- presentational route sections such as `NotesOverview.tsx`, `NotesNavigationRail.tsx`, `NotesDetailsRail.tsx`, `NotesEditorHeader.tsx`, `NotesEditorContent.tsx`, and `NotesPageSearchPopup.tsx`
+- supporting hooks such as `useNotesPageDerivedState.ts`, `useNoteBlockActions.ts`, `useNotePageActions.ts`, and `useNotesSurfaceState.ts`
+
+That layout keeps `src/app/notes/page.tsx` as the route orchestrator instead of a monolithic screen component. If you change this area, validate with both `npm run lint` and `npx tsc --noEmit` because the route behavior is spread across several typed hook boundaries.
 
 If you update Tiptap packages, keep the versions aligned instead of mixing minor lines. The repo pins the Tiptap packages together so schema extensions resolve consistently.
 

@@ -69,6 +69,8 @@ Notable notes components:
 - `src/components/notes/NoteBlockEditor.tsx` owns the rich Tiptap editor, markdown shortcuts, slash commands, and block-specific key handling.
 - `src/components/notes/NotesBlockTree.tsx` renders the nested visible block tree and handles sibling creation plumbing.
 - `src/components/notes/MobileRailDrawer.tsx` provides the shared mobile slide-out shell used by the notes page rails.
+- `src/components/notes/page/` contains the route-local notes page modules: overview, navigation rail, details rail, editor header/content shells, search popup, and the supporting hooks that keep `src/app/notes/page.tsx` focused on orchestration.
+- `src/components/notes/page/useNotesPageDerivedState.ts`, `useNoteBlockActions.ts`, `useNotePageActions.ts`, and `useNotesSurfaceState.ts` split the notes route logic into derived state, block mutations, page mutations, and transition/cache state.
 
 > For a deeper map of how tasks, tracker, share capture, optimistic updates, route loading, and PowerSync fit together, read [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md).
 > For environment setup and deployment, read [SETUP.md](SETUP.md).

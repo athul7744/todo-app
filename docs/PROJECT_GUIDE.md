@@ -132,6 +132,7 @@ Important convention:
 - `src/components/notes/NoteBlockEditor.tsx`
 - `src/components/notes/NotesBlockTree.tsx`
 - `src/components/notes/MobileRailDrawer.tsx`
+- `src/components/notes/page/*`
 
 ### Library folders
 
@@ -175,11 +176,47 @@ Responsibilities:
 - Registers the notes module in the shared shell and launcher
 - Orchestrates the page list view and page editor view via `?page=` route state
 - Reads pages, blocks, backlinks, attachments, and tag mentions from local SQLite through `src/hooks/use-notes.ts`
-- Handles page metadata edits, block creation, sibling insertion, indent/outdent, delete, and focus restoration
-- Uses LexoRank-based ordering helpers for block placement and reordering
-- Owns the pages/details rail layout, including compact mobile slide-out drawers
+- Composes feature-local route modules from `src/components/notes/page/` instead of rendering the entire notes UI inline
 - Preserves the shared header-first loading model used by tasks and tracker
 - Notes pages and blocks carry `updated_at` so editor-heavy writes can use the shared debounced local update path
+
+Current route-local module layout:
+
+- `src/components/notes/page/NotesOverview.tsx`
+  - Overview surface with the search trigger plus favorites/recent page cards
+
+- `src/components/notes/page/NotesNavigationRail.tsx`
+  - Pages rail and desktop pages-rail header controls
+
+- `src/components/notes/page/NotesDetailsRail.tsx`
+  - Details sidebar covering outline, summary, tags, references, attachments, timestamps, and destructive actions
+
+- `src/components/notes/page/NotesEditorHeader.tsx`
+  - Title input, emoji picker, favorite toggle, and editor metadata pills
+
+- `src/components/notes/page/NotesEditorContent.tsx`
+  - Editor shell that binds the header, block tree, loading state, and content overlay behavior
+
+- `src/components/notes/page/NotesPageSearchPopup.tsx`
+  - Search and create-page popup content for the overview surface
+
+- `src/components/notes/page/items.tsx`
+  - Shared page item renderers used by the overview cards and navigation rail
+
+- `src/components/notes/page/types.ts`, `utils.ts`, `ui.tsx`
+  - Feature-local shared types, pure helpers, and small reusable UI primitives
+
+- `src/components/notes/page/useNotesPageDerivedState.ts`
+  - Derived note page collections, selected-page metadata, search results, and outline state
+
+- `src/components/notes/page/useNoteBlockActions.ts`
+  - Block creation, deletion, update, indent/outdent, optimistic movement, and block focus restoration
+
+- `src/components/notes/page/useNotePageActions.ts`
+  - Page metadata edits, favorite toggles, emoji selection, copy flow, and delete flow
+
+- `src/components/notes/page/useNotesSurfaceState.ts`
+  - Overview/editor surface transitions, cached render content, and smoothed loading choreography
 
 Important child components:
 
@@ -195,6 +232,12 @@ Important child components:
 - `src/components/notes/MobileRailDrawer.tsx`
   - Shared mobile drawer shell used by both the pages rail and the details rail on the notes route
   - Keeps trigger styling and bounded drawer scrolling logic in one place
+
+Notes route design convention:
+
+- Keep `src/app/notes/page.tsx` as the route orchestrator and state wiring layer.
+- Prefer moving reusable route-local UI and logic into `src/components/notes/page/` before expanding the route file.
+- Keep notes-specific hooks feature-local when they are tightly coupled to the notes route instead of promoting them to a global hooks folder.
 
 Notes attachment ownership:
 
