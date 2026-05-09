@@ -60,7 +60,9 @@ export function NotesPageSearchPopup({
             onSelect={() => onSelectPage(page.id)}
             className="items-start gap-3 rounded-lg px-3 py-2"
           >
-            <PageIcon emoji={page.emoji} className="mt-0.5 h-4 w-4 text-base leading-none" fallbackClassName="text-muted-foreground" />
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-white">
+              <PageIcon emoji={page.emoji} className="h-4 w-4 text-base leading-none" fallbackClassName="text-white" />
+            </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{page.title || "Untitled page"}</div>
               {page.summary ? <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{page.summary}</div> : null}

@@ -45,11 +45,13 @@ export function NavigationPageLink({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
-          <PageIcon
-            emoji={page.emoji}
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sm leading-none"
-            fallbackClassName={isSelected ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground"}
-          />
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-black text-white">
+            <PageIcon
+              emoji={page.emoji}
+              className="h-3.5 w-3.5 shrink-0 text-sm leading-none"
+              fallbackClassName="text-white"
+            />
+          </span>
           <div className="min-w-0">
             <p className={`truncate text-[12px] font-medium ${isSelected ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>{page.title || "Untitled page"}</p>
             {page.summary ? (
@@ -105,10 +107,19 @@ export function OverviewPageCard({
     >
       {accentClasses ? <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b", accentClasses.glow)} /> : null}
       <div className="relative flex h-full min-h-40 flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground text-background dark:bg-foreground dark:text-background", accentClasses?.icon)}>
-            <PageIcon emoji={page.emoji} className="h-4 w-4 text-base leading-none" />
-          </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/notes?page=${page.id}`}
+            onClick={() => onSelectPage(page.id)}
+            className="flex min-w-0 flex-1 items-center gap-3"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white">
+              <PageIcon emoji={page.emoji} className="h-4 w-4 text-base leading-none" />
+            </span>
+            <p className="min-w-0 flex-1 text-base font-semibold leading-6 text-foreground break-words">
+              {page.title || "Untitled page"}
+            </p>
+          </Link>
           <Button
             type="button"
             variant="ghost"
@@ -127,9 +138,8 @@ export function OverviewPageCard({
         <Link
           href={`/notes?page=${page.id}`}
           onClick={() => onSelectPage(page.id)}
-          className="block flex-1 space-y-2"
+          className="block flex-1"
         >
-          <p className="line-clamp-2 text-base font-semibold leading-6 text-foreground">{page.title || "Untitled page"}</p>
           {page.summary ? (
             <p className="line-clamp-4 text-sm leading-6 text-muted-foreground">{page.summary}</p>
           ) : (
