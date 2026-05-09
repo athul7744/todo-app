@@ -762,11 +762,19 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
 
           event.preventDefault();
-          if (event.shiftKey) {
-            onOutdentRef.current();
-          } else {
-            onIndentRef.current();
+          const isAtBlockStart = view.state.selection.empty && view.state.selection.$from.parentOffset === 0;
+
+          if (isAtBlockStart) {
+            if (event.shiftKey) {
+              onOutdentRef.current();
+            } else {
+              onIndentRef.current();
+            }
+
+            return true;
           }
+
+          editor?.commands.insertContent("\t");
           return true;
         }
 

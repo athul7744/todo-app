@@ -1,5 +1,9 @@
 type NotesPageSkeletonMode = "overview" | "editor";
 
+type NotesNavigationRailSkeletonProps = {
+  showHeader?: boolean;
+};
+
 function Bone({ className }: { className: string }) {
   return <div className={`animate-pulse rounded bg-muted ${className}`} />;
 }
@@ -28,20 +32,47 @@ export function NotesOverviewListSkeleton() {
   );
 }
 
-export function NotesNavigationRailSkeleton() {
+function NotesNavigationRailSectionSkeleton({ itemWidths }: { itemWidths: string[] }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3 rounded-lg py-1">
+        <div className="flex items-center gap-2.5">
+          <Bone className="h-6 w-6 rounded-lg" />
+          <Bone className="h-4 w-28" />
+        </div>
+        <Bone className="h-4 w-4 rounded-full" />
+      </div>
+      <div className="space-y-2 overflow-hidden pl-8">
+        {itemWidths.map((widthClassName, index) => (
+          <div key={index} className="rounded-xl bg-muted/95 px-3 py-2.5">
+            <Bone className={`h-3 ${widthClassName}`} />
+            <div className="mt-2 flex gap-1.5">
+              <Bone className="h-5 w-14 rounded-full" />
+              <Bone className="h-5 w-16 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function NotesNavigationRailSkeleton({ showHeader = true }: NotesNavigationRailSkeletonProps) {
   return (
     <div className="space-y-4 py-1">
-      <div className="flex items-center gap-2.5">
-        <Bone className="h-6 w-6 rounded-lg" />
-        <div className="space-y-2">
-          <Bone className="h-4 w-20" />
-          <Bone className="h-3 w-24" />
+      {showHeader ? (
+        <div className="flex items-center gap-2.5">
+          <Bone className="h-6 w-6 rounded-lg" />
+          <div className="space-y-2">
+            <Bone className="h-4 w-20" />
+            <Bone className="h-3 w-24" />
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="space-y-2 rounded-2xl bg-muted/35 p-2">
-        <Bone className="h-14 w-full rounded-xl" />
-        <Bone className="h-14 w-full rounded-xl" />
-        <Bone className="h-14 w-5/6 rounded-xl" />
+        <NotesNavigationRailSectionSkeleton itemWidths={["w-3/4", "w-5/6"]} />
+        <NotesNavigationRailSectionSkeleton itemWidths={["w-full", "w-2/3"]} />
+        <NotesNavigationRailSectionSkeleton itemWidths={["w-1/2"]} />
       </div>
     </div>
   );

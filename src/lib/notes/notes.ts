@@ -4,7 +4,9 @@ import { v4 as uuidv4 } from "uuid";
 import { extractNoteText, serializeNoteDocument } from "@/lib/notes/notes-content";
 import { db } from "@/lib/powersync/db";
 import { getCurrentUserId } from "@/lib/shared/auth";
-import { debouncedUpdate } from "@/lib/shared/debounced-update";
+import { debouncedExecute, debouncedUpdate } from "@/lib/shared/debounced-update";
+
+const NOTES_DEBOUNCE_MS = 10_000;
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -25,12 +27,14 @@ interface CreateBlockInput {
 
 interface UpdateBlockInput {
   blockId: string;
+  pageId?: string;
   content?: JsonValue;
   type?: string;
 }
 
 interface MoveBlockInput {
   blockId: string;
+  pageId?: string;
   parentBlockId?: string | null;
   sortRank: string;
 }
@@ -72,6 +76,17 @@ function extractPlainText(value: JsonValue | undefined) {
   if (value === undefined) return "";
 
   return extractNoteText(value);
+}
+
+function touchNotePage(pageId: string | null | undefined) {
+  if (!pageId) return;
+
+  debouncedExecute(
+    "UPDATE pages SET updated_at = datetime('now') WHERE id = ?",
+    [pageId],
+    `notes:page-touch:${pageId}`,
+    NOTES_DEBOUNCE_MS
+  );
 }
 
 function parseReferenceTokens(text: string) {
@@ -146,11 +161,11 @@ export async function createNotePage(input: CreatePageInput = {}) {
 }
 
 export function updateNotePageTitle(pageId: string, title: string) {
-  debouncedUpdate(pageId, "title", title, "pages");
+  debouncedUpdate(pageId, "title", title, "pages", NOTES_DEBOUNCE_MS);
 }
 
 export function updateNotePageProperties(pageId: string, properties: Record<string, JsonValue>) {
-  debouncedUpdate(pageId, "properties", JSON.stringify(properties), "pages");
+  debouncedUpdate(pageId, "properties", JSON.stringify(properties), "pages", NOTES_DEBOUNCE_MS);
 }
 
 export async function deleteNotePage(pageId: string) {
@@ -183,29 +198,34 @@ export async function createNoteBlock(input: CreateBlockInput) {
   );
 
   await reconcileNoteBlockEdges(blockId, input.content);
+  touchNotePage(input.pageId);
 
   return blockId;
 }
 
 export function updateNoteBlock(input: UpdateBlockInput) {
   if (input.type !== undefined) {
-    debouncedUpdate(input.blockId, "type", input.type, "blocks");
+    debouncedUpdate(input.blockId, "type", input.type, "blocks", NOTES_DEBOUNCE_MS);
   }
 
   if (input.content !== undefined) {
-    debouncedUpdate(input.blockId, "content", serializeNoteDocument(input.content), "blocks");
+    debouncedUpdate(input.blockId, "content", serializeNoteDocument(input.content), "blocks", NOTES_DEBOUNCE_MS);
     void reconcileNoteBlockEdges(input.blockId, input.content);
   }
+
+  touchNotePage(input.pageId);
 }
 
 export function moveNoteBlock(input: MoveBlockInput) {
-  debouncedUpdate(input.blockId, "parent_block_id", toNullableOwner(input.parentBlockId), "blocks");
-  debouncedUpdate(input.blockId, "sort_rank", input.sortRank, "blocks");
+  debouncedUpdate(input.blockId, "parent_block_id", toNullableOwner(input.parentBlockId), "blocks", NOTES_DEBOUNCE_MS);
+  debouncedUpdate(input.blockId, "sort_rank", input.sortRank, "blocks", NOTES_DEBOUNCE_MS);
+  touchNotePage(input.pageId);
 }
 
-export async function deleteNoteBlock(blockId: string) {
+export async function deleteNoteBlock(blockId: string, pageId?: string) {
   await db.execute(`DELETE FROM edges WHERE source_block_id = ?`, [blockId]);
   await db.execute(`DELETE FROM blocks WHERE id = ?`, [blockId]);
+  touchNotePage(pageId);
 }
 
 export async function upsertAttachment(input: UpsertAttachmentInput) {

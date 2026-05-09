@@ -12,6 +12,7 @@ interface PendingUpdate {
   id: string;
   table: string;
   fields: Record<string, SQLValue>;
+  debounceMs: number;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -29,18 +30,19 @@ function getPendingUpdateEntries(id: string, table?: string) {
   return entries;
 }
 
-export function debouncedUpdate(id: string, field: string, value: SQLValue, table = 'tasks') {
+export function debouncedUpdate(id: string, field: string, value: SQLValue, table = 'tasks', debounceMs = DEBOUNCE_MS) {
   const pendingKey = getPendingUpdateKey(table, id);
   const existing = pendingUpdates.get(pendingKey);
 
   if (existing) {
     existing.fields[field] = value;
+    existing.debounceMs = debounceMs;
     clearTimeout(existing.timer);
-    existing.timer = setTimeout(() => flushUpdate(id, table), DEBOUNCE_MS);
+    existing.timer = setTimeout(() => flushUpdate(id, table), debounceMs);
   } else {
     const fields: Record<string, SQLValue> = { [field]: value };
-    const timer = setTimeout(() => flushUpdate(id, table), DEBOUNCE_MS);
-    pendingUpdates.set(pendingKey, { id, table, fields, timer });
+    const timer = setTimeout(() => flushUpdate(id, table), debounceMs);
+    pendingUpdates.set(pendingKey, { id, table, fields, debounceMs, timer });
   }
 }
 
@@ -97,7 +99,7 @@ interface PendingExecute {
 const pendingExecutes: PendingExecute[] = [];
 let executeTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function debouncedExecute(sql: string, params: any[], entityId?: string) {
+export function debouncedExecute(sql: string, params: any[], entityId?: string, debounceMs = DEBOUNCE_MS) {
   if (entityId) {
     const existing = pendingExecutes.find((execute) => execute.id === entityId);
     if (existing) {
@@ -111,7 +113,7 @@ export function debouncedExecute(sql: string, params: any[], entityId?: string) 
   }
 
   if (executeTimer) clearTimeout(executeTimer);
-  executeTimer = setTimeout(flushExecutes, DEBOUNCE_MS);
+  executeTimer = setTimeout(flushExecutes, debounceMs);
 }
 
 export function cancelExecute(entityId: string) {
