@@ -4,6 +4,15 @@ type NotesNavigationRailSkeletonProps = {
   showHeader?: boolean;
 };
 
+type NotesDetailsRailSkeletonProps = {
+  showHeader?: boolean;
+};
+
+type NotesPageSkeletonProps = {
+  mode?: NotesPageSkeletonMode;
+  showDesktopHeaderRow?: boolean;
+};
+
 function Bone({ className }: { className: string }) {
   return <div className={`animate-pulse rounded bg-muted ${className}`} />;
 }
@@ -106,16 +115,18 @@ export function NotesEditorMainSkeleton() {
   );
 }
 
-export function NotesDetailsRailSkeleton() {
+export function NotesDetailsRailSkeleton({ showHeader = true }: NotesDetailsRailSkeletonProps) {
   return (
     <div className="space-y-4 py-1">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Bone className="h-4 w-4 rounded-full" />
-          <Bone className="h-4 w-16" />
+      {showHeader ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Bone className="h-4 w-4 rounded-full" />
+            <Bone className="h-4 w-16" />
+          </div>
+          <Bone className="h-8 w-20 rounded-full" />
         </div>
-        <Bone className="h-8 w-20 rounded-full" />
-      </div>
+      ) : null}
       <div className="space-y-3">
         <Bone className="h-24 w-full rounded-xl" />
         <Bone className="h-12 w-full rounded-xl" />
@@ -125,7 +136,7 @@ export function NotesDetailsRailSkeleton() {
   );
 }
 
-export function NotesPageSkeleton({ mode = "editor" }: { mode?: NotesPageSkeletonMode }) {
+export function NotesPageSkeleton({ mode = "editor", showDesktopHeaderRow = true }: NotesPageSkeletonProps) {
   if (mode === "overview") {
     return (
       <section className="grid gap-10 lg:grid-cols-2 animate-fade-slide-in">
@@ -144,14 +155,44 @@ export function NotesPageSkeleton({ mode = "editor" }: { mode?: NotesPageSkeleto
 
   return (
     <section className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px] animate-fade-slide-in">
+      {showDesktopHeaderRow ? (
+        <>
+          <div className="hidden h-8 items-center lg:flex">
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Bone className="h-4 w-4 rounded-full" />
+                <Bone className="h-4 w-16" />
+              </div>
+              <Bone className="h-8 w-20 rounded-full" />
+            </div>
+          </div>
+
+          <div className="hidden h-8 items-center lg:flex">
+            <div className="pl-8 md:pl-9">
+              <Bone className="h-4 w-28" />
+            </div>
+          </div>
+
+          <div className="hidden h-8 items-center lg:flex">
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Bone className="h-4 w-4 rounded-full" />
+                <Bone className="h-4 w-16" />
+              </div>
+              <Bone className="h-8 w-20 rounded-full" />
+            </div>
+          </div>
+        </>
+      ) : null}
+
       <div className="hidden lg:block">
-        <NotesNavigationRailSkeleton />
+        <NotesNavigationRailSkeleton showHeader={false} />
       </div>
 
       <NotesEditorMainSkeleton />
 
       <div className="hidden lg:block">
-        <NotesDetailsRailSkeleton />
+        <NotesDetailsRailSkeleton showHeader={false} />
       </div>
     </section>
   );

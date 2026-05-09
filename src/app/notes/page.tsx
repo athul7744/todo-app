@@ -4,7 +4,7 @@ import Link from "next/link";
 import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, Paperclip, Plus, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
@@ -34,6 +34,7 @@ import { getRankAfterItem, getRankAtParentEnd } from "@/lib/shared/ranked-order"
 import { formatRelativeTime } from "@/lib/shared/utils";
 
 const notesApp = getApp("notes");
+const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
 
 type NormalizedNotePage = NotePageRow & {
   summary: string | null;
@@ -271,7 +272,6 @@ export default function NotesPage() {
   const [tagsDraft, setTagsDraft] = useState("");
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
   const [optimisticBlockStructure, setOptimisticBlockStructure] = useState<Record<string, OptimisticBlockStructure>>({});
-  const [optimisticUpdatedAt, setOptimisticUpdatedAt] = useState<string | null>(null);
   const [showAbsoluteUpdatedTime, setShowAbsoluteUpdatedTime] = useState(false);
   const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: "start" | "end" } | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -281,6 +281,8 @@ export default function NotesPage() {
     recent: true,
     tags: true,
   });
+  const [showDesktopPagesRail, setShowDesktopPagesRail] = useState(true);
+  const [showDesktopDetailsRail, setShowDesktopDetailsRail] = useState(false);
   const [tagDirectoryOpen, setTagDirectoryOpen] = useState<Record<string, boolean>>({});
   const [detailsSectionOpen, setDetailsSectionOpen] = useState({
     outline: false,
@@ -306,6 +308,40 @@ export default function NotesPage() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
+
+  useEffect(() => {
+    try {
+      const rawPreference = window.localStorage.getItem(NOTES_DESKTOP_PANEL_PREFERENCE_KEY);
+      if (!rawPreference) {
+        return;
+      }
+
+      const parsedPreference = JSON.parse(rawPreference) as {
+        showDesktopDetailsRail?: boolean;
+        showDesktopPagesRail?: boolean;
+      };
+
+      if (typeof parsedPreference.showDesktopPagesRail === "boolean") {
+        setShowDesktopPagesRail(parsedPreference.showDesktopPagesRail);
+      }
+
+      if (typeof parsedPreference.showDesktopDetailsRail === "boolean") {
+        setShowDesktopDetailsRail(parsedPreference.showDesktopDetailsRail);
+      }
+    } catch {
+      window.localStorage.removeItem(NOTES_DESKTOP_PANEL_PREFERENCE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      NOTES_DESKTOP_PANEL_PREFERENCE_KEY,
+      JSON.stringify({
+        showDesktopPagesRail,
+        showDesktopDetailsRail,
+      })
+    );
+  }, [showDesktopDetailsRail, showDesktopPagesRail]);
 
   const { isLoading: isLoadingCounts } = useNoteCounts();
   const { pages: recentPages = [], isLoading: isLoadingRecentPages } = useRecentNotePages(8);
@@ -423,8 +459,6 @@ export default function NotesPage() {
         content: nextContent,
       });
 
-      markPageEdited();
-
       await flushUpdate(blockId, "blocks");
 
       const nextBlockId = await createNoteBlock({
@@ -434,7 +468,6 @@ export default function NotesPage() {
         type: "text",
         content: nextSiblingContent ?? createBlockDocument(),
       });
-      markPageEdited();
       setFocusTarget({ blockId: nextBlockId, placement: "end" });
     } finally {
       setIsCreatingBlock(false);
@@ -447,7 +480,6 @@ export default function NotesPage() {
     flushSync(() => {
       setFocusTarget({ blockId, placement: "start" });
       applyOptimisticBlockMove(blockId, nextParentBlockId, nextSortRank);
-      markPageEdited();
     });
 
     void moveNoteBlock({
@@ -471,7 +503,6 @@ export default function NotesPage() {
     flushSync(() => {
       setFocusTarget({ blockId, placement: "start" });
       applyOptimisticBlockMove(blockId, nextParentBlockId ?? null, nextSortRank);
-      markPageEdited();
     });
 
     void moveNoteBlock({
@@ -489,7 +520,6 @@ export default function NotesPage() {
       : orderedVisibleBlockIds[blockIndex + 1] ?? null;
 
     await deleteNoteBlock(blockId, selectedPageId ?? undefined);
-    markPageEdited();
     setFocusTarget(previousBlockId ? { blockId: previousBlockId, placement: "end" } : null);
   };
 
@@ -505,8 +535,6 @@ export default function NotesPage() {
       ...currentDrafts,
       [blockId]: serializedContent,
     }));
-
-    markPageEdited();
 
     updateNoteBlock({
       blockId,
@@ -527,8 +555,6 @@ export default function NotesPage() {
       ...currentDrafts,
       [blockId]: serializedContent,
     }));
-
-    markPageEdited();
 
     updateNoteBlock({
       blockId,
@@ -641,12 +667,7 @@ export default function NotesPage() {
     ? selectedPageProperties.summary
     : null;
   const createdTimestamp = formatTimestampLabel(selectedPage?.created_at ?? null);
-  const effectiveUpdatedAt = optimisticUpdatedAt ?? selectedPage?.updated_at ?? null;
-  const updatedTimestamp = formatTimestampLabel(effectiveUpdatedAt);
-
-  const markPageEdited = () => {
-    setOptimisticUpdatedAt(new Date().toISOString());
-  };
+  const updatedTimestamp = formatTimestampLabel(selectedPage?.updated_at ?? null);
 
   const revealAbsoluteUpdatedTime = () => {
     setShowAbsoluteUpdatedTime(true);
@@ -668,7 +689,6 @@ export default function NotesPage() {
       setTagsDraft("");
       setBlockContentDrafts({});
       setOptimisticBlockStructure({});
-      setOptimisticUpdatedAt(null);
       setShowAbsoluteUpdatedTime(false);
       setFocusTarget(null);
       return;
@@ -679,20 +699,9 @@ export default function NotesPage() {
     setTagsDraft(selectedPageTags.join(", "));
     setBlockContentDrafts({});
     setOptimisticBlockStructure({});
-    setOptimisticUpdatedAt(null);
     setShowAbsoluteUpdatedTime(false);
     setFocusTarget(null);
   }, [selectedPage?.id]);
-
-  useEffect(() => {
-    if (!optimisticUpdatedAt || !selectedPage?.updated_at) {
-      return;
-    }
-
-    if (new Date(selectedPage.updated_at).getTime() >= new Date(optimisticUpdatedAt).getTime()) {
-      setOptimisticUpdatedAt(null);
-    }
-  }, [optimisticUpdatedAt, selectedPage?.updated_at]);
 
   useEffect(() => {
     return () => {
@@ -841,8 +850,6 @@ export default function NotesPage() {
   const handleToggleFavorite = () => {
     if (!selectedPageId) return;
 
-    markPageEdited();
-
     updateNotePageProperties(selectedPageId, {
       ...(selectedPageProperties as Record<string, null | boolean | number | string | unknown[] | Record<string, unknown>>),
       favorite: selectedPageProperties.favorite !== true,
@@ -942,8 +949,6 @@ export default function NotesPage() {
   const persistSelectedPageProperties = (nextSummary: string, nextTagsRaw: string) => {
     if (!selectedPageId) return;
 
-    markPageEdited();
-
     const nextTags = nextTagsRaw
       .split(",")
       .map((tag) => tag.trim())
@@ -1003,6 +1008,13 @@ export default function NotesPage() {
     : null;
   const showDesktopUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay && !isLoading && !showSelectedPageLoading && selectedPage);
   const showMobileUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay);
+  const desktopGridColumns = showDesktopPagesRail && showDesktopDetailsRail
+    ? "lg:grid-cols-[280px_minmax(0,1fr)_320px]"
+    : showDesktopPagesRail
+      ? "lg:grid-cols-[280px_minmax(0,1fr)_44px]"
+      : showDesktopDetailsRail
+        ? "lg:grid-cols-[44px_minmax(0,1fr)_320px]"
+        : "lg:grid-cols-[44px_minmax(0,1fr)_44px]";
 
   const renderNavigationPageLink = (
     page: NormalizedNotePage,
@@ -1053,13 +1065,13 @@ export default function NotesPage() {
     </Link>
   );
 
-  const navigationRail = (
-    <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <NotebookTabs className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">Pages</p>
-        </div>
+  const navigationRailHeader = (
+    <div className="flex w-full items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <NotebookTabs className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold text-foreground">Pages</p>
+      </div>
+      <div className="flex items-center gap-1.5">
         <Button
           type="button"
           variant="ghost"
@@ -1069,7 +1081,79 @@ export default function NotesPage() {
         >
           {areAllPageRailSectionsOpen ? "Collapse all" : "Expand all"}
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowDesktopPagesRail(false)}
+          className="hidden h-8 rounded-full px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground lg:inline-flex"
+          aria-label="Hide pages panel"
+        >
+          <PanelLeftClose className="h-3.5 w-3.5" />
+        </Button>
       </div>
+    </div>
+  );
+
+  const detailsRailHeader = (
+    <div className="flex w-full items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Files className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold text-foreground">Details</p>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={toggleAllDetailsSections}
+          className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          {areAllDetailsSectionsOpen ? "Collapse all" : "Expand all"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowDesktopDetailsRail(false)}
+          className="hidden h-8 rounded-full px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground lg:inline-flex"
+          aria-label="Hide details panel"
+        >
+          <PanelRightClose className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  const desktopPagesRestoreButton = !showDesktopPagesRail ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => setShowDesktopPagesRail(true)}
+      className="hidden h-8 w-8 items-center justify-center rounded-full px-0 text-muted-foreground hover:text-foreground lg:inline-flex"
+      aria-label="Show pages panel"
+    >
+      <PanelLeftOpen className="h-3.5 w-3.5" />
+    </Button>
+  ) : null;
+
+  const desktopDetailsRestoreButton = !showDesktopDetailsRail ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => setShowDesktopDetailsRail(true)}
+      className="hidden h-8 w-8 items-center justify-center rounded-full px-0 text-muted-foreground hover:text-foreground lg:inline-flex"
+      aria-label="Show details panel"
+    >
+      <PanelRightOpen className="h-3.5 w-3.5" />
+    </Button>
+  ) : null;
+
+  const navigationRail = (
+    <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
+      <div className="lg:hidden">{navigationRailHeader}</div>
 
       <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {isLoading ? (
@@ -1176,21 +1260,7 @@ export default function NotesPage() {
 
   const detailsRail = selectedPage ? (
     <div className="animate-fade-slide-in space-y-4 py-1 lg:flex lg:min-h-0 lg:max-h-[calc(100dvh-2rem)] lg:flex-col lg:gap-4 lg:space-y-0">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Files className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">Details</p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={toggleAllDetailsSections}
-          className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {areAllDetailsSectionsOpen ? "Collapse all" : "Expand all"}
-        </Button>
-      </div>
+      <div className="lg:hidden">{detailsRailHeader}</div>
 
       <div className="space-y-4 pr-1 pb-4 transition-smooth lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <DetailsSection
@@ -1458,8 +1528,8 @@ export default function NotesPage() {
         ) : undefined}
       />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8">
-        <div className="mx-auto max-w-[1600px] space-y-4">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:pb-4 md:py-8 md:pb-8 lg:overflow-hidden">
+        <div className="mx-auto max-w-[1600px] space-y-4 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:space-y-0">
           {isDisplayingOverview ? (
             <section className="grid gap-10 lg:grid-cols-2 animate-fade-slide-in">
               <section>
@@ -1603,12 +1673,45 @@ export default function NotesPage() {
                 ) : <div />}
               </div>
 
-              <section className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
-                <aside className="hidden lg:block lg:sticky lg:top-4 lg:self-start">{isLoading ? <NotesNavigationRailSkeleton /> : navigationRail}</aside>
+              <section className={`grid gap-4 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] ${desktopGridColumns}`}>
+                {showDesktopPagesRail ? (
+                  <div className="hidden h-8 items-center lg:flex">{navigationRailHeader}</div>
+                ) : (
+                  <div className="hidden h-8 items-center justify-center lg:flex">{desktopPagesRestoreButton}</div>
+                )}
 
-                <section className="min-w-0">
+                <div className="hidden h-8 items-center lg:flex">
+                  <div className="mx-auto w-full max-w-3xl pl-8 md:pl-9">
+                    {showDesktopUpdatedTimestamp ? (
+                      <button
+                        type="button"
+                        onClick={revealAbsoluteUpdatedTime}
+                        key={editorUpdatedTimestamp?.absolute}
+                        className="inline-flex items-center text-[11px] text-muted-foreground/75 animate-fade-slide-in transition-colors hover:text-foreground"
+                      >
+                        {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
+                      </button>
+                    ) : <span className="block h-4 w-32" aria-hidden="true" />}
+                  </div>
+                </div>
+
+                {showDesktopDetailsRail ? (
+                  <div className="hidden h-8 items-center lg:flex">
+                    {detailsRail ?? showSelectedPageLoading ? detailsRailHeader : null}
+                  </div>
+                ) : (
+                  <div className="hidden h-8 items-center justify-center lg:flex">{desktopDetailsRestoreButton}</div>
+                )}
+
+                {showDesktopPagesRail ? (
+                  <aside className="hidden lg:block lg:min-h-0 lg:overflow-hidden">{isLoading ? <NotesNavigationRailSkeleton showHeader={false} /> : navigationRail}</aside>
+                ) : <div className="hidden lg:block" aria-hidden="true" />}
+
+                <section className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
                   {showSelectedPageLoading && !editorContentToRender ? (
-                    <NotesPageSkeleton />
+                    <div className="mx-auto max-w-3xl">
+                      <NotesEditorMainSkeleton />
+                    </div>
                   ) : !editorContentToRender ? (
                     <div className="mx-auto max-w-3xl py-12 text-sm text-muted-foreground">
                       This page is not available locally.
@@ -1617,21 +1720,6 @@ export default function NotesPage() {
                     <div className="relative mx-auto max-w-3xl">
                       <div className={showEditorOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
                         <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
-                          <div className="col-span-3 hidden lg:block">
-                            {showDesktopUpdatedTimestamp ? (
-                              <div className="pl-8 md:pl-9">
-                                <button
-                                  type="button"
-                                  onClick={revealAbsoluteUpdatedTime}
-                                  key={editorUpdatedTimestamp?.absolute}
-                                  className="inline-flex items-center text-[11px] text-muted-foreground/75 animate-fade-slide-in transition-colors hover:text-foreground"
-                                >
-                                  {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-
                           <div className="contents">
                           <Button
                             variant="ghost"
@@ -1649,7 +1737,6 @@ export default function NotesPage() {
                             onChange={(event) => {
                               setPageTitleDraft(event.target.value);
                               if (selectedPageId) {
-                                markPageEdited();
                                 updateNotePageTitle(selectedPageId, event.target.value || "Untitled page");
                               }
                             }}
@@ -1701,7 +1788,9 @@ export default function NotesPage() {
                   )}
                 </section>
 
-                <aside className="hidden lg:block lg:sticky lg:top-4 lg:self-start">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton /> : null)}</aside>
+                {showDesktopDetailsRail ? (
+                  <aside className="hidden lg:block lg:min-h-0 lg:overflow-hidden">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton showHeader={false} /> : null)}</aside>
+                ) : <div className="hidden lg:block" aria-hidden="true" />}
               </section>
             </>
           )}
