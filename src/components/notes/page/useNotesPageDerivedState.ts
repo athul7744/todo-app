@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import type { NoteBlockRow, NotePageRow } from "@/hooks/use-notes";
+import { extractNoteText } from "@/lib/notes/notes-content";
 import { normalizeNotePageTitle } from "@/lib/notes/notes";
 
 import { type NormalizedNotePage, type OutlineEntry, type TagDirectoryEntry } from "./types";
@@ -20,14 +21,15 @@ type UseNotesPageDerivedStateParams = {
 function normalizePages(pages: NotePageRow[]): NormalizedNotePage[] {
   return pages.map((page) => {
     const properties = parseProperties(page.properties);
-    const summary = typeof properties.summary === "string" ? properties.summary : null;
+    const persistedSummary = typeof properties.summary === "string" ? properties.summary.trim() : "";
+    const previewSummary = persistedSummary ? "" : extractNoteText(page.preview_content).trim();
     const tags = Array.isArray(properties.tags)
       ? properties.tags.filter((tag): tag is string => typeof tag === "string")
       : [];
 
     return {
       ...page,
-      summary,
+      summary: persistedSummary || previewSummary || null,
       tags,
       emoji: normalizePageEmoji(properties.emoji),
     };

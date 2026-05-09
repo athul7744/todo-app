@@ -6,7 +6,7 @@ import type { AttachmentRecord, BlockRecord, EdgeRecord, PageRecord } from "@/li
 
 type NoteCountRow = { count: number };
 
-export type NotePageRow = PageRecord & { id: string };
+export type NotePageRow = PageRecord & { id: string; preview_content?: string | null };
 export type NoteBlockRow = BlockRecord & { id: string };
 export type NoteEdgeRow = EdgeRecord & { id: string };
 export type NoteAttachmentRow = AttachmentRecord & { id: string };
@@ -93,7 +93,12 @@ export function useNoteCounts() {
 export function useRecentNotePages(limit = 8) {
   const { data = [], isLoading } = useQuery<NotePageRow>(
     [
-      "SELECT id, user_id, title, properties, created_at, updated_at",
+      "SELECT id, user_id, title, properties, created_at, updated_at,",
+      "  (SELECT content",
+      "   FROM blocks",
+      "   WHERE page_id = pages.id",
+      "   ORDER BY sort_rank ASC",
+      "   LIMIT 1) AS preview_content",
       "FROM pages",
       "ORDER BY updated_at DESC, created_at DESC",
       "LIMIT ?"
@@ -110,7 +115,12 @@ export function useRecentNotePages(limit = 8) {
 export function useAllNotePages() {
   const { data = [], isLoading } = useQuery<NotePageRow>(
     [
-      "SELECT id, user_id, title, properties, created_at, updated_at",
+      "SELECT id, user_id, title, properties, created_at, updated_at,",
+      "  (SELECT content",
+      "   FROM blocks",
+      "   WHERE page_id = pages.id",
+      "   ORDER BY sort_rank ASC",
+      "   LIMIT 1) AS preview_content",
       "FROM pages",
       "ORDER BY title COLLATE NOCASE ASC, updated_at DESC, created_at DESC"
     ].join(" ")
