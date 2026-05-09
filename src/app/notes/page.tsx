@@ -1,278 +1,48 @@
 "use client";
 
-import Link from "next/link";
-import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, FileText, Files, Hash, Link2, Loader2, NotebookTabs, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Search, Settings2, Star, Tags, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
-import { NotesBlockTree } from "@/components/notes/NotesBlockTree";
-import { NotesDetailsRailSkeleton, NotesEditorMainSkeleton, NotesNavigationRailSkeleton, NotesOverviewListSkeleton, NotesPageSkeleton } from "@/components/notes/NotesPageSkeleton";
+import { NotesDetailsRailSkeleton, NotesPageSkeleton } from "@/components/notes/NotesPageSkeleton";
 import { MobileRailDrawer } from "../../components/notes/MobileRailDrawer";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { CommandEmpty, CommandGroup, CommandItem, CommandSeparator, CommandShortcut } from "@/components/ui/command";
-import { Input } from "@/components/ui/input";
-import { SEARCH_POPUP_CLOSE_ANIMATION_MS, SearchPopup } from "@/components/ui/search-popup";
-import { Textarea } from "@/components/ui/textarea";
-import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages, type NoteBlockRow, type NotePageRow } from "@/hooks/use-notes";
-import { extractNoteText } from "@/lib/notes/notes-content";
-import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
-import { createNoteBlock, createStarterPage, deleteNoteBlock, deleteNotePage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, isNotePageTitleAvailable, moveNoteBlock, normalizeNotePageTitle, updateNoteBlock, updateNotePageProperties, updateNotePageTitle, type JsonValue } from "@/lib/notes/notes";
+import { SEARCH_POPUP_CLOSE_ANIMATION_MS } from "@/components/ui/search-popup";
+import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages } from "@/hooks/use-notes";
+import { createStarterPage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, normalizeNotePageTitle } from "@/lib/notes/notes";
 import { getApp } from "@/lib/shared/apps";
-import { flushAllUpdates, flushUpdate, hasPendingWrites } from "@/lib/shared/debounced-update";
-import { getRankAfterItem, getRankAtParentEnd } from "@/lib/shared/ranked-order";
-import { formatRelativeTime } from "@/lib/shared/utils";
+import { flushAllUpdates, hasPendingWrites } from "@/lib/shared/debounced-update";
+import {
+  type OptimisticBlockStructure,
+} from "@/components/notes/page/types";
+import { NotesDetailsRail } from "@/components/notes/page/NotesDetailsRail";
+import { NotesEditorContent } from "@/components/notes/page/NotesEditorContent";
+import { NotesNavigationRail, NotesNavigationRailHeader } from "@/components/notes/page/NotesNavigationRail";
+import { NotesOverview } from "@/components/notes/page/NotesOverview";
+import { useNoteBlockActions } from "@/components/notes/page/useNoteBlockActions";
+import { useNotePageActions } from "@/components/notes/page/useNotePageActions";
+import { NotesPageSearchPopup } from "@/components/notes/page/NotesPageSearchPopup";
+import { useNotesPageDerivedState } from "@/components/notes/page/useNotesPageDerivedState";
+import { useNotesSurfaceState } from "@/components/notes/page/useNotesSurfaceState";
 
 const notesApp = getApp("notes");
 const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
-
-type NormalizedNotePage = NotePageRow & {
-  summary: string | null;
-  tags: string[];
-};
-
-type TagDirectoryEntry = {
-  key: string;
-  label: string;
-  count: number;
-  pages: NormalizedNotePage[];
-};
-
-type OptimisticBlockStructure = Pick<NoteBlockRow, "parent_block_id" | "sort_rank">;
-
-type OutlineEntry = {
-  blockId: string;
-  level: number;
-  text: string;
-};
-
-type RichContentNode = {
-  type?: string;
-  text?: string;
-  attrs?: {
-    level?: number;
-  };
-  content?: RichContentNode[];
-};
-
-function formatTimestampLabel(value: string | null | undefined) {
-  if (!value) return null;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return {
-    relative: formatRelativeTime(date),
-    absolute: date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
-  };
-}
-
-function extractTextFromRichContent(node: RichContentNode | null | undefined): string {
-  if (!node) return "";
-
-  const ownText = typeof node.text === "string" ? node.text : "";
-  const childText = Array.isArray(node.content)
-    ? node.content.map((child) => extractTextFromRichContent(child)).join("")
-    : "";
-
-  return `${ownText}${childText}`;
-}
-
-function collectOutlineHeadings(node: RichContentNode | null | undefined, headings: Array<{ level: number; text: string }>) {
-  if (!node) return;
-
-  if (node.type === "heading") {
-    const text = extractTextFromRichContent(node).trim();
-    if (text) {
-      headings.push({
-        level: typeof node.attrs?.level === "number" ? node.attrs.level : 1,
-        text,
-      });
-    }
-  }
-
-  if (Array.isArray(node.content)) {
-    node.content.forEach((child) => collectOutlineHeadings(child, headings));
-  }
-}
-
-function extractOutlineEntries(blockId: string, rawContent: string | null | undefined): OutlineEntry[] {
-  if (!rawContent) return [];
-
-  try {
-    const parsed = JSON.parse(rawContent) as RichContentNode;
-    const headings: Array<{ level: number; text: string }> = [];
-    collectOutlineHeadings(parsed, headings);
-
-    return headings.map((heading) => ({
-      blockId,
-      level: Math.min(Math.max(heading.level, 1), 3),
-      text: heading.text,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function DetailsSection({
-  title,
-  icon: Icon,
-  accentClassName,
-  isOpen,
-  onToggle,
-  children,
-}: {
-  title: string;
-  icon: LucideIcon;
-  accentClassName: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  const contentId = useId();
-
-  return (
-    <section className="space-y-2.5">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        aria-controls={contentId}
-        className="flex w-full items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors hover:text-foreground"
-      >
-        <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
-          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${accentClassName}`}>
-            <Icon className="h-3.5 w-3.5" />
-          </span>
-          <span className="truncate text-[13px] font-medium text-foreground">{title}</span>
-        </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : "rotate-0"}`} />
-      </button>
-
-      <div
-        id={contentId}
-        className={`grid overflow-hidden transition-all duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
-      >
-        <div className="min-h-0" inert={!isOpen}>
-          <div
-            className={`pl-8 transition-all duration-200 ease-out ${isOpen ? "translate-y-0" : "-translate-y-1"}`}
-            aria-hidden={!isOpen}
-          >
-            {children}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Bone({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
-}
-
-function DetailsRailCardSkeleton({ lines = 2 }: { lines?: number }) {
-  return (
-    <div className="rounded-xl bg-muted/95 px-3 py-2.5">
-      <Bone className="h-3 w-28" />
-      <div className="mt-2 space-y-2">
-        {Array.from({ length: lines }).map((_, index) => (
-          <Bone key={index} className={`h-3 ${index === lines - 1 ? "w-2/3" : "w-full"}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function attachmentLabel(filePath: string | null | undefined) {
-  if (!filePath) return "Attachment";
-
-  const parts = filePath.split(/[\\/]/).filter(Boolean);
-  return parts.at(-1) ?? filePath;
-}
-
-function useSmoothedLoading(
-  isLoading: boolean,
-  loadingKey: string,
-  minVisibleMs = 160,
-  settleDelayMs = 80
-) {
-  const [showLoading, setShowLoading] = useState(true);
-  const visibleSinceRef = useRef<number>(Date.now());
-
-  useEffect(() => {
-    visibleSinceRef.current = Date.now();
-    setShowLoading(true);
-  }, [loadingKey]);
-
-  useEffect(() => {
-    if (isLoading) {
-      if (!showLoading) {
-        visibleSinceRef.current = Date.now();
-        setShowLoading(true);
-      }
-      return;
-    }
-
-    const elapsed = Date.now() - visibleSinceRef.current;
-    const timeoutId = window.setTimeout(() => {
-      setShowLoading(false);
-    }, Math.max(minVisibleMs - elapsed, 0) + settleDelayMs);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isLoading, minVisibleMs, settleDelayMs, showLoading]);
-
-  return showLoading;
-}
-
-function createBlockDocument(text = ""): JsonValue {
-  return {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: text.trim().length > 0 ? [{ type: "text", text }] : [],
-      },
-    ],
-  };
-}
-
-function parseProperties(raw: string | null) {
-  if (!raw) return {} as Record<string, unknown>;
-
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {} as Record<string, unknown>;
-  }
-}
 
 export default function NotesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedPageId = searchParams.get("page");
   const selectedPageIdForWrite: string | undefined = selectedPageId ?? undefined;
-  const [pendingSurfaceKey, setPendingSurfaceKey] = useState<string | null>(null);
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [isCreatingBlock, setIsCreatingBlock] = useState(false);
   const [isPageSearchOpen, setIsPageSearchOpen] = useState(false);
   const [pageSearchQuery, setPageSearchQuery] = useState("");
   const [pageTitleDraft, setPageTitleDraft] = useState("");
   const [pageTitleError, setPageTitleError] = useState<string | null>(null);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [pageEmojiDraft, setPageEmojiDraft] = useState<string | null>(null);
   const [summaryDraft, setSummaryDraft] = useState("");
   const [tagsDraft, setTagsDraft] = useState("");
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
@@ -358,457 +128,64 @@ export default function NotesPage() {
   const { references: linkedReferences, isLoading: isLoadingLinkedReferences } = useLinkedNoteReferences(selectedPageId);
   const { tags: pageTagMentions, isLoading: isLoadingTagMentions } = usePageTagMentions(selectedPageId);
 
-  const structuredBlocks = useMemo(
-    () => [...selectedBlocks.map((block) => {
-      const optimisticStructure = optimisticBlockStructure[block.id];
-
-      return optimisticStructure
-        ? {
-            ...block,
-            parent_block_id: optimisticStructure.parent_block_id,
-            sort_rank: optimisticStructure.sort_rank,
-          }
-        : block;
-    })].sort((left, right) => (left.sort_rank ?? "").localeCompare(right.sort_rank ?? "")),
-    [optimisticBlockStructure, selectedBlocks]
-  );
-
-  const getSiblingBlocks = (parentBlockId: string | null | undefined, excludeBlockId?: string) => {
-    const normalizedParentBlockId = parentBlockId ?? null;
-
-    return structuredBlocks.filter((block) => {
-      if ((block.parent_block_id ?? null) !== normalizedParentBlockId) {
-        return false;
-      }
-
-      return excludeBlockId ? block.id !== excludeBlockId : true;
-    });
-  };
-
-  const getSortRankAtParentEnd = (parentBlockId: string | null | undefined, excludeBlockId?: string) => {
-    return getRankAtParentEnd(structuredBlocks, parentBlockId, (block) => block.parent_block_id, excludeBlockId);
-  };
-
-  const getSortRankAfterBlock = (
-    siblingBlockId: string,
-    parentBlockId: string | null | undefined,
-    excludeBlockId?: string
-  ) => {
-    return getRankAfterItem(structuredBlocks, siblingBlockId, parentBlockId, (block) => block.parent_block_id, excludeBlockId);
-  };
-
-  const applyOptimisticBlockMove = (blockId: string, parentBlockId: string | null, sortRank: string) => {
-    setOptimisticBlockStructure((current) => ({
-      ...current,
-      [blockId]: {
-        parent_block_id: parentBlockId,
-        sort_rank: sortRank,
-      },
-    }));
-  };
-
   const handleCreateStarterPage = async () => {
     setPageSearchQuery("");
     setIsPageSearchOpen(true);
   };
-
-  const handleCreateRootBlock = async () => {
-    if (!selectedPageId || isCreatingBlock) return;
-
-    setIsCreatingBlock(true);
-
-    try {
-      const blockId = await createNoteBlock({
-        pageId: selectedPageId,
-        sortRank: getSortRankAtParentEnd(null),
-        type: "text",
-        content: createBlockDocument(),
-      });
-      setFocusTarget({ blockId, placement: "end" });
-    } finally {
-      setIsCreatingBlock(false);
-    }
-  };
-
-  const handleCreateSiblingBlock = async (
-    blockId: string,
-    parentBlockId: string | null | undefined,
-    nextContent: JsonValue,
-    nextSiblingContent?: JsonValue
-  ) => {
-    if (!selectedPageId || isCreatingBlock) return;
-
-    setIsCreatingBlock(true);
-
-    try {
-      const serializedContent = JSON.stringify(nextContent);
-
-      flushSync(() => {
-        setBlockContentDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [blockId]: serializedContent,
-        }));
-      });
-
-      updateNoteBlock({
-        blockId,
-        pageId: selectedPageId ?? undefined,
-        content: nextContent,
-      });
-
-      await flushUpdate(blockId, "blocks");
-
-      const nextBlockId = await createNoteBlock({
-        pageId: selectedPageId,
-        parentBlockId: parentBlockId ?? null,
-        sortRank: getSortRankAfterBlock(blockId, parentBlockId),
-        type: "text",
-        content: nextSiblingContent ?? createBlockDocument(),
-      });
-      setFocusTarget({ blockId: nextBlockId, placement: "end" });
-    } finally {
-      setIsCreatingBlock(false);
-    }
-  };
-
-  const handleCreateEmptySiblingBlock = async (blockId: string, parentBlockId: string | null | undefined) => {
-    if (!selectedPageId || isCreatingBlock) return;
-
-    setIsCreatingBlock(true);
-
-    try {
-      const nextBlockId = await createNoteBlock({
-        pageId: selectedPageId,
-        parentBlockId: parentBlockId ?? null,
-        sortRank: getSortRankAfterBlock(blockId, parentBlockId),
-        type: "text",
-        content: createBlockDocument(),
-      });
-      setFocusTarget({ blockId: nextBlockId, placement: "end" });
-    } finally {
-      setIsCreatingBlock(false);
-    }
-  };
-
-  const handleCreateSiblingBlocks = async (
-    blockId: string,
-    parentBlockId: string | null | undefined,
-    nextContent: JsonValue,
-    nextSiblingContents: JsonValue[]
-  ) => {
-    if (!selectedPageId || isCreatingBlock) return;
-    if (nextSiblingContents.length === 0) return;
-
-    setIsCreatingBlock(true);
-
-    try {
-      const serializedContent = JSON.stringify(nextContent);
-
-      flushSync(() => {
-        setBlockContentDrafts((currentDrafts) => ({
-          ...currentDrafts,
-          [blockId]: serializedContent,
-        }));
-      });
-
-      updateNoteBlock({
-        blockId,
-        pageId: selectedPageId ?? undefined,
-        content: nextContent,
-      });
-
-      await flushUpdate(blockId, "blocks");
-
-      let previousBlockId = blockId;
-      let lastCreatedBlockId: string | null = null;
-
-      for (const siblingContent of nextSiblingContents) {
-        const createdBlockId = await createNoteBlock({
-          pageId: selectedPageId,
-          parentBlockId: parentBlockId ?? null,
-          sortRank: getSortRankAfterBlock(previousBlockId, parentBlockId),
-          type: "text",
-          content: siblingContent,
-        });
-
-        previousBlockId = createdBlockId;
-        lastCreatedBlockId = createdBlockId;
-      }
-
-      if (lastCreatedBlockId) {
-        setFocusTarget({ blockId: lastCreatedBlockId, placement: "end" });
-      }
-    } finally {
-      setIsCreatingBlock(false);
-    }
-  };
-
-  const handleIndentBlock = (blockId: string, nextParentBlockId: string) => {
-    const nextSortRank = getSortRankAtParentEnd(nextParentBlockId, blockId);
-
-    flushSync(() => {
-      setFocusTarget({ blockId, placement: "start" });
-      applyOptimisticBlockMove(blockId, nextParentBlockId, nextSortRank);
-    });
-
-    void moveNoteBlock({
-      blockId,
-      pageId: selectedPageIdForWrite,
-      parentBlockId: nextParentBlockId,
-      sortRank: nextSortRank,
-    });
-  };
-
-  const handleOutdentBlock = (blockId: string, nextParentBlockId?: string | null) => {
-    const currentBlock = structuredBlocks.find((block) => block.id === blockId) ?? null;
-    const currentParentBlock = currentBlock?.parent_block_id
-      ? structuredBlocks.find((block) => block.id === currentBlock.parent_block_id) ?? null
-      : null;
-
-    const nextSortRank = currentParentBlock
-      ? getSortRankAfterBlock(currentParentBlock.id, nextParentBlockId, blockId)
-      : getSortRankAtParentEnd(nextParentBlockId, blockId);
-
-    flushSync(() => {
-      setFocusTarget({ blockId, placement: "start" });
-      applyOptimisticBlockMove(blockId, nextParentBlockId ?? null, nextSortRank);
-    });
-
-    void moveNoteBlock({
-      blockId,
-      pageId: selectedPageIdForWrite,
-      parentBlockId: nextParentBlockId ?? null,
-      sortRank: nextSortRank,
-    });
-  };
-
-  const handleDeleteBlock = async (blockId: string) => {
-    const blockIndex = orderedVisibleBlockIds.findIndex((visibleBlockId) => visibleBlockId === blockId);
-    const previousBlockId = blockIndex > 0
-      ? orderedVisibleBlockIds[blockIndex - 1] ?? null
-      : orderedVisibleBlockIds[blockIndex + 1] ?? null;
-
-    await deleteNoteBlock(blockId, selectedPageId ?? undefined);
-    setFocusTarget(previousBlockId ? { blockId: previousBlockId, placement: "end" } : null);
-  };
-
-  const handleUpdateBlockContent = (blockId: string, nextContent: JsonValue) => {
-    const serializedContent = JSON.stringify(nextContent);
-    const currentSerialized = blockContentDrafts[blockId] ?? selectedBlockMap.get(blockId)?.content ?? null;
-
-    if (currentSerialized === serializedContent) {
-      return;
-    }
-
-    setBlockContentDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      [blockId]: serializedContent,
-    }));
-
-    updateNoteBlock({
-      blockId,
-      pageId: selectedPageIdForWrite,
-      content: nextContent,
-    });
-  };
-
-  const handleCommitBlockContent = (blockId: string, nextContent: JsonValue) => {
-    const serializedContent = JSON.stringify(nextContent);
-    const currentSerialized = blockContentDrafts[blockId] ?? selectedBlockMap.get(blockId)?.content ?? null;
-
-    if (currentSerialized === serializedContent) {
-      return;
-    }
-
-    setBlockContentDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      [blockId]: serializedContent,
-    }));
-
-    updateNoteBlock({
-      blockId,
-      pageId: selectedPageIdForWrite,
-      content: nextContent,
-    });
-
-    void flushUpdate(blockId, "blocks");
-  };
-
-  const normalizedPages = useMemo<NormalizedNotePage[]>(
-    () =>
-      recentPages.map((page) => {
-        const properties = parseProperties(page.properties);
-        const summary = typeof properties.summary === "string" ? properties.summary : null;
-        const tags = Array.isArray(properties.tags)
-          ? properties.tags.filter((tag): tag is string => typeof tag === "string")
-          : [];
-
-        return {
-          ...page,
-          summary,
-          tags,
-        };
-      }),
-    [recentPages]
-  );
-
-  const allNormalizedPages = useMemo<NormalizedNotePage[]>(
-    () =>
-      allPages.map((page) => {
-        const properties = parseProperties(page.properties);
-        const summary = typeof properties.summary === "string" ? properties.summary : null;
-        const tags = Array.isArray(properties.tags)
-          ? properties.tags.filter((tag): tag is string => typeof tag === "string")
-          : [];
-
-        return {
-          ...page,
-          summary,
-          tags,
-        };
-      }),
-    [allPages]
-  );
-
-  const notePageTitles = useMemo(() => {
-    const seenTitles = new Set<string>();
-
-    return allPages.flatMap((page) => {
-      const normalizedTitle = normalizeNotePageTitle(page.title) || "Untitled";
-      const key = normalizedTitle.toLocaleLowerCase();
-
-      if (seenTitles.has(key)) {
-        return [];
-      }
-
-      seenTitles.add(key);
-      return [normalizedTitle];
-    });
-  }, [allPages]);
-
-  const notePageIdByTitle = useMemo(() => {
-    const titleMap = new Map<string, string>();
-
-    allPages.forEach((page) => {
-      const normalizedTitle = normalizeNotePageTitle(page.title) || "Untitled";
-      const key = normalizedTitle.toLocaleLowerCase();
-
-      if (!titleMap.has(key)) {
-        titleMap.set(key, page.id);
-      }
-    });
-
-    return titleMap;
-  }, [allPages]);
-
-  const normalizedSearchQuery = useMemo(() => normalizeNotePageTitle(pageSearchQuery), [pageSearchQuery]);
-  const filteredSearchPages = useMemo(() => {
-    const nextQuery = normalizedSearchQuery.toLocaleLowerCase();
-
-    if (!nextQuery) {
-      return allNormalizedPages;
-    }
-
-    return allNormalizedPages.filter((page) => {
-      const title = (normalizeNotePageTitle(page.title) || "Untitled").toLocaleLowerCase();
-      const summary = (page.summary ?? "").toLocaleLowerCase();
-      const tags = page.tags.join(" ").toLocaleLowerCase();
-      return title.includes(nextQuery) || summary.includes(nextQuery) || tags.includes(nextQuery);
-    });
-  }, [allNormalizedPages, normalizedSearchQuery]);
-
-  const exactSearchMatch = useMemo(
-    () => notePageIdByTitle.get(normalizedSearchQuery.toLocaleLowerCase()) ?? null,
-    [notePageIdByTitle, normalizedSearchQuery]
-  );
-
-  const canCreatePageFromSearch = normalizedSearchQuery.length > 0 && !exactSearchMatch;
-
-  const selectedPageProperties = useMemo(
-    () => parseProperties(selectedPage?.properties ?? null),
-    [selectedPage?.properties]
-  );
-  const selectedBlockMap = useMemo(
-    () => new Map(structuredBlocks.map((block) => [block.id, block])),
-    [structuredBlocks]
-  );
-  const orderedVisibleBlockIds = useMemo(
-    () => getVisibleNoteBlockIds(structuredBlocks),
-    [structuredBlocks]
-  );
-
-  const selectedPageTags = useMemo(
-    () => Array.isArray(selectedPageProperties.tags)
-      ? selectedPageProperties.tags.filter((tag): tag is string => typeof tag === "string")
-      : [],
-    [selectedPageProperties.tags]
-  );
-  const favoritePages = useMemo(
-    () => normalizedPages.filter((page) => {
-      const properties = parseProperties(page.properties);
-      return properties.favorite === true;
-    }),
-    [normalizedPages]
-  );
-  const tagDirectory = useMemo<TagDirectoryEntry[]>(() => {
-    const tagMap = new Map<string, TagDirectoryEntry>();
-
-    normalizedPages.forEach((page) => {
-      page.tags.forEach((tag) => {
-        const trimmedTag = tag.trim();
-        if (!trimmedTag) return;
-
-        const key = trimmedTag.toLowerCase();
-        const entry = tagMap.get(key);
-
-        if (entry) {
-          entry.count += 1;
-          entry.pages.push(page);
-          return;
-        }
-
-        tagMap.set(key, {
-          key,
-          label: trimmedTag,
-          count: 1,
-          pages: [page],
-        });
-      });
-    });
-
-    return Array.from(tagMap.values()).sort((left, right) => {
-      if (right.count !== left.count) {
-        return right.count - left.count;
-      }
-
-      return left.label.localeCompare(right.label);
-    });
-  }, [normalizedPages]);
-  const recentAccessPages = useMemo(
-    () => normalizedPages.filter((page) => {
-      const properties = parseProperties(page.properties);
-      return properties.favorite !== true;
-    }),
-    [normalizedPages]
-  );
-  const displayBlocks = useMemo(
-    () => structuredBlocks.map((block) => ({
-      ...block,
-      content: blockContentDrafts[block.id] ?? block.content,
-    })),
-    [blockContentDrafts, structuredBlocks]
-  );
-  const pageOutline = useMemo<OutlineEntry[]>(
-    () => displayBlocks.flatMap((block) => extractOutlineEntries(block.id, block.content)),
-    [displayBlocks]
-  );
+  const {
+    handleCommitBlockContent,
+    handleCreateEmptySiblingBlock,
+    handleCreateRootBlock,
+    handleCreateSiblingBlock,
+    handleCreateSiblingBlocks,
+    handleDeleteBlock,
+    handleIndentBlock,
+    handleOutdentBlock,
+    handleUpdateBlockContent,
+    orderedVisibleBlockIds,
+    selectedBlockMap,
+    structuredBlocks,
+  } = useNoteBlockActions({
+    selectedBlocks,
+    selectedPageId,
+    selectedPageIdForWrite,
+    isCreatingBlock,
+    blockContentDrafts,
+    optimisticBlockStructure,
+    setIsCreatingBlock,
+    setBlockContentDrafts,
+    setOptimisticBlockStructure,
+    setFocusTarget,
+  });
+
+  const {
+    canCreatePageFromSearch,
+    createdTimestamp,
+    displayBlocks,
+    favoritePages,
+    filteredSearchPages,
+    normalizedPages,
+    normalizedSearchQuery,
+    notePageIdByTitle,
+    notePageTitles,
+    pageOutline,
+    recentAccessPages,
+    selectedPageEmoji,
+    selectedPageProperties,
+    selectedPageSummary,
+    selectedPageTags,
+    tagDirectory,
+    updatedTimestamp,
+  } = useNotesPageDerivedState({
+    allPages,
+    recentPages,
+    selectedPage,
+    structuredBlocks,
+    blockContentDrafts,
+    pageSearchQuery,
+  });
+  const activePageEmoji = pageEmojiDraft;
   const absoluteUpdatedTimeTimeoutRef = useRef<number | null>(null);
-
-  const selectedPageSummary = typeof selectedPageProperties.summary === "string"
-    ? selectedPageProperties.summary
-    : null;
-  const createdTimestamp = formatTimestampLabel(selectedPage?.created_at ?? null);
-  const updatedTimestamp = formatTimestampLabel(selectedPage?.updated_at ?? null);
 
   const revealAbsoluteUpdatedTime = () => {
     setShowAbsoluteUpdatedTime(true);
@@ -827,6 +204,7 @@ export default function NotesPage() {
     if (!selectedPage) {
       setPageTitleDraft("");
       setPageTitleError(null);
+      setPageEmojiDraft(null);
       setSummaryDraft("");
       setTagsDraft("");
       setBlockContentDrafts({});
@@ -837,7 +215,8 @@ export default function NotesPage() {
     }
 
     setPageTitleDraft(selectedPage?.title ?? "");
-  setPageTitleError(null);
+    setPageTitleError(null);
+    setPageEmojiDraft(selectedPageEmoji);
     setSummaryDraft(selectedPageSummary ?? "");
     setTagsDraft(selectedPageTags.join(", "));
     setBlockContentDrafts({});
@@ -938,57 +317,36 @@ export default function NotesPage() {
   }, [linkedReferences.length, pageOutline.length, pageTagMentions.length, selectedPage?.id, selectedPageAttachments.length, selectedPageSummary, selectedPageTags.length]);
 
   const isLoading = isLoadingCounts || isLoadingRecentPages;
-  const resolvedSurfaceKey = selectedPageId ? `editor:${selectedPageId}` : "overview";
-  const displaySurfaceKey = pendingSurfaceKey ?? resolvedSurfaceKey;
-  const isDisplayingOverview = displaySurfaceKey === "overview";
-  const showOverviewLoading = useSmoothedLoading(
-    isDisplayingOverview && (displaySurfaceKey !== resolvedSurfaceKey || isLoading),
-    displaySurfaceKey,
-    180,
-    70
-  );
-  const showSelectedPageLoading = useSmoothedLoading(
-    !isDisplayingOverview && (displaySurfaceKey !== resolvedSurfaceKey || isLoadingSelectedPage),
-    displaySurfaceKey,
-    220,
-    90
-  );
-  const [cachedOverviewContent, setCachedOverviewContent] = useState<{
-    favoritePages: typeof favoritePages;
-    recentAccessPages: typeof recentAccessPages;
-  } | null>(null);
-  const [cachedEditorContent, setCachedEditorContent] = useState<{
-    pageId: string;
-    title: string;
-    favorite: boolean;
-    blockCount: number;
-    backlinkCount: number;
-    blocks: typeof displayBlocks;
-  } | null>(null);
 
-  useEffect(() => {
-    if (!pendingSurfaceKey) return;
-    if (pendingSurfaceKey !== resolvedSurfaceKey) return;
-
-    const isSettled = resolvedSurfaceKey === "overview" ? !isLoading : !isLoadingSelectedPage;
-    if (!isSettled) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setPendingSurfaceKey(null);
-    }, 90);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isLoading, isLoadingSelectedPage, pendingSurfaceKey, resolvedSurfaceKey]);
-
-  const transitionToOverview = () => {
-    setPendingSurfaceKey("overview");
-  };
-
-  const transitionToEditor = (pageId: string) => {
-    setPendingSurfaceKey(`editor:${pageId}`);
-  };
+  const {
+    editorContentToRender,
+    editorUpdatedTimestamp,
+    isDisplayingOverview,
+    overviewFavoritePagesToRender,
+    overviewRecentPagesToRender,
+    shouldAnimateEditorContent,
+    shouldAnimateOverviewContent,
+    showEditorOverlay,
+    showOverviewLoading,
+    showOverviewOverlay,
+    showSelectedPageLoading,
+    transitionToEditor,
+    transitionToOverview,
+  } = useNotesSurfaceState({
+    selectedPageId,
+    isLoading,
+    isLoadingSelectedPage,
+    favoritePages,
+    recentAccessPages,
+    selectedPageIdForEditor: selectedPage?.id,
+    selectedPageTitle: pageTitleDraft || selectedPage?.title || "Untitled page",
+    activePageEmoji,
+    isSelectedPageFavorite: selectedPageProperties.favorite === true,
+    selectedBlockCount: selectedBlocks.length,
+    linkedReferenceCount: linkedReferences.length,
+    displayBlocks,
+    updatedTimestamp,
+  });
 
   const openPageById = (pageId: string) => {
     transitionToEditor(pageId);
@@ -1032,31 +390,6 @@ export default function NotesPage() {
     openPageById(targetPageId);
   };
 
-  const commitPageTitleDraft = async () => {
-    if (!selectedPageId) {
-      return;
-    }
-
-    const normalizedDraft = normalizeNotePageTitle(pageTitleDraft) || "Untitled page";
-
-    if (normalizeNotePageTitle(selectedPage?.title) === normalizedDraft) {
-      setPageTitleDraft(normalizedDraft);
-      setPageTitleError(null);
-      return;
-    }
-
-    const isAvailable = await isNotePageTitleAvailable(normalizedDraft, selectedPageId);
-    if (!isAvailable) {
-      setPageTitleError("Page titles must be unique.");
-      setPageTitleDraft(selectedPage?.title ?? "");
-      return;
-    }
-
-    setPageTitleError(null);
-    setPageTitleDraft(normalizedDraft);
-    updateNotePageTitle(selectedPageId, normalizedDraft);
-  };
-
   const overviewSearchTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -1072,82 +405,6 @@ export default function NotesPage() {
       window.clearTimeout(timeoutId);
     };
   }, [isPageSearchOpen, pageSearchQuery]);
-
-  const pageSearchResults = (
-    <>
-      <CommandEmpty>
-        {canCreatePageFromSearch ? (
-          <div className="px-2 py-2 text-left text-sm text-muted-foreground">
-            No matching pages. Create <span className="font-medium text-foreground">{normalizedSearchQuery}</span>.
-          </div>
-        ) : "No pages found."}
-      </CommandEmpty>
-      <CommandGroup heading="Pages">
-        {filteredSearchPages.map((page) => (
-          <CommandItem
-            key={page.id}
-            value={page.id}
-            onSelect={() => handleSelectPageFromSearch(page.id)}
-            className="items-start gap-3 rounded-lg px-3 py-2"
-          >
-            <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{page.title || "Untitled page"}</div>
-              {page.summary ? <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{page.summary}</div> : null}
-            </div>
-          </CommandItem>
-        ))}
-      </CommandGroup>
-      {canCreatePageFromSearch ? (
-        <>
-          <CommandSeparator />
-          <CommandGroup heading="Create">
-            <CommandItem
-              value={`create:${normalizedSearchQuery}`}
-              onSelect={() => {
-                void handleCreatePageFromSearch(normalizedSearchQuery);
-              }}
-              className="rounded-lg px-3 py-2"
-            >
-              <Plus className="h-4 w-4 text-muted-foreground" />
-              <div className="min-w-0 flex-1 truncate">
-                <span className="font-medium text-foreground">Create page</span>
-                <span className="mx-2 text-muted-foreground/60">-</span>
-                <span className="text-muted-foreground">{normalizedSearchQuery}</span>
-              </div>
-              <CommandShortcut>{isCreatingPage ? "..." : "Enter"}</CommandShortcut>
-            </CommandItem>
-          </CommandGroup>
-        </>
-      ) : null}
-    </>
-  );
-
-  const overviewSearchTrigger = (
-    <div className="flex justify-center">
-      <button
-        ref={overviewSearchTriggerRef}
-        type="button"
-        onClick={() => setIsPageSearchOpen(true)}
-        className="flex h-10 w-full max-w-xl items-center gap-3 rounded-full border border-border/70 bg-card/85 px-4 text-left text-sm text-muted-foreground shadow-sm transition-colors hover:border-border hover:text-foreground"
-        aria-label="Search pages"
-        aria-expanded={isPageSearchOpen}
-      >
-        <Search className="h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search or create pages</span>
-        <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">Search</span>
-      </button>
-    </div>
-  );
-
-  const handleToggleFavorite = () => {
-    if (!selectedPageId) return;
-
-    updateNotePageProperties(selectedPageId, {
-      ...(selectedPageProperties as Record<string, null | boolean | number | string | unknown[] | Record<string, unknown>>),
-      favorite: selectedPageProperties.favorite !== true,
-    });
-  };
 
   const togglePageRailSection = (section: keyof typeof pageRailSectionOpen) => {
     setPageRailSectionOpen((current) => ({
@@ -1195,110 +452,41 @@ export default function NotesPage() {
     });
   };
 
-  const handleDeletePage = async () => {
-    if (!selectedPageId) return;
-
-    setIsDeletingPage(true);
-
-    try {
-      await deleteNotePage(selectedPageId);
+  const {
+    commitPageTitleDraft,
+    handleCopyDocument,
+    handleDeletePage,
+    handleSelectPageEmoji,
+    handleToggleFavorite,
+    persistSelectedPageProperties,
+    togglePageFavorite,
+  } = useNotePageActions({
+    selectedPageId,
+    selectedPage,
+    selectedPageProperties,
+    selectedPageSummary,
+    selectedPageTags,
+    pageTitleDraft,
+    activePageEmoji,
+    summaryDraft,
+    tagsDraft,
+    blockContentDrafts,
+    orderedVisibleBlockIds,
+    selectedBlockMap,
+    setPageTitleDraft,
+    setPageTitleError,
+    setPageEmojiDraft,
+    setIsEmojiPickerOpen,
+    setIsDeletingPage,
+    setIsDeleteDialogOpen,
+    onDeleteSuccess: () => {
       transitionToOverview();
       startTransition(() => {
         router.push("/notes");
       });
-    } finally {
-      setIsDeletingPage(false);
-      setIsDeleteDialogOpen(false);
-    }
-  };
+    },
+  });
 
-  const handleCopyDocument = async () => {
-    if (!selectedPage) return;
-
-    const lines = [selectedPage.title?.trim() || "Untitled page"];
-
-    if (selectedPageSummary?.trim()) {
-      lines.push("", selectedPageSummary.trim());
-    }
-
-    if (selectedPageTags.length > 0) {
-      lines.push("", `Tags: ${selectedPageTags.map((tag) => `#${tag}`).join(", ")}`);
-    }
-
-    const blockLines = orderedVisibleBlockIds
-      .map((blockId) => {
-        const serialized = blockContentDrafts[blockId] ?? selectedBlockMap.get(blockId)?.content ?? null;
-        return extractNoteText(serialized);
-      })
-      .filter((text) => text.length > 0);
-
-    if (blockLines.length > 0) {
-      lines.push("", ...blockLines.map((text) => `- ${text}`));
-    }
-
-    await navigator.clipboard.writeText(lines.join("\n"));
-  };
-
-  const persistSelectedPageProperties = (nextSummary: string, nextTagsRaw: string) => {
-    if (!selectedPageId) return;
-
-    const nextTags = nextTagsRaw
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-
-    updateNotePageProperties(selectedPageId, {
-      ...(selectedPageProperties as Record<string, null | boolean | number | string | unknown[] | Record<string, unknown>>),
-      summary: nextSummary,
-      tags: nextTags,
-    });
-  };
-
-  useEffect(() => {
-    if (isLoading) return;
-    setCachedOverviewContent({
-      favoritePages,
-      recentAccessPages,
-    });
-  }, [favoritePages, isLoading, recentAccessPages]);
-
-  useEffect(() => {
-    if (isLoadingSelectedPage || !selectedPage) return;
-    setCachedEditorContent({
-      pageId: selectedPage.id,
-      title: pageTitleDraft || selectedPage.title || "Untitled page",
-      favorite: selectedPageProperties.favorite === true,
-      blockCount: selectedBlocks.length,
-      backlinkCount: linkedReferences.length,
-      blocks: displayBlocks,
-    });
-  }, [displayBlocks, isLoadingSelectedPage, linkedReferences.length, pageTitleDraft, selectedBlocks.length, selectedPage, selectedPageProperties.favorite]);
-
-  const overviewFavoritePagesToRender = showOverviewLoading
-    ? cachedOverviewContent?.favoritePages ?? []
-    : favoritePages;
-  const overviewRecentPagesToRender = showOverviewLoading
-    ? cachedOverviewContent?.recentAccessPages ?? []
-    : recentAccessPages;
-  const showOverviewOverlay = showOverviewLoading && cachedOverviewContent !== null;
-  const shouldAnimateOverviewContent = !showOverviewLoading && cachedOverviewContent === null;
-  const editorContentToRender = showSelectedPageLoading
-    ? cachedEditorContent
-    : selectedPage
-      ? {
-          pageId: selectedPage.id,
-          title: pageTitleDraft || selectedPage.title || "Untitled page",
-          favorite: selectedPageProperties.favorite === true,
-          blockCount: selectedBlocks.length,
-          backlinkCount: linkedReferences.length,
-          blocks: displayBlocks,
-        }
-      : null;
-  const showEditorOverlay = showSelectedPageLoading && cachedEditorContent !== null;
-  const shouldAnimateEditorContent = !showSelectedPageLoading && cachedEditorContent === null;
-  const editorUpdatedTimestamp = editorContentToRender?.pageId === selectedPage?.id
-    ? updatedTimestamp
-    : null;
   const showDesktopUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay && !isLoading && !showSelectedPageLoading && selectedPage);
   const showMobileUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay);
   const desktopGridColumns = showDesktopPagesRail && showDesktopDetailsRail
@@ -1308,55 +496,6 @@ export default function NotesPage() {
       : showDesktopDetailsRail
         ? "sm:grid-cols-[44px_minmax(0,1fr)_320px]"
         : "sm:grid-cols-[44px_minmax(0,1fr)_44px]";
-
-  const renderNavigationPageLink = (
-    page: NormalizedNotePage,
-    {
-      showTags = true,
-      trailing,
-      className,
-    }: {
-      showTags?: boolean;
-      trailing?: React.ReactNode;
-      className?: string;
-    } = {}
-  ) => (
-    <Link
-      key={page.id}
-      href={`/notes?page=${page.id}`}
-      onClick={() => transitionToEditor(page.id)}
-      className={`block rounded-lg px-3 py-1.5 transition-smooth ${
-        page.id === selectedPageId
-          ? "text-amber-700 dark:text-amber-300"
-          : "text-foreground hover:bg-accent/60"
-      } ${className ?? ""}`.trim()}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
-          <FileText className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${page.id === selectedPageId ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground"}`} />
-          <div className="min-w-0">
-            <p className={`truncate text-[12px] font-medium ${page.id === selectedPageId ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>{page.title || "Untitled page"}</p>
-            {page.summary ? (
-              <p className={`mt-0.5 line-clamp-2 text-[11px] leading-4.5 ${page.id === selectedPageId ? "text-amber-700/80 dark:text-amber-300/80" : "text-muted-foreground"}`}>{page.summary}</p>
-            ) : null}
-          </div>
-        </div>
-        {trailing ?? null}
-      </div>
-      {showTags && page.tags.length > 0 ? (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {page.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${page.id === selectedPageId ? "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </Link>
-  );
 
   const desktopPagesRestoreButton = !showDesktopPagesRail ? (
     <Button
@@ -1382,63 +521,6 @@ export default function NotesPage() {
     >
       <PanelRightOpen className="h-4 w-4" />
     </Button>
-  ) : null;
-
-  const mobileNavigationRailHeader = (
-    <div className="flex items-center justify-between gap-3 sm:hidden">
-      <p className="text-sm font-semibold text-foreground">Pages</p>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={toggleAllPageRailSections}
-        className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-      >
-        {areAllPageRailSectionsOpen ? "Collapse all" : "Expand all"}
-      </Button>
-    </div>
-  );
-
-  const mobileDetailsRailHeader = (
-    <div className="flex items-center justify-between gap-3 sm:hidden">
-      <p className="text-sm font-semibold text-foreground">Details</p>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={toggleAllDetailsSections}
-        className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-      >
-        {areAllDetailsSectionsOpen ? "Collapse all" : "Expand all"}
-      </Button>
-    </div>
-  );
-
-  const desktopNavigationRailHeader = showDesktopPagesRail ? (
-    <div className="hidden w-full items-center justify-between gap-3 sm:flex">
-      <p className="text-sm font-semibold text-foreground">Pages</p>
-      <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={toggleAllPageRailSections}
-          className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {areAllPageRailSectionsOpen ? "Collapse all" : "Expand all"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => setShowDesktopPagesRail(false)}
-          className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-          aria-label="Hide pages panel"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
   ) : null;
 
   const desktopDetailsRailHeader = showDesktopDetailsRail ? (
@@ -1469,363 +551,53 @@ export default function NotesPage() {
   ) : null;
 
   const navigationRail = (
-    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
-      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
-        {mobileNavigationRailHeader}
-
-        {isLoading ? (
-          <div className="px-1 py-1">
-            <NotesNavigationRailSkeleton showHeader={false} />
-          </div>
-        ) : normalizedPages.length === 0 ? (
-          <div className="px-2 py-4 text-[13px] text-muted-foreground">No pages yet. Create one to start writing.</div>
-        ) : (
-          <div className="space-y-4">
-            <DetailsSection
-              title="Favorites"
-              icon={Star}
-              accentClassName="bg-amber-500/12 text-amber-700 dark:bg-amber-500/18 dark:text-amber-300"
-              isOpen={pageRailSectionOpen.favorites}
-              onToggle={() => togglePageRailSection("favorites")}
-            >
-              <div className="space-y-1">
-                {favoritePages.length === 0 ? (
-                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No favorites yet.</div>
-                ) : (
-                  favoritePages.map((page) => renderNavigationPageLink(page, {
-                    trailing: <Star className="mt-0.5 h-4 w-4 shrink-0 fill-current text-amber-500" />,
-                  }))
-                )}
-              </div>
-            </DetailsSection>
-
-            <DetailsSection
-              title="Recently accessed"
-              icon={Clock3}
-              accentClassName="bg-sky-500/12 text-sky-700 dark:bg-sky-500/18 dark:text-sky-300"
-              isOpen={pageRailSectionOpen.recent}
-              onToggle={() => togglePageRailSection("recent")}
-            >
-              <div className="space-y-1">
-                {recentAccessPages.length === 0 ? (
-                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No recent pages yet.</div>
-                ) : (
-                  recentAccessPages.map((page) => renderNavigationPageLink(page))
-                )}
-              </div>
-            </DetailsSection>
-
-            <DetailsSection
-              title="Tags"
-              icon={Tags}
-              accentClassName="bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/18 dark:text-emerald-300"
-              isOpen={pageRailSectionOpen.tags}
-              onToggle={() => togglePageRailSection("tags")}
-            >
-              <div className="space-y-1">
-                {tagDirectory.length === 0 ? (
-                  <div className="px-3 py-1 text-[13px] text-muted-foreground">No tags yet.</div>
-                ) : (
-                  tagDirectory.map((entry) => {
-                    const isOpen = tagDirectoryOpen[entry.key] ?? false;
-
-                    return (
-                      <div key={entry.key} className="space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleTagDirectoryGroup(entry.key)}
-                          aria-expanded={isOpen}
-                          aria-controls={`tag-directory-${entry.key}`}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors hover:text-foreground"
-                        >
-                          <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground">
-                              <Hash className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block truncate text-[13px] font-medium text-foreground">#{entry.label}</span>
-                              <span className="block text-[11px] leading-5 text-muted-foreground">{entry.count} page{entry.count === 1 ? "" : "s"}</span>
-                            </span>
-                          </span>
-                          <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : "rotate-0"}`} />
-                        </button>
-
-                        <div
-                          id={`tag-directory-${entry.key}`}
-                          className={`grid overflow-hidden transition-all duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
-                        >
-                          <div className="min-h-0" inert={!isOpen}>
-                            <div className={`space-y-1 pl-8 transition-all duration-200 ease-out ${isOpen ? "translate-y-0" : "-translate-y-1"}`} aria-hidden={!isOpen}>
-                              {entry.pages.map((page) => renderNavigationPageLink(page, {
-                                showTags: false,
-                                className: "px-3 py-1.5",
-                              }))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </DetailsSection>
-          </div>
-        )}
-      </div>
-    </div>
+    <NotesNavigationRail
+      isLoading={isLoading}
+      normalizedPages={normalizedPages}
+      favoritePages={favoritePages}
+      recentAccessPages={recentAccessPages}
+      tagDirectory={tagDirectory}
+      tagDirectoryOpen={tagDirectoryOpen}
+      pageRailSectionOpen={pageRailSectionOpen}
+      selectedPageId={selectedPageId}
+      areAllSectionsOpen={areAllPageRailSectionsOpen}
+      onToggleAllSections={toggleAllPageRailSections}
+      onTogglePageRailSection={togglePageRailSection}
+      onToggleTagDirectoryGroup={toggleTagDirectoryGroup}
+      onSelectPage={transitionToEditor}
+    />
   );
 
-  const detailsRail = selectedPage ? (
-    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
-      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
-          {mobileDetailsRailHeader}
-
-          <DetailsSection
-            title="Outline"
-            icon={Files}
-            accentClassName="bg-slate-500/12 text-slate-700 dark:bg-slate-500/18 dark:text-slate-300"
-            isOpen={detailsSectionOpen.outline}
-            onToggle={() => toggleDetailsSection("outline")}
-          >
-            {pageOutline.length === 0 ? (
-              <p className="mt-2 flex items-center gap-2 text-[13px] text-muted-foreground"><Files className="h-3.5 w-3.5" />No headings yet.</p>
-            ) : (
-              <div className="mt-2 space-y-1 animate-stagger">
-                {pageOutline.map((entry, index) => (
-                  <button
-                    key={`${entry.blockId}-${index}`}
-                    type="button"
-                    onClick={() => setFocusTarget({ blockId: entry.blockId, placement: "start" })}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-foreground transition-smooth hover:bg-accent"
-                    style={{ paddingLeft: `${12 + (entry.level - 1) * 12}px` }}
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">H{entry.level}</span>
-                    <span className="truncate">{entry.text}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </DetailsSection>
-
-          <DetailsSection
-            title="Summary"
-            icon={FileText}
-            accentClassName="bg-amber-500/12 text-amber-700 dark:bg-amber-500/18 dark:text-amber-300"
-            isOpen={detailsSectionOpen.summary}
-            onToggle={() => toggleDetailsSection("summary")}
-          >
-            <Textarea
-              value={summaryDraft}
-              onChange={(event) => {
-                setSummaryDraft(event.target.value);
-                persistSelectedPageProperties(event.target.value, tagsDraft);
-              }}
-              rows={4}
-              placeholder="Add page context"
-              className="min-h-24 rounded-xl border-0 bg-muted/95 px-3 py-2.5 text-[13px] leading-5 shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0"
-            />
-          </DetailsSection>
-
-          <DetailsSection
-            title="Tags"
-            icon={Tags}
-            accentClassName="bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/18 dark:text-emerald-300"
-            isOpen={detailsSectionOpen.tags}
-            onToggle={() => toggleDetailsSection("tags")}
-          >
-            <Input
-              value={tagsDraft}
-              onChange={(event) => {
-                setTagsDraft(event.target.value);
-                persistSelectedPageProperties(summaryDraft, event.target.value);
-              }}
-              placeholder="comma, separated, tags"
-              className="h-10 rounded-xl border-0 bg-muted/95 px-3 text-[13px] shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0"
-            />
-          </DetailsSection>
-
-          <DetailsSection
-            title="Linked references"
-            icon={Link2}
-            accentClassName="bg-sky-500/12 text-sky-700 dark:bg-sky-500/18 dark:text-sky-300"
-            isOpen={detailsSectionOpen.references}
-            onToggle={() => toggleDetailsSection("references")}
-          >
-            {isLoadingLinkedReferences ? (
-              <div className="mt-2 space-y-2 animate-stagger">
-                <DetailsRailCardSkeleton lines={2} />
-                <DetailsRailCardSkeleton lines={3} />
-                <DetailsRailCardSkeleton lines={2} />
-              </div>
-            ) : linkedReferences.length === 0 ? (
-              <p className="mt-2 flex items-center gap-2 text-[13px] text-muted-foreground"><Link2 className="h-3.5 w-3.5" />No incoming references.</p>
-            ) : (
-              <div className="mt-2 space-y-2 animate-stagger">
-                {linkedReferences.slice(0, 8).map((reference) => (
-                  <div key={`${reference.source_block_id}-${reference.source_page_id}`} className="rounded-xl bg-muted/95 px-3 py-2.5 transition-smooth">
-                    <p className="flex items-center gap-1.5 text-[12px] font-medium text-foreground"><FileText className="h-3 w-3 text-muted-foreground" />{reference.source_page_title || "Untitled page"}</p>
-                    <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-muted-foreground">{reference.source_block_content ? JSON.parse(reference.source_block_content).content?.[0]?.content?.[0]?.text ?? "Referenced block" : "Referenced block"}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </DetailsSection>
-
-          <DetailsSection
-            title="Tag mentions"
-            icon={Hash}
-            accentClassName="bg-violet-500/12 text-violet-700 dark:bg-violet-500/18 dark:text-violet-300"
-            isOpen={detailsSectionOpen.mentions}
-            onToggle={() => toggleDetailsSection("mentions")}
-          >
-            {isLoadingTagMentions ? (
-              <div className="mt-2 flex flex-wrap gap-2 animate-stagger">
-                <Bone className="h-7 w-24 rounded-full" />
-                <Bone className="h-7 w-20 rounded-full" />
-                <Bone className="h-7 w-28 rounded-full" />
-              </div>
-            ) : pageTagMentions.length === 0 ? (
-              <p className="mt-2 flex items-center gap-2 text-[13px] text-muted-foreground"><Hash className="h-3.5 w-3.5" />No inline tags.</p>
-            ) : (
-              <div className="mt-2 flex flex-wrap gap-2 animate-stagger">
-                {pageTagMentions.map((tag) => (
-                  <span
-                    key={tag.tag_name}
-                    className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-700 transition-smooth dark:bg-amber-500/20 dark:text-amber-300"
-                  >
-                    #{tag.tag_name} · {tag.mention_count}
-                  </span>
-                ))}
-              </div>
-            )}
-          </DetailsSection>
-
-          <DetailsSection
-            title="Attachments"
-            icon={Paperclip}
-            accentClassName="bg-cyan-500/12 text-cyan-700 dark:bg-cyan-500/18 dark:text-cyan-300"
-            isOpen={detailsSectionOpen.attachments}
-            onToggle={() => toggleDetailsSection("attachments")}
-          >
-            {isLoadingAttachments ? (
-              <div className="mt-2 space-y-2 animate-stagger">
-                <DetailsRailCardSkeleton lines={1} />
-                <DetailsRailCardSkeleton lines={1} />
-              </div>
-            ) : selectedPageAttachments.length === 0 ? (
-              <p className="mt-2 flex items-center gap-2 text-[13px] text-muted-foreground"><Paperclip className="h-3.5 w-3.5" />No attachments yet.</p>
-            ) : (
-              <div className="mt-2 space-y-2 animate-stagger">
-                {selectedPageAttachments.slice(0, 6).map((attachment) => (
-                  <div key={attachment.id} className="rounded-xl bg-muted/95 px-3 py-2.5 transition-smooth">
-                    <p className="truncate text-[12px] font-medium text-foreground">{attachmentLabel(attachment.file_path)}</p>
-                    <p className="mt-1 truncate text-[11px] leading-5 text-muted-foreground">
-                      {attachment.sync_state ?? "local"}
-                      {attachment.file_path ? ` · ${attachment.file_path}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </DetailsSection>
-
-          <DetailsSection
-            title="Timestamps"
-            icon={Clock3}
-            accentClassName="bg-slate-500/12 text-slate-700 dark:bg-slate-500/18 dark:text-slate-300"
-            isOpen={detailsSectionOpen.timestamps}
-            onToggle={() => toggleDetailsSection("timestamps")}
-          >
-            <div className="overflow-hidden rounded-xl bg-muted/95">
-              <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Created</p>
-                  <p className="mt-1 text-[13px] text-foreground">{createdTimestamp?.relative ?? "Unknown"}</p>
-                </div>
-                <p className="pt-0.5 text-right text-[11px] leading-5 text-muted-foreground">{createdTimestamp?.absolute ?? "No timestamp available"}</p>
-              </div>
-            </div>
-          </DetailsSection>
-
-          <section className="grid grid-cols-2 gap-3 pl-8 text-center animate-stagger">
-            <div className="rounded-xl bg-muted/95 px-3 py-3 transition-smooth">
-              <p className="text-base font-semibold text-foreground">{selectedBlocks.length}</p>
-              <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><Files className="h-3 w-3" />Blocks</p>
-            </div>
-            <div className="rounded-xl bg-muted/95 px-3 py-3 transition-smooth">
-              {isLoadingAttachments ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Bone className="h-5 w-8" />
-                  <Bone className="h-3 w-14" />
-                </div>
-              ) : (
-                <>
-                  <p className="text-base font-semibold text-foreground">{selectedPageAttachments.length}</p>
-                  <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><Paperclip className="h-3 w-3" />Files</p>
-                </>
-              )}
-            </div>
-          </section>
-
-          <DetailsSection
-            title="Actions"
-            icon={Settings2}
-            accentClassName="bg-rose-500/12 text-rose-700 dark:bg-rose-500/18 dark:text-rose-300"
-            isOpen={detailsSectionOpen.actions}
-            onToggle={() => toggleDetailsSection("actions")}
-          >
-            <div className="rounded-xl bg-muted/95 p-3 transition-smooth">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  void handleCopyDocument();
-                }}
-                className="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[13px] text-foreground hover:bg-accent hover:text-foreground"
-              >
-                <Copy className="h-4 w-4" />
-                Copy document
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setIsDeleteDialogOpen(true)}
-                className="mt-1 h-10 w-full justify-start gap-2 rounded-lg px-3 text-[13px] text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete page
-              </Button>
-            </div>
-          </DetailsSection>
-      </div>
-
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete page?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the page, its blocks, attachments, and local note links. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingPage}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePage}
-              disabled={isDeletingPage}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingPage ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete page"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  ) : null;
+  const detailsRail = (
+    <NotesDetailsRail
+      selectedPage={selectedPage}
+      detailsSectionOpen={detailsSectionOpen}
+      pageOutline={pageOutline}
+      summaryDraft={summaryDraft}
+      tagsDraft={tagsDraft}
+      linkedReferences={linkedReferences}
+      pageTagMentions={pageTagMentions}
+      selectedPageAttachments={selectedPageAttachments}
+      selectedBlocks={selectedBlocks}
+      createdTimestamp={createdTimestamp}
+      isLoadingLinkedReferences={isLoadingLinkedReferences}
+      isLoadingTagMentions={isLoadingTagMentions}
+      isLoadingAttachments={isLoadingAttachments}
+      isDeleteDialogOpen={isDeleteDialogOpen}
+      isDeletingPage={isDeletingPage}
+      areAllDetailsSectionsOpen={areAllDetailsSectionsOpen}
+      onToggleAllDetailsSections={toggleAllDetailsSections}
+      onToggleDetailsSection={toggleDetailsSection}
+      onSetSummaryDraft={setSummaryDraft}
+      onSetTagsDraft={setTagsDraft}
+      onPersistSelectedPageProperties={persistSelectedPageProperties}
+      onSetFocusTarget={setFocusTarget}
+      onOpenDeleteDialog={() => setIsDeleteDialogOpen(true)}
+      onOpenChangeDeleteDialog={setIsDeleteDialogOpen}
+      onHandleDeletePage={handleDeletePage}
+      onHandleCopyDocument={handleCopyDocument}
+    />
+  );
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
@@ -1850,113 +622,18 @@ export default function NotesPage() {
       <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:overflow-hidden sm:pb-4 md:py-8 md:pb-8">
         <div className="mx-auto max-w-[1600px] space-y-4 sm:flex sm:h-full sm:min-h-0 sm:flex-col sm:space-y-0">
           {isDisplayingOverview ? (
-            <section className="space-y-6 animate-fade-slide-in">
-              {overviewSearchTrigger}
-
-              <div className="grid gap-10 sm:grid-cols-2">
-              <section>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-amber-500" />
-                    <p className="text-sm font-semibold text-foreground">Favorites</p>
-                  </div>
-                </div>
-
-                <div className="relative mt-4 min-h-24">
-                  <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-                    <div className={`space-y-1 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
-                      {overviewFavoritePagesToRender.length === 0 ? (
-                        showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="py-6 text-sm text-muted-foreground">No favorites yet.</div>
-                      ) : (
-                        overviewFavoritePagesToRender.map((page) => (
-                          <Link
-                            key={page.id}
-                            href={`/notes?page=${page.id}`}
-                            onClick={() => transitionToEditor(page.id)}
-                            className="block rounded-lg px-2.5 py-2 transition-smooth hover:bg-accent"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex min-w-0 items-start gap-2">
-                                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-foreground">{page.title || "Untitled page"}</p>
-                                  {page.summary ? (
-                                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{page.summary}</p>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <Star className="mt-0.5 h-4 w-4 shrink-0 fill-current text-amber-500" />
-                            </div>
-                          </Link>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  {showOverviewOverlay ? (
-                    <div className="pointer-events-none absolute inset-0 bg-background">
-                      <NotesOverviewListSkeleton />
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-
-              <section>
-                <div className="flex items-center gap-2">
-                  <Files className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm font-semibold text-foreground">Recently accessed</p>
-                </div>
-
-                <div className="relative mt-4 min-h-24">
-                  <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-                    <div className={`space-y-1 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
-                      {overviewRecentPagesToRender.length === 0 ? (
-                        showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="py-6 text-sm text-muted-foreground">No recent pages yet.</div>
-                      ) : (
-                        overviewRecentPagesToRender.map((page) => (
-                          <Link
-                            key={page.id}
-                            href={`/notes?page=${page.id}`}
-                            onClick={() => transitionToEditor(page.id)}
-                            className="block rounded-lg px-2.5 py-2 transition-smooth hover:bg-accent"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex min-w-0 items-start gap-2">
-                                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-foreground">{page.title || "Untitled page"}</p>
-                                  {page.summary ? (
-                                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{page.summary}</p>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                            {page.tags.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {page.tags.slice(0, 3).map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
-                                  >
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </Link>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  {showOverviewOverlay ? (
-                    <div className="pointer-events-none absolute inset-0 bg-background">
-                      <NotesOverviewListSkeleton />
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-
-              </div>
-            </section>
+            <NotesOverview
+              isPageSearchOpen={isPageSearchOpen}
+              overviewSearchTriggerRef={overviewSearchTriggerRef}
+              overviewFavoritePagesToRender={overviewFavoritePagesToRender}
+              overviewRecentPagesToRender={overviewRecentPagesToRender}
+              showOverviewOverlay={showOverviewOverlay}
+              showOverviewLoading={showOverviewLoading}
+              shouldAnimateOverviewContent={shouldAnimateOverviewContent}
+              onOpenSearch={() => setIsPageSearchOpen(true)}
+              onSelectPage={transitionToEditor}
+              onToggleFavorite={togglePageFavorite}
+            />
           ) : (
             <>
               <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 sm:hidden">
@@ -2009,7 +686,12 @@ export default function NotesPage() {
               <section className={`grid gap-4 sm:h-full sm:min-h-0 sm:grid-rows-[auto_minmax(0,1fr)] sm:gap-y-2 ${desktopGridColumns}`}>
                 {showDesktopPagesRail ? (
                   <div className="hidden h-8 items-center sm:flex">
-                    {desktopNavigationRailHeader}
+                    <NotesNavigationRailHeader
+                      showDesktopPagesRail={showDesktopPagesRail}
+                      areAllSectionsOpen={areAllPageRailSectionsOpen}
+                      onToggleAllSections={toggleAllPageRailSections}
+                      onHideDesktopPagesRail={() => setShowDesktopPagesRail(false)}
+                    />
                   </div>
                 ) : (
                   <div className="hidden h-8 items-center justify-center sm:flex">
@@ -2064,101 +746,46 @@ export default function NotesPage() {
                 )}
 
                 {showDesktopPagesRail ? (
-                  <aside className="hidden sm:block sm:min-h-0 sm:overflow-hidden">{isLoading ? <NotesNavigationRailSkeleton showHeader={false} /> : navigationRail}</aside>
+                  <aside className="hidden sm:block sm:min-h-0 sm:overflow-hidden">{navigationRail}</aside>
                 ) : <div className="hidden sm:block" aria-hidden="true" />}
 
                 <section className="min-w-0 sm:min-h-0 sm:overflow-y-auto">
-                  {showSelectedPageLoading && !editorContentToRender ? (
-                    <div className="mx-auto max-w-3xl">
-                      <NotesEditorMainSkeleton />
-                    </div>
-                  ) : !editorContentToRender ? (
-                    <div className="mx-auto max-w-3xl py-12 text-sm text-muted-foreground">
-                      This page is not available locally.
-                    </div>
-                  ) : (
-                    <div className="relative mx-auto max-w-3xl">
-                      <div className={showEditorOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-                        <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
-                          <div className="contents">
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              transitionToOverview();
-                              router.push("/notes");
-                            }}
-                            className="hidden -ml-2 -mr-1 size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground md:size-9"
-                            aria-label="Back to notes list"
-                          >
-                            <ArrowLeft className="h-6 w-6 md:h-7 md:w-7" />
-                          </Button>
-                          <Input
-                            value={showEditorOverlay ? editorContentToRender.title : pageTitleDraft}
-                            onChange={(event) => {
-                              setPageTitleDraft(event.target.value);
-                              setPageTitleError(null);
-                            }}
-                            onBlur={() => {
-                              void commitPageTitleDraft();
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void commitPageTitleDraft();
-                                event.currentTarget.blur();
-                              }
-                            }}
-                            readOnly={showEditorOverlay}
-                            className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
-                            placeholder="Untitled"
-                          />
-                          <Button
-                            variant="ghost"
-                            className={`col-start-2 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 sm:col-start-3 ${editorContentToRender.favorite ? "text-amber-500" : "text-muted-foreground"}`}
-                            onClick={handleToggleFavorite}
-                            aria-label="Toggle favorite"
-                          >
-                            <Star className={`h-5 w-5 ${editorContentToRender.favorite ? "fill-current" : ""}`} />
-                          </Button>
-                          </div>
-
-                          <div className={`col-span-2 flex flex-wrap items-center gap-2 pl-3 text-xs text-muted-foreground sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
-                            {pageTitleError ? <span className="text-destructive">{pageTitleError}</span> : null}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Files className="h-3 w-3" />{editorContentToRender.blockCount} blocks</span>
-                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Link2 className="h-3 w-3" />{editorContentToRender.backlinkCount} backlinks</span>
-                            </div>
-                          </div>
-
-                          <div className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
-                            <NotesBlockTree
-                              blocks={editorContentToRender.blocks}
-                              onCreateFirstBlock={handleCreateRootBlock}
-                              focusedBlockId={focusTarget?.blockId ?? null}
-                              focusPlacement={focusTarget?.placement ?? "end"}
-                              onFocusApplied={() => setFocusTarget(null)}
-                              onFocusBlock={(blockId, placement) => setFocusTarget({ blockId, placement })}
-                              notePageTitles={notePageTitles}
-                              onOpenPageReference={handleOpenPageReference}
-                              onCreateSibling={handleCreateSiblingBlock}
-                              onCreateEmptySibling={handleCreateEmptySiblingBlock}
-                              onCreateSiblings={handleCreateSiblingBlocks}
-                              onCommitContent={handleCommitBlockContent}
-                              onIndent={handleIndentBlock}
-                              onOutdent={handleOutdentBlock}
-                              onDelete={handleDeleteBlock}
-                              onUpdateContent={handleUpdateBlockContent}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      {showEditorOverlay ? (
-                        <div className="pointer-events-none absolute inset-0 bg-background">
-                          <NotesEditorMainSkeleton />
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  <NotesEditorContent
+                    editorContent={editorContentToRender}
+                    showSelectedPageLoading={showSelectedPageLoading}
+                    showEditorOverlay={showEditorOverlay}
+                    shouldAnimateEditorContent={shouldAnimateEditorContent}
+                    pageTitleDraft={pageTitleDraft}
+                    pageTitleError={pageTitleError}
+                    isEmojiPickerOpen={isEmojiPickerOpen}
+                    activePageEmoji={activePageEmoji}
+                    focusTarget={focusTarget}
+                    notePageTitles={notePageTitles}
+                    onBack={() => {
+                      transitionToOverview();
+                      router.push("/notes");
+                    }}
+                    onTitleChange={(value) => {
+                      setPageTitleDraft(value);
+                      setPageTitleError(null);
+                    }}
+                    onCommitTitle={commitPageTitleDraft}
+                    onToggleFavorite={handleToggleFavorite}
+                    onEmojiPickerOpenChange={setIsEmojiPickerOpen}
+                    onSelectEmoji={handleSelectPageEmoji}
+                    onCreateFirstBlock={handleCreateRootBlock}
+                    onFocusApplied={() => setFocusTarget(null)}
+                    onFocusBlock={(blockId, placement) => setFocusTarget({ blockId, placement })}
+                    onOpenPageReference={handleOpenPageReference}
+                    onCreateSibling={handleCreateSiblingBlock}
+                    onCreateEmptySibling={handleCreateEmptySiblingBlock}
+                    onCreateSiblings={handleCreateSiblingBlocks}
+                    onCommitContent={handleCommitBlockContent}
+                    onIndent={handleIndentBlock}
+                    onOutdent={handleOutdentBlock}
+                    onDelete={handleDeleteBlock}
+                    onUpdateContent={handleUpdateBlockContent}
+                  />
                 </section>
 
                 {showDesktopDetailsRail ? (
@@ -2186,18 +813,19 @@ export default function NotesPage() {
         ) : undefined}
       />
 
-      <SearchPopup
+      <NotesPageSearchPopup
         open={isPageSearchOpen}
-        onOpenChange={setIsPageSearchOpen}
-        title="Find or create page"
-        description="Search all note pages by title, summary, or tags."
-        placeholder="Search pages or type a new title..."
         query={pageSearchQuery}
-        onQueryChange={setPageSearchQuery}
+        titleToCreate={normalizedSearchQuery}
+        filteredPages={filteredSearchPages}
+        canCreatePage={canCreatePageFromSearch}
+        isCreatingPage={isCreatingPage}
         anchorRef={overviewSearchTriggerRef}
-      >
-        {pageSearchResults}
-      </SearchPopup>
+        onOpenChange={setIsPageSearchOpen}
+        onQueryChange={setPageSearchQuery}
+        onSelectPage={handleSelectPageFromSearch}
+        onCreatePage={handleCreatePageFromSearch}
+      />
     </div>
   );
 }
