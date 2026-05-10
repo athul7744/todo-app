@@ -278,6 +278,8 @@ Vitest is set up for module and small integration tests.
 - `tests/tracker/` holds tracker-specific tests.
 - `tests/shared/` holds shared fixtures and assertion helpers used across app groups.
 
+See [tests/README.md](tests/README.md) for the current suite-level breakdown.
+
 Use `npm test` for a one-shot run and `npm run test:watch` while developing.
 
 ### Feature implementation notes

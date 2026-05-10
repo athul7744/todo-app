@@ -165,6 +165,7 @@ Important convention:
 - `tests/tasks/*` — task-specific Vitest suites
 - `tests/tracker/*` — tracker-specific Vitest suites
 - `tests/shared/*` — shared fixtures, builders, and assertions reused across app groups
+- `tests/README.md` — current suite map and short descriptions of what each test file covers
 
 ### Notes App Structure
 

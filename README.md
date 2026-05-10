@@ -49,6 +49,8 @@ Vitest is configured for fast logic-level coverage.
 - `tests/tracker/` contains tracker-focused tests.
 - `tests/shared/` contains reusable fixtures, builders, and assertions shared across app groups.
 
+See [tests/README.md](tests/README.md) for the current test suite map and what each suite covers.
+
 ## How The Project Is Organized
 
 - `src/app/` contains the App Router routes for launcher, tasks, tracker, notes, login, and share-target flows.
