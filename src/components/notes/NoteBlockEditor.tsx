@@ -754,6 +754,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onCommit,
   onCreateSibling,
   onCreateSiblings,
+  onMergeWithPrevious,
   onOpenPageReference,
   onNavigateUp,
   onNavigateDown,
@@ -765,7 +766,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   notePageTitles: string[];
   hasChildren?: boolean;
   shouldFocus?: boolean;
-  focusPlacement?: "start" | "end";
+  focusPlacement?: number | "start" | "end";
   onFocusApplied?: () => void;
   onChange: (content: JSONContent) => void;
   onCommit?: (content: JSONContent) => void;
@@ -779,6 +780,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     }
   ) => void;
   onCreateSiblings?: (content: JSONContent, siblingContents: JSONContent[]) => Promise<void> | void;
+  onMergeWithPrevious?: (content: JSONContent, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onOpenPageReference?: (title: string) => void;
   onNavigateUp?: () => void;
   onNavigateDown?: () => void;
@@ -791,6 +793,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const onCommitRef = useRef(onCommit);
   const onCreateSiblingRef = useRef(onCreateSibling);
   const onCreateSiblingsRef = useRef(onCreateSiblings);
+  const onMergeWithPreviousRef = useRef(onMergeWithPrevious);
   const onOpenPageReferenceRef = useRef(onOpenPageReference);
   const onNavigateUpRef = useRef(onNavigateUp);
   const onNavigateDownRef = useRef(onNavigateDown);
@@ -938,13 +941,14 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     onCommitRef.current = onCommit;
     onCreateSiblingRef.current = onCreateSibling;
     onCreateSiblingsRef.current = onCreateSiblings;
+    onMergeWithPreviousRef.current = onMergeWithPrevious;
     onOpenPageReferenceRef.current = onOpenPageReference;
     onNavigateUpRef.current = onNavigateUp;
     onNavigateDownRef.current = onNavigateDown;
     onIndentRef.current = onIndent;
     onOutdentRef.current = onOutdent;
     onDeleteEmptyRef.current = onDeleteEmpty;
-  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent]);
+  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onMergeWithPrevious, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent]);
 
   useEffect(() => {
     slashQueryRef.current = slashQuery;
@@ -1349,6 +1353,29 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           return true;
         }
 
+        if (
+          event.key === "Backspace" &&
+          !event.shiftKey &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          view.state.selection.empty &&
+          editor &&
+          isAtStartOfBlockContent(editor) &&
+          !editor?.isActive("taskItem") &&
+          !editor?.isActive("codeBlock") &&
+          !editor?.isActive("table") &&
+          onMergeWithPreviousRef.current
+        ) {
+          event.preventDefault();
+          const nextContent = flushEditorContent() ?? editor?.getJSON();
+          if (nextContent) {
+            suppressBlurCommitRef.current = true;
+            void onMergeWithPreviousRef.current(nextContent, { hasChildren });
+            return true;
+          }
+        }
+
         return false;
       },
     },
@@ -1397,7 +1424,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   useEffect(() => {
     if (!editor || !shouldFocus) return;
 
-    editor.chain().focus(focusPlacement).run();
+    if (typeof focusPlacement === "number") {
+      editor.chain().focus().setTextSelection(focusPlacement).run();
+    } else {
+      editor.chain().focus(focusPlacement).run();
+    }
     onFocusApplied?.();
   }, [editor, focusPlacement, onFocusApplied, shouldFocus]);
 

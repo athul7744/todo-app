@@ -4,6 +4,7 @@ import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { flushSync } from "react-dom";
 
 import type { NoteBlockRow } from "@/hooks/use-notes";
+import { getNoteDocumentEndSelection, mergeNoteDocuments, normalizeNoteDocument } from "@/lib/notes/notes-content";
 import {
   createNoteBlock,
   deleteNoteBlock,
@@ -18,7 +19,7 @@ import { getRankAfterItem, getRankAtParentEnd, getRankBeforeItem } from "@/lib/s
 import type { OptimisticBlockStructure } from "./types";
 import { createBlockDocument } from "./utils";
 
-type FocusTarget = { blockId: string; placement: "start" | "end" } | null;
+type FocusTarget = { blockId: string; placement: number | "start" | "end" } | null;
 
 type UseNoteBlockActionsParams = {
   selectedBlocks: NoteBlockRow[];
@@ -289,6 +290,68 @@ export function useNoteBlockActions({
     setFocusTarget(previousBlockId ? { blockId: previousBlockId, placement: "end" } : null);
   };
 
+  const handleMergeWithPreviousBlock = async (
+    blockId: string,
+    previousBlockId: string,
+    nextContent: JsonValue,
+    options?: { hasChildren?: boolean }
+  ) => {
+    const previousBlock = selectedBlockMap.get(previousBlockId);
+    if (!selectedPageId || !previousBlock || isCreatingBlock) return;
+
+    setIsCreatingBlock(true);
+
+    try {
+      const mergedContent = mergeNoteDocuments(previousBlock.content, nextContent) as JsonValue;
+      const serializedMergedContent = JSON.stringify(mergedContent);
+
+      if (options?.hasChildren) {
+        const joinPlacement = getNoteDocumentEndSelection(previousBlock.content);
+
+        flushSync(() => {
+          setBlockContentDrafts((currentDrafts) => ({
+            ...currentDrafts,
+            [blockId]: serializedMergedContent,
+            [previousBlockId]: JSON.stringify(normalizeNoteDocument(previousBlock.content)),
+          }));
+        });
+
+        updateNoteBlock({
+          blockId,
+          pageId: selectedPageId ?? undefined,
+          content: mergedContent,
+        });
+
+        await flushUpdate(blockId, "blocks");
+        await deleteNoteBlock(previousBlockId, selectedPageId ?? undefined);
+        setFocusTarget({ blockId, placement: joinPlacement });
+        return;
+      }
+
+      const joinPlacement = getNoteDocumentEndSelection(previousBlock.content);
+
+      flushSync(() => {
+        setBlockContentDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [previousBlockId]: serializedMergedContent,
+          [blockId]: JSON.stringify(normalizeNoteDocument(nextContent)),
+        }));
+      });
+
+      updateNoteBlock({
+        blockId: previousBlockId,
+        pageId: selectedPageId ?? undefined,
+        content: mergedContent,
+      });
+
+      await flushUpdate(previousBlockId, "blocks");
+      await deleteNoteBlock(blockId, selectedPageId ?? undefined);
+      setFocusTarget({ blockId: previousBlockId, placement: joinPlacement });
+    } finally {
+      setIsCreatingBlock(false);
+    }
+  };
+
   const handleUpdateBlockContent = (blockId: string, nextContent: JsonValue) => {
     const serializedContent = JSON.stringify(nextContent);
     const currentSerialized = blockContentDrafts[blockId] ?? selectedBlockMap.get(blockId)?.content ?? null;
@@ -339,6 +402,7 @@ export function useNoteBlockActions({
     handleCreateSiblingBlocks,
     handleDeleteBlock,
     handleIndentBlock,
+    handleMergeWithPreviousBlock,
     handleOutdentBlock,
     handleUpdateBlockContent,
     orderedVisibleBlockIds,

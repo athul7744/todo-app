@@ -7,7 +7,7 @@ import type { JsonValue } from "@/lib/notes/notes";
 import { NotesEditorHeader } from "./NotesEditorHeader";
 import type { NotesEditorRenderableContent } from "./types";
 
-type FocusTarget = { blockId: string; placement: "start" | "end" } | null;
+type FocusTarget = { blockId: string; placement: number | "start" | "end" } | null;
 
 export function NotesEditorContent({
   editorContent,
@@ -33,6 +33,7 @@ export function NotesEditorContent({
   onCreateSibling,
   onCreateEmptySibling,
   onCreateSiblings,
+  onMergeWithPrevious,
   onCommitContent,
   onIndent,
   onOutdent,
@@ -72,6 +73,7 @@ export function NotesEditorContent({
   ) => void | Promise<void>;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void | Promise<void>;
   onCreateSiblings: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => void | Promise<void>;
+  onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -127,6 +129,7 @@ export function NotesEditorContent({
               onCreateSibling={onCreateSibling}
               onCreateEmptySibling={onCreateEmptySibling}
               onCreateSiblings={onCreateSiblings}
+              onMergeWithPrevious={onMergeWithPrevious}
               onCommitContent={onCommitContent}
               onIndent={onIndent}
               onOutdent={onOutdent}

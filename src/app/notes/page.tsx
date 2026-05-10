@@ -49,7 +49,7 @@ export default function NotesPage() {
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
   const [optimisticBlockStructure, setOptimisticBlockStructure] = useState<Record<string, OptimisticBlockStructure>>({});
   const [showAbsoluteUpdatedTime, setShowAbsoluteUpdatedTime] = useState(false);
-  const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: "start" | "end" } | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: number | "start" | "end" } | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPage, setIsDeletingPage] = useState(false);
   const [pageRailSectionOpen, setPageRailSectionOpen] = useState({
@@ -141,6 +141,7 @@ export default function NotesPage() {
     handleCreateSiblingBlocks,
     handleDeleteBlock,
     handleIndentBlock,
+    handleMergeWithPreviousBlock,
     handleOutdentBlock,
     handleUpdateBlockContent,
     orderedVisibleBlockIds,
@@ -805,6 +806,7 @@ export default function NotesPage() {
                     onCreateSibling={handleCreateSiblingBlock}
                     onCreateEmptySibling={handleCreateEmptySiblingBlock}
                     onCreateSiblings={handleCreateSiblingBlocks}
+                    onMergeWithPrevious={handleMergeWithPreviousBlock}
                     onCommitContent={handleCommitBlockContent}
                     onIndent={handleIndentBlock}
                     onOutdent={handleOutdentBlock}

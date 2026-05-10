@@ -30,6 +30,7 @@ function BlockNodeView({
   onOpenPageReference,
   onCreateSibling,
   onCreateSiblings,
+  onMergeWithPrevious,
   onCommitContent,
   onIndent,
   onOutdent,
@@ -42,7 +43,7 @@ function BlockNodeView({
   parentBlockId?: string | null;
   parentParentBlockId?: string | null;
   focusedBlockId?: string | null;
-  focusPlacement?: "start" | "end";
+  focusPlacement?: number | "start" | "end";
   previousBlockIdById: ReadonlyMap<string, string | null>;
   nextBlockIdById: ReadonlyMap<string, string | null>;
   onFocusApplied?: () => void;
@@ -61,6 +62,7 @@ function BlockNodeView({
     }
   ) => void;
   onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
+  onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -97,6 +99,7 @@ function BlockNodeView({
               }}
               onCreateSibling={(nextContent, nextSiblingContent, options) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined, options)}
               onCreateSiblings={onCreateSiblings ? (nextContent, nextSiblingContents) => onCreateSiblings(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContents as JsonValue[]) : undefined}
+              onMergeWithPrevious={previousBlockId ? (nextContent, options) => onMergeWithPrevious(node.block.id, previousBlockId, nextContent as JsonValue, options) : undefined}
               onOpenPageReference={onOpenPageReference}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
               onNavigateDown={nextBlockId ? () => onFocusBlock(nextBlockId, "start") : undefined}
@@ -133,6 +136,7 @@ function BlockNodeView({
               notePageTitles={notePageTitles}
               onCreateSibling={onCreateSibling}
               onCommitContent={onCommitContent}
+              onMergeWithPrevious={onMergeWithPrevious}
               onIndent={onIndent}
               onOutdent={onOutdent}
               onDelete={onDelete}
@@ -157,6 +161,7 @@ export function NotesBlockTree({
   onCreateSibling,
   onCreateEmptySibling,
   onCreateSiblings,
+  onMergeWithPrevious,
   onCommitContent,
   onIndent,
   onOutdent,
@@ -166,7 +171,7 @@ export function NotesBlockTree({
   blocks: NoteBlockRow[];
   onCreateFirstBlock: () => void;
   focusedBlockId?: string | null;
-  focusPlacement?: "start" | "end";
+  focusPlacement?: number | "start" | "end";
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   notePageTitles: string[];
@@ -184,6 +189,7 @@ export function NotesBlockTree({
   ) => void;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void;
   onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
+  onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
@@ -237,6 +243,7 @@ export function NotesBlockTree({
           onOpenPageReference={onOpenPageReference}
           onCreateSibling={onCreateSibling}
             onCreateSiblings={onCreateSiblings}
+          onMergeWithPrevious={onMergeWithPrevious}
           onCommitContent={onCommitContent}
           onIndent={onIndent}
           onOutdent={onOutdent}
