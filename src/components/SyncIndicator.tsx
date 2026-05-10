@@ -2,6 +2,7 @@
 
 import { useStatus } from "@powersync/react";
 import { useState, useEffect, useRef } from "react";
+import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 import { cn, formatRelativeTime } from "@/lib/shared/utils";
 import { WifiOff, CloudUpload, CloudDownload, DatabaseZap, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,9 +13,9 @@ import { reconnectCloud } from "@/lib/powersync/db";
 export function SyncIndicator() {
   const status = useStatus();
   const [showSyncedFlash, setShowSyncedFlash] = useState(false);
-  const [, forceUpdate] = useState(0);
   const wasSyncingRef = useRef(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  useRelativeTimeTick(30000);
 
   const isConnected = status.connected;
   const isUploading = status.dataFlowStatus?.uploading ?? false;
@@ -31,12 +32,6 @@ export function SyncIndicator() {
     }
     wasSyncingRef.current = isSyncing;
   }, [isSyncing, isConnected]);
-
-  // Tick every 30s to update relative time
-  useEffect(() => {
-    const interval = setInterval(() => forceUpdate((n) => n + 1), 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   let dotColor = "bg-emerald-500";
   let label = lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Connected";

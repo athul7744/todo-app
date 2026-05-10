@@ -26,6 +26,8 @@ import { useNotePageActions } from "@/components/notes/page/useNotePageActions";
 import { NotesPageSearchPopup } from "@/components/notes/page/NotesPageSearchPopup";
 import { useNotesPageDerivedState } from "@/components/notes/page/useNotesPageDerivedState";
 import { useNotesSurfaceState } from "@/components/notes/page/useNotesSurfaceState";
+import { formatTimestampLabel } from "@/components/notes/page/utils";
+import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 
 const notesApp = getApp("notes");
 const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
@@ -282,6 +284,26 @@ export default function NotesPage() {
       }
     };
   }, [selectedPage?.id, selectedPage?.updated_at]);
+
+  const relativeTimeTick = useRelativeTimeTick(30000);
+
+  useEffect(() => {
+    if (!selectedPage || hasPendingWrites() || hasPendingNoteEdgeReconciles()) {
+      return;
+    }
+
+    const nextTimestamp = formatTimestampLabel(selectedPage.updated_at ?? null);
+    setStableUpdatedTimestamp((currentTimestamp) => {
+      if (
+        currentTimestamp?.relative === nextTimestamp?.relative &&
+        currentTimestamp?.absolute === nextTimestamp?.absolute
+      ) {
+        return currentTimestamp;
+      }
+
+      return nextTimestamp;
+    });
+  }, [relativeTimeTick, selectedPage?.id, selectedPage?.updated_at]);
 
   useEffect(() => {
     if (!selectedPage) {
