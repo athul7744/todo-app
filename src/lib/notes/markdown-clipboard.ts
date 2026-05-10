@@ -3,6 +3,10 @@ export type StructuredMarkdownListItem = {
   children: StructuredMarkdownListItem[];
 };
 
+function isMarkdownThematicBreak(line: string) {
+  return /^(?:-{3,}|\*{3,}|_{3,})$/.test(line.trim());
+}
+
 function getMarkdownListLineIndentWidth(lines: string[]) {
   const positiveIndents = lines
     .map((line) => {
@@ -25,7 +29,10 @@ export function parseStructuredMarkdownList(text: string): StructuredMarkdownLis
   }
 
   const listLineRegex = /^(\s*)([-*+]|\d+\.)(?:\s+(.*))?$/;
-  if (!lines.every((line) => listLineRegex.test(line))) {
+  if (!lines.every((line) => {
+    const trimmedLine = line.trim();
+    return isMarkdownThematicBreak(trimmedLine) || listLineRegex.test(line);
+  })) {
     return null;
   }
 
@@ -34,6 +41,18 @@ export function parseStructuredMarkdownList(text: string): StructuredMarkdownLis
   const stack: StructuredMarkdownListItem[] = [];
 
   for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (isMarkdownThematicBreak(trimmedLine)) {
+      const lastRoot = roots[roots.length - 1];
+      if (lastRoot && lastRoot.text.length === 0 && lastRoot.children.length === 0) {
+        roots.pop();
+      }
+
+      stack.length = 0;
+      roots.push({ text: trimmedLine, children: [] });
+      continue;
+    }
+
     const match = line.match(listLineRegex);
     if (!match) {
       return null;
