@@ -7,7 +7,7 @@ import { NoteBlockEditor } from "@/components/notes/NoteBlockEditor";
 import type { NoteBlockRow } from "@/hooks/use-notes";
 import { extractNoteText } from "@/lib/notes/notes-content";
 import { buildNoteBlockTree, createVisibleNoteBlockNeighbors, type NoteTreeNode } from "@/lib/notes/notes-tree";
-import type { JsonValue } from "@/lib/notes/notes";
+import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
 
 type BlockTreeNode = NoteTreeNode<NoteBlockRow>;
 
@@ -64,7 +64,7 @@ function BlockNodeView({
       insertionSide?: "before" | "after";
     }
   ) => void;
-  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
+  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: NoteBlockInsert, nextSiblingContents: NoteBlockInsert[]) => Promise<void> | void;
   onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
@@ -115,7 +115,7 @@ function BlockNodeView({
                 onCommitContent(node.block.id, nextContent as JsonValue);
               }}
               onCreateSibling={(nextContent, nextSiblingContent, options) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined, options)}
-              onCreateSiblings={onCreateSiblings ? (nextContent, nextSiblingContents) => onCreateSiblings(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContents as JsonValue[]) : undefined}
+              onCreateSiblings={onCreateSiblings ? (nextContent, nextSiblingContents) => onCreateSiblings(node.block.id, parentBlockId, nextContent, nextSiblingContents) : undefined}
               onMergeWithPrevious={previousBlockId ? (nextContent, options) => onMergeWithPrevious(node.block.id, previousBlockId, nextContent as JsonValue, options) : undefined}
               onOpenPageReference={onOpenPageReference}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
@@ -207,7 +207,7 @@ export function NotesBlockTree({
     }
   ) => void;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void;
-  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
+  onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: NoteBlockInsert, nextSiblingContents: NoteBlockInsert[]) => Promise<void> | void;
   onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;

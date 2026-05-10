@@ -12,6 +12,7 @@ import {
   moveNoteBlock,
   updateNoteBlock,
   type JsonValue,
+  type NoteBlockInsert,
 } from "@/lib/notes/notes";
 import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
 import { flushUpdate } from "@/lib/shared/debounced-update";
@@ -360,16 +361,83 @@ export function useNoteBlockActions({
   const handleCreateSiblingBlocks = async (
     blockId: string,
     parentBlockId: string | null | undefined,
-    nextContent: JsonValue,
-    nextSiblingContents: JsonValue[]
+    nextContent: NoteBlockInsert,
+    nextSiblingContents: NoteBlockInsert[]
   ) => {
     if (!selectedPageId || isCreatingBlock) return;
-    if (nextSiblingContents.length === 0) return;
+
+    const insertedBlocks: Array<Pick<NoteBlockRow, "id" | "parent_block_id" | "sort_rank">> = [];
+
+    const getWorkingBlocks = () => {
+      const nextBlocks = new Map<string, Pick<NoteBlockRow, "id" | "parent_block_id" | "sort_rank">>();
+
+      structuredBlocks.forEach((block) => {
+        nextBlocks.set(block.id, block);
+      });
+
+      insertedBlocks.forEach((block) => {
+        nextBlocks.set(block.id, block);
+      });
+
+      return [...nextBlocks.values()];
+    };
+
+    const getInsertionSortRank = (nextParentBlockId: string | null, previousSiblingId?: string | null) => {
+      const workingBlocks = getWorkingBlocks();
+
+      if (previousSiblingId) {
+        return getRankAfterItem(workingBlocks, previousSiblingId, nextParentBlockId, (block) => block.parent_block_id);
+      }
+
+      return getRankAtParentEnd(workingBlocks, nextParentBlockId, (block) => block.parent_block_id);
+    };
+
+    const createInsertedBlocks = async (
+      blocksToCreate: NoteBlockInsert[],
+      nextParentBlockId: string | null,
+      previousSiblingId?: string | null
+    ): Promise<string | null> => {
+      let currentPreviousSiblingId = previousSiblingId ?? null;
+      let lastCreatedBlockId: string | null = null;
+
+      for (const blockToCreate of blocksToCreate) {
+        const createdBlockId = uuidv4();
+        const nextSortRank = getInsertionSortRank(nextParentBlockId, currentPreviousSiblingId);
+
+        insertedBlocks.push({
+          id: createdBlockId,
+          parent_block_id: nextParentBlockId,
+          sort_rank: nextSortRank,
+        });
+
+        flushSync(() => {
+          createOptimisticBlock(createdBlockId, nextParentBlockId, nextSortRank, blockToCreate.content, selectedPageId);
+        });
+
+        await createNoteBlock({
+          id: createdBlockId,
+          pageId: selectedPageId,
+          parentBlockId: nextParentBlockId,
+          sortRank: nextSortRank,
+          type: "text",
+          content: blockToCreate.content,
+        });
+
+        currentPreviousSiblingId = createdBlockId;
+        lastCreatedBlockId = createdBlockId;
+
+        if (blockToCreate.children && blockToCreate.children.length > 0) {
+          lastCreatedBlockId = await createInsertedBlocks(blockToCreate.children, createdBlockId) ?? createdBlockId;
+        }
+      }
+
+      return lastCreatedBlockId;
+    };
 
     setIsCreatingBlock(true);
 
     try {
-      const serializedContent = JSON.stringify(nextContent);
+      const serializedContent = JSON.stringify(nextContent.content);
 
       flushSync(() => {
         setBlockContentDrafts((currentDrafts) => ({
@@ -381,33 +449,19 @@ export function useNoteBlockActions({
       updateNoteBlock({
         blockId,
         pageId: selectedPageId ?? undefined,
-        content: nextContent,
+        content: nextContent.content,
       });
 
       await flushUpdate(blockId, "blocks");
 
-      let previousBlockId = blockId;
       let lastCreatedBlockId: string | null = null;
 
-      for (const siblingContent of nextSiblingContents) {
-        const createdBlockId = uuidv4();
-        const nextSortRank = getSortRankAfterBlock(previousBlockId, parentBlockId);
+      if (nextContent.children && nextContent.children.length > 0) {
+        lastCreatedBlockId = await createInsertedBlocks(nextContent.children, blockId) ?? lastCreatedBlockId;
+      }
 
-        flushSync(() => {
-          createOptimisticBlock(createdBlockId, parentBlockId ?? null, nextSortRank, siblingContent, selectedPageId);
-        });
-
-        await createNoteBlock({
-          id: createdBlockId,
-          pageId: selectedPageId,
-          parentBlockId: parentBlockId ?? null,
-          sortRank: nextSortRank,
-          type: "text",
-          content: siblingContent,
-        });
-
-        previousBlockId = createdBlockId;
-        lastCreatedBlockId = createdBlockId;
+      if (nextSiblingContents.length > 0) {
+        lastCreatedBlockId = await createInsertedBlocks(nextSiblingContents, parentBlockId ?? null, blockId) ?? lastCreatedBlockId;
       }
 
       if (lastCreatedBlockId) {

@@ -10,6 +10,11 @@ const NOTES_DEBOUNCE_MS = 10_000;
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+export type NoteBlockInsert = {
+  content: JsonValue;
+  children?: NoteBlockInsert[];
+};
+
 interface CreatePageInput {
   id?: string;
   title?: string;

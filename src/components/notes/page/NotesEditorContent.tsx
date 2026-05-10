@@ -2,7 +2,7 @@
 
 import { NotesBlockTree } from "@/components/notes/NotesBlockTree";
 import { NotesEditorMainSkeleton } from "@/components/notes/NotesPageSkeleton";
-import type { JsonValue } from "@/lib/notes/notes";
+import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
 
 import { NotesEditorHeader } from "./NotesEditorHeader";
 import type { NotesEditorRenderableContent } from "./types";
@@ -72,7 +72,7 @@ export function NotesEditorContent({
     }
   ) => void | Promise<void>;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void | Promise<void>;
-  onCreateSiblings: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => void | Promise<void>;
+  onCreateSiblings: (blockId: string, parentBlockId: string | null | undefined, nextContent: NoteBlockInsert, nextSiblingContents: NoteBlockInsert[]) => void | Promise<void>;
   onMergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
