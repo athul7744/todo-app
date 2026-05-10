@@ -13,7 +13,7 @@ import {
 } from "@/lib/notes/notes";
 import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
 import { flushUpdate } from "@/lib/shared/debounced-update";
-import { getRankAfterItem, getRankAtParentEnd } from "@/lib/shared/ranked-order";
+import { getRankAfterItem, getRankAtParentEnd, getRankBeforeItem } from "@/lib/shared/ranked-order";
 
 import type { OptimisticBlockStructure } from "./types";
 import { createBlockDocument } from "./utils";
@@ -114,9 +114,18 @@ export function useNoteBlockActions({
     blockId: string,
     parentBlockId: string | null | undefined,
     nextContent: JsonValue,
-    nextSiblingContent?: JsonValue
+    nextSiblingContent?: JsonValue,
+    options?: {
+      focusPlacement?: "start" | "end";
+      focusTarget?: "created" | "current";
+      insertionSide?: "before" | "after";
+    }
   ) => {
     if (!selectedPageId || isCreatingBlock) return;
+
+    const focusPlacement = options?.focusPlacement ?? "end";
+    const focusTarget = options?.focusTarget ?? "created";
+    const insertionSide = options?.insertionSide ?? "after";
 
     setIsCreatingBlock(true);
 
@@ -138,14 +147,22 @@ export function useNoteBlockActions({
 
       await flushUpdate(blockId, "blocks");
 
+      const nextParentBlockId = parentBlockId ?? null;
+      const nextSortRank = insertionSide === "before"
+        ? getRankBeforeItem(structuredBlocks, blockId, parentBlockId, (block) => block.parent_block_id)
+        : getSortRankAfterBlock(blockId, parentBlockId);
+
       const nextBlockId = await createNoteBlock({
         pageId: selectedPageId,
-        parentBlockId: parentBlockId ?? null,
-        sortRank: getSortRankAfterBlock(blockId, parentBlockId),
+        parentBlockId: nextParentBlockId,
+        sortRank: nextSortRank,
         type: "text",
         content: nextSiblingContent ?? createBlockDocument(),
       });
-      setFocusTarget({ blockId: nextBlockId, placement: "end" });
+      setFocusTarget({
+        blockId: focusTarget === "current" ? blockId : nextBlockId,
+        placement: focusPlacement,
+      });
     } finally {
       setIsCreatingBlock(false);
     }

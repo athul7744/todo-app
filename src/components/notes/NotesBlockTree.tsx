@@ -49,7 +49,17 @@ function BlockNodeView({
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   notePageTitles: string[];
   onOpenPageReference?: (title: string) => void;
-  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
+  onCreateSibling: (
+    blockId: string,
+    parentBlockId: string | null | undefined,
+    nextContent: JsonValue,
+    nextSiblingContent?: JsonValue,
+    options?: {
+      focusPlacement?: "start" | "end";
+      focusTarget?: "created" | "current";
+      insertionSide?: "before" | "after";
+    }
+  ) => void;
   onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
@@ -63,7 +73,7 @@ function BlockNodeView({
   return (
     <div className="space-y-0">
       <article
-        className="group relative animate-fade-slide-in"
+        className="group relative"
         style={{ marginLeft: depth === 0 ? 0 : depth * 18 }}
       >
         <div className="flex items-center gap-px px-0 py-0">
@@ -75,6 +85,7 @@ function BlockNodeView({
             <NoteBlockEditor
               content={node.block.content}
               notePageTitles={notePageTitles}
+              hasChildren={node.children.length > 0}
               shouldFocus={focusedBlockId === node.block.id}
               focusPlacement={focusPlacement}
               onFocusApplied={onFocusApplied}
@@ -84,7 +95,7 @@ function BlockNodeView({
               onCommit={(nextContent) => {
                 onCommitContent(node.block.id, nextContent as JsonValue);
               }}
-              onCreateSibling={(nextContent, nextSiblingContent) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined)}
+              onCreateSibling={(nextContent, nextSiblingContent, options) => onCreateSibling(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContent as JsonValue | undefined, options)}
               onCreateSiblings={onCreateSiblings ? (nextContent, nextSiblingContents) => onCreateSiblings(node.block.id, parentBlockId, nextContent as JsonValue, nextSiblingContents as JsonValue[]) : undefined}
               onOpenPageReference={onOpenPageReference}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
@@ -160,7 +171,17 @@ export function NotesBlockTree({
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   notePageTitles: string[];
   onOpenPageReference?: (title: string) => void;
-  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void;
+  onCreateSibling: (
+    blockId: string,
+    parentBlockId: string | null | undefined,
+    nextContent: JsonValue,
+    nextSiblingContent?: JsonValue,
+    options?: {
+      focusPlacement?: "start" | "end";
+      focusTarget?: "created" | "current";
+      insertionSide?: "before" | "after";
+    }
+  ) => void;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void;
   onCreateSiblings?: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => Promise<void> | void;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;

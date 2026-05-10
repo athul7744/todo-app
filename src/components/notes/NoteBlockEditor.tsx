@@ -462,6 +462,22 @@ function parseDocument(raw: unknown): JSONContent {
   return emptyDocument();
 }
 
+function splitEditorDocumentAtSelection(editor: Editor) {
+  const { from, to } = editor.state.selection;
+  const currentContent = parseDocument(editor.state.doc.cut(0, from).toJSON());
+  const nextSiblingContent = parseDocument(editor.state.doc.cut(to).toJSON());
+
+  return {
+    currentContent,
+    nextSiblingContent,
+  };
+}
+
+function isAtStartOfBlockContent(editor: Editor) {
+  const { from } = editor.state.selection;
+  return editor.state.doc.textBetween(0, from, "\n", "\0").length === 0;
+}
+
 function createParagraphNode(text: string): JSONContent {
   return {
     type: "paragraph",
@@ -730,6 +746,7 @@ function getResolvedPageReferenceAtPosition(editor: Editor, position: number): R
 export const NoteBlockEditor = memo(function NoteBlockEditor({
   content,
   notePageTitles,
+  hasChildren = false,
   shouldFocus = false,
   focusPlacement = "end",
   onFocusApplied,
@@ -746,12 +763,21 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 }: {
   content: string | null | undefined;
   notePageTitles: string[];
+  hasChildren?: boolean;
   shouldFocus?: boolean;
   focusPlacement?: "start" | "end";
   onFocusApplied?: () => void;
   onChange: (content: JSONContent) => void;
   onCommit?: (content: JSONContent) => void;
-  onCreateSibling: (content: JSONContent, nextSiblingContent?: JSONContent) => void;
+  onCreateSibling: (
+    content: JSONContent,
+    nextSiblingContent?: JSONContent,
+    options?: {
+      focusPlacement?: "start" | "end";
+      focusTarget?: "created" | "current";
+      insertionSide?: "before" | "after";
+    }
+  ) => void;
   onCreateSiblings?: (content: JSONContent, siblingContents: JSONContent[]) => Promise<void> | void;
   onOpenPageReference?: (title: string) => void;
   onNavigateUp?: () => void;
@@ -1240,9 +1266,27 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
 
           event.preventDefault();
-          const nextContent = flushEditorContent();
-          if (nextContent) {
-            onCreateSiblingRef.current(nextContent);
+          if (editor) {
+            const { currentContent, nextSiblingContent } = splitEditorDocumentAtSelection(editor);
+            const isAtBlockStart = isAtStartOfBlockContent(editor);
+
+            if (hasChildren) {
+              pendingLocalContentRef.current = JSON.stringify(nextSiblingContent);
+              editor.commands.setContent(nextSiblingContent, { emitUpdate: true });
+              onCreateSiblingRef.current(nextSiblingContent, currentContent, {
+                focusPlacement: isAtBlockStart ? "end" : "start",
+                focusTarget: isAtBlockStart ? "created" : "current",
+                insertionSide: "before",
+              });
+            } else {
+              pendingLocalContentRef.current = JSON.stringify(currentContent);
+              editor.commands.setContent(currentContent, { emitUpdate: true });
+              onCreateSiblingRef.current(currentContent, nextSiblingContent, {
+                focusPlacement: "start",
+                focusTarget: "created",
+                insertionSide: "after",
+              });
+            }
           }
           return true;
         }

@@ -59,7 +59,17 @@ export function NotesEditorContent({
   onFocusApplied: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   onOpenPageReference: (title: string) => void;
-  onCreateSibling: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContent?: JsonValue) => void | Promise<void>;
+  onCreateSibling: (
+    blockId: string,
+    parentBlockId: string | null | undefined,
+    nextContent: JsonValue,
+    nextSiblingContent?: JsonValue,
+    options?: {
+      focusPlacement?: "start" | "end";
+      focusTarget?: "created" | "current";
+      insertionSide?: "before" | "after";
+    }
+  ) => void | Promise<void>;
   onCreateEmptySibling: (blockId: string, parentBlockId: string | null | undefined) => void | Promise<void>;
   onCreateSiblings: (blockId: string, parentBlockId: string | null | undefined, nextContent: JsonValue, nextSiblingContents: JsonValue[]) => void | Promise<void>;
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
