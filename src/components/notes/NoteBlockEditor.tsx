@@ -1434,8 +1434,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
   if (!editor) {
     return (
-      <div className="min-h-6 text-sm leading-6 text-muted-foreground">
-        Loading editor…
+      <div aria-hidden="true" className="min-h-6 px-0 py-0 text-sm leading-5 text-transparent">
+        &nbsp;
       </div>
     );
   }
