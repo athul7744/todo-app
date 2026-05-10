@@ -45,7 +45,7 @@ import {
   getSlashQuery,
   type SlashCommand,
 } from "@/components/notes/NoteBlockEditorSlash";
-import { normalizeNoteDocument } from "@/lib/notes/notes-content";
+import { createNoteDocumentFromText, extractNoteText, normalizeNoteDocument, serializeNoteDocumentToMarkdown } from "@/lib/notes/notes-content";
 import { logger } from "@/lib/shared/logger";
 
 const referenceDecorationsKey = new PluginKey("noteReferenceDecorations");
@@ -274,6 +274,11 @@ function splitEditorDocumentAtSelection(editor: Editor) {
   };
 }
 
+function createNormalTextSiblingContent(content: JSONContent) {
+  const text = extractNoteText(content);
+  return text.trim().length > 0 ? createNoteDocumentFromText(text) : emptyDocument();
+}
+
 function isAtStartOfBlockContent(editor: Editor) {
   const { from } = editor.state.selection;
   return editor.state.doc.textBetween(0, from, "\n", "\0").length === 0;
@@ -415,6 +420,26 @@ function parseMarkdownImage(text: string): JSONContent | null {
   };
 }
 
+function parseMarkdownTextDocument(view: EditorView, text: string): JSONContent {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return emptyDocument();
+  }
+
+  const nextImageDocument = parseMarkdownImage(trimmed);
+  if (nextImageDocument) {
+    return nextImageDocument;
+  }
+
+  const nextTableDocument = parseMarkdownTable(trimmed);
+  if (nextTableDocument) {
+    return nextTableDocument;
+  }
+
+  const nextHtml = parseMarkdownClipboardText(text);
+  return parseHtmlDocument(view, nextHtml) ?? createScaffoldDocument(text);
+}
+
 function tryConvertMarkdownBlock(editor: Editor) {
   const nextImageDocument = parseMarkdownImage(getEditorPlainText(editor.view));
   if (nextImageDocument) {
@@ -529,6 +554,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   content,
   notePageTitles,
   hasChildren = false,
+  markdownToggleVersion = 0,
   shouldFocus = false,
   focusPlacement = "end",
   onFocusApplied,
@@ -547,6 +573,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   content: string | null | undefined;
   notePageTitles: string[];
   hasChildren?: boolean;
+  markdownToggleVersion?: number;
   shouldFocus?: boolean;
   focusPlacement?: number | "start" | "end";
   onFocusApplied?: () => void;
@@ -585,6 +612,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const lastAppliedExternalContentRef = useRef(JSON.stringify(initialContentRef.current));
   const pendingLocalContentRef = useRef<string | null>(null);
   const suppressBlurCommitRef = useRef(false);
+  const isEditingMarkdownSourceRef = useRef(false);
+  const lastMarkdownToggleVersionRef = useRef(markdownToggleVersion);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
   const [pageReferenceQuery, setPageReferenceQuery] = useState<PageReferenceQuery | null>(null);
@@ -690,6 +719,33 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
     setPageReferenceQuery(null);
     setSelectedPageReferenceIndex(0);
+  };
+
+  const convertCurrentBlockToMarkdownSource = () => {
+    if (!editor) return null;
+
+    const markdown = serializeNoteDocumentToMarkdown(editor.getJSON());
+    const nextContent = createNoteDocumentFromText(markdown);
+    isEditingMarkdownSourceRef.current = true;
+    pendingLocalContentRef.current = JSON.stringify(nextContent);
+    editor.commands.setContent(nextContent, { emitUpdate: true });
+
+    requestAnimationFrame(() => {
+      editor.chain().focus("end").run();
+    });
+
+    return nextContent;
+  };
+
+  const renderCurrentMarkdownSource = () => {
+    if (!editor) return null;
+
+    const markdownText = editor.state.doc.textBetween(0, editor.state.doc.content.size, "\n");
+    const nextContent = parseMarkdownTextDocument(editor.view, markdownText);
+    isEditingMarkdownSourceRef.current = false;
+    pendingLocalContentRef.current = JSON.stringify(nextContent);
+    editor.commands.setContent(nextContent, { emitUpdate: true });
+    return nextContent;
   };
 
   const flushEditorContent = () => {
@@ -836,6 +892,14 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           if (suppressBlurCommitRef.current) {
             suppressBlurCommitRef.current = false;
             emitEditorContentIfChanged();
+            return false;
+          }
+
+          if (isEditingMarkdownSourceRef.current) {
+            const nextContent = renderCurrentMarkdownSource();
+            if (nextContent) {
+              onCommitRef.current?.(nextContent);
+            }
             return false;
           }
 
@@ -1060,7 +1124,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
             if (hasChildren) {
               pendingLocalContentRef.current = JSON.stringify(nextSiblingContent);
               editor.commands.setContent(nextSiblingContent, { emitUpdate: true });
-              onCreateSiblingRef.current(nextSiblingContent, currentContent, {
+              onCreateSiblingRef.current(nextSiblingContent, createNormalTextSiblingContent(currentContent), {
                 focusPlacement: isAtBlockStart ? "end" : "start",
                 focusTarget: isAtBlockStart ? "created" : "current",
                 insertionSide: "before",
@@ -1068,7 +1132,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
             } else {
               pendingLocalContentRef.current = JSON.stringify(currentContent);
               editor.commands.setContent(currentContent, { emitUpdate: true });
-              onCreateSiblingRef.current(currentContent, nextSiblingContent, {
+              onCreateSiblingRef.current(currentContent, createNormalTextSiblingContent(nextSiblingContent), {
                 focusPlacement: "start",
                 focusTarget: "created",
                 insertionSide: "after",
@@ -1104,7 +1168,16 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           if (onNavigateUpRef.current) {
             event.preventDefault();
             suppressBlurCommitRef.current = true;
-            emitEditorContentIfChanged();
+
+            if (isEditingMarkdownSourceRef.current) {
+              const nextContent = renderCurrentMarkdownSource();
+              if (nextContent) {
+                onCommitRef.current?.(nextContent);
+              }
+            } else {
+              emitEditorContentIfChanged();
+            }
+
             onNavigateUpRef.current();
             return true;
           }
@@ -1114,7 +1187,16 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           if (onNavigateDownRef.current) {
             event.preventDefault();
             suppressBlurCommitRef.current = true;
-            emitEditorContentIfChanged();
+
+            if (isEditingMarkdownSourceRef.current) {
+              const nextContent = renderCurrentMarkdownSource();
+              if (nextContent) {
+                onCommitRef.current?.(nextContent);
+              }
+            } else {
+              emitEditorContentIfChanged();
+            }
+
             onNavigateDownRef.current();
             return true;
           }
@@ -1199,10 +1281,28 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
     lastAppliedExternalContentRef.current = nextSerialized;
     pendingLocalContentRef.current = null;
+    isEditingMarkdownSourceRef.current = false;
     editor.commands.setContent(nextContent, { emitUpdate: false });
     updateSlashQuery(editor);
     updatePageReferenceQuery(editor);
   }, [content, editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (markdownToggleVersion === lastMarkdownToggleVersionRef.current) return;
+
+    lastMarkdownToggleVersionRef.current = markdownToggleVersion;
+
+    if (isEditingMarkdownSourceRef.current) {
+      const nextContent = renderCurrentMarkdownSource();
+      if (nextContent) {
+        onCommitRef.current?.(nextContent);
+      }
+      return;
+    }
+
+    convertCurrentBlockToMarkdownSource();
+  }, [editor, markdownToggleVersion]);
 
   useEffect(() => {
     if (!editor || !shouldFocus) return;

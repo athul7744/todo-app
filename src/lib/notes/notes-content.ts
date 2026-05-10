@@ -279,3 +279,167 @@ export function extractNoteText(raw: unknown) {
   visit(normalizeNoteDocument(raw));
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
+
+function getNodeAttrs(node: unknown) {
+  return isRecord(node) && isRecord(node.attrs) ? node.attrs : null;
+}
+
+function getNodeContent(node: unknown) {
+  return isRecord(node) && Array.isArray(node.content) ? node.content : [];
+}
+
+function getNodeMarks(node: unknown) {
+  return isRecord(node) && Array.isArray(node.marks) ? node.marks : [];
+}
+
+function getNodeText(node: unknown) {
+  return isRecord(node) && typeof node.text === "string" ? node.text : "";
+}
+
+function serializeMarkdownInline(node: unknown): string {
+  if (!isRecord(node) || typeof node.type !== "string") {
+    return "";
+  }
+
+  if (node.type === "text") {
+    let text = getNodeText(node);
+
+    for (const mark of getNodeMarks(node)) {
+      if (!isRecord(mark) || typeof mark.type !== "string") {
+        continue;
+      }
+
+      if (mark.type === "code") {
+        text = `\`${text}\``;
+        continue;
+      }
+
+      if (mark.type === "bold") {
+        text = `**${text}**`;
+        continue;
+      }
+
+      if (mark.type === "italic") {
+        text = `*${text}*`;
+        continue;
+      }
+
+      if (mark.type === "strike") {
+        text = `~~${text}~~`;
+        continue;
+      }
+
+      if (mark.type === "link") {
+        const href = getNodeAttrs(mark)?.href;
+        if (typeof href === "string" && href.length > 0) {
+          text = `[${text}](${href})`;
+        }
+      }
+    }
+
+    return text;
+  }
+
+  if (node.type === "hardBreak") {
+    return "  \n";
+  }
+
+  if (node.type === "image") {
+    const attrs = getNodeAttrs(node);
+    const src = typeof attrs?.src === "string" ? attrs.src : "";
+    const alt = typeof attrs?.alt === "string" ? attrs.alt : "";
+    const title = typeof attrs?.title === "string" && attrs.title.length > 0 ? ` \"${attrs.title}\"` : "";
+    return src ? `![${alt}](${src}${title})` : "";
+  }
+
+  return getNodeContent(node).map((child) => serializeMarkdownInline(child)).join("");
+}
+
+function serializeMarkdownBlock(node: unknown): string {
+  if (!isRecord(node) || typeof node.type !== "string") {
+    return "";
+  }
+
+  if (node.type === "paragraph") {
+    return getNodeContent(node).map((child) => serializeMarkdownInline(child)).join("");
+  }
+
+  if (node.type === "heading") {
+    const level = getNodeAttrs(node)?.level;
+    const depth = typeof level === "number" ? Math.min(Math.max(level, 1), 6) : 1;
+    const text = getNodeContent(node).map((child) => serializeMarkdownInline(child)).join("");
+    return `${"#".repeat(depth)} ${text}`.trim();
+  }
+
+  if (node.type === "blockquote") {
+    return getNodeContent(node)
+      .map((child) => serializeMarkdownBlock(child))
+      .filter((line) => line.length > 0)
+      .map((line) => line.split("\n").map((segment) => `> ${segment}`).join("\n"))
+      .join("\n");
+  }
+
+  if (node.type === "codeBlock") {
+    const language = getNodeAttrs(node)?.language;
+    const code = getNodeContent(node).map((child) => serializeMarkdownInline(child)).join("");
+    return `\`\`\`${typeof language === "string" ? language : ""}\n${code}\n\`\`\``;
+  }
+
+  if (node.type === "horizontalRule") {
+    return "---";
+  }
+
+  if (node.type === "taskList") {
+    return getNodeContent(node)
+      .filter((child) => isRecord(child) && child.type === "taskItem")
+      .map((child) => {
+        const attrs = getNodeAttrs(child);
+        const checked = attrs?.checked === true;
+        const text = getNodeContent(child)
+          .map((grandchild) => serializeMarkdownBlock(grandchild))
+          .filter((line) => line.length > 0)
+          .join(" ")
+          .trim();
+        return `- [${checked ? "x" : " "}] ${text}`.trimEnd();
+      })
+      .join("\n");
+  }
+
+  if (node.type === "table") {
+    const rows = getNodeContent(node)
+      .filter((child) => isRecord(child) && child.type === "tableRow")
+      .map((row) => getNodeContent(row).map((cell) => serializeMarkdownBlock(cell).replace(/\n+/g, " ").trim()));
+
+    if (rows.length === 0) {
+      return "";
+    }
+
+    const [headerRow, ...bodyRows] = rows;
+    const separator = headerRow.map(() => "---");
+    return [headerRow, separator, ...bodyRows]
+      .map((row) => `| ${row.join(" | ")} |`)
+      .join("\n");
+  }
+
+  if (node.type === "tableCell" || node.type === "tableHeader") {
+    return getNodeContent(node).map((child) => serializeMarkdownBlock(child)).join(" ").trim();
+  }
+
+  if (node.type === "image") {
+    return serializeMarkdownInline(node);
+  }
+
+  return getNodeContent(node).map((child) => serializeMarkdownBlock(child)).join("\n");
+}
+
+export function serializeNoteDocumentToMarkdown(raw: unknown) {
+  const document = normalizeNoteDocument(raw);
+  const content = Array.isArray(document.content) ? document.content : [];
+  const markdown = content
+    .map((node) => serializeMarkdownBlock(node))
+    .filter((value) => value.length > 0)
+    .join("\n\n")
+    .trim();
+
+  return markdown;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Plus } from "lucide-react";
 
 import { NoteBlockEditor } from "@/components/notes/NoteBlockEditor";
@@ -36,6 +37,8 @@ function BlockNodeView({
   onOutdent,
   onDelete,
   onUpdateContent,
+  onToggleMarkdownMode,
+  markdownToggleVersions,
 }: {
   node: BlockTreeNode;
   depth?: number;
@@ -68,6 +71,8 @@ function BlockNodeView({
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
   onDelete: (blockId: string) => void;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
+  onToggleMarkdownMode: (blockId: string) => void;
+  markdownToggleVersions: Record<string, number>;
 }) {
   const previousBlockId = previousBlockIdById.get(node.block.id) ?? null;
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
@@ -80,7 +85,18 @@ function BlockNodeView({
       >
         <div className="flex items-center gap-px px-0 py-0">
           <div className="relative flex min-h-6 w-3.5 shrink-0 items-center justify-start self-stretch">
-            <span className={`relative z-10 h-1.5 w-1.5 rounded-full bg-muted-foreground/60 transition-opacity ${depth > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`} />
+            <button
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onToggleMarkdownMode(node.block.id);
+              }}
+              className={`relative z-10 flex h-3.5 w-3.5 items-center justify-center rounded-sm outline-none transition-opacity ${depth > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
+              aria-label="Toggle raw markdown view"
+              title="Toggle raw markdown view"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+            </button>
             {depth > 0 ? <span className="absolute bottom-0 left-1/2 top-1/2 w-px -translate-x-1/2 bg-border/60" /> : null}
           </div>
           <div className="min-w-0 flex-1 transition-smooth">
@@ -88,6 +104,7 @@ function BlockNodeView({
               content={node.block.content}
               notePageTitles={notePageTitles}
               hasChildren={node.children.length > 0}
+              markdownToggleVersion={markdownToggleVersions[node.block.id] ?? 0}
               shouldFocus={focusedBlockId === node.block.id}
               focusPlacement={focusPlacement}
               onFocusApplied={onFocusApplied}
@@ -141,6 +158,8 @@ function BlockNodeView({
               onOutdent={onOutdent}
               onDelete={onDelete}
               onUpdateContent={onUpdateContent}
+              onToggleMarkdownMode={onToggleMarkdownMode}
+              markdownToggleVersions={markdownToggleVersions}
             />
           ))}
         </div>
@@ -196,9 +215,18 @@ export function NotesBlockTree({
   onDelete: (blockId: string) => void;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
 }) {
+  const [markdownToggleVersions, setMarkdownToggleVersions] = useState<Record<string, number>>({});
   const tree = buildNoteBlockTree(blocks);
   const { previousBlockIdById, nextBlockIdById } = createVisibleNoteBlockNeighbors(blocks);
   const lastRootBlock = tree[tree.length - 1]?.block ?? null;
+
+  const handleToggleMarkdownMode = (blockId: string) => {
+    setMarkdownToggleVersions((current) => ({
+      ...current,
+      [blockId]: (current[blockId] ?? 0) + 1,
+    }));
+    onFocusBlock(blockId, "end");
+  };
 
   if (tree.length === 0) {
     return (
@@ -249,6 +277,8 @@ export function NotesBlockTree({
           onOutdent={onOutdent}
           onDelete={onDelete}
           onUpdateContent={onUpdateContent}
+          onToggleMarkdownMode={handleToggleMarkdownMode}
+          markdownToggleVersions={markdownToggleVersions}
         />
       ))}
 
