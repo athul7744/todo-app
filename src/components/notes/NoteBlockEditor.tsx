@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Extension, markInputRule, markPasteRule, type Editor, type JSONContent } from "@tiptap/core";
+import { Extension, InputRule, markInputRule, markPasteRule, type Editor, type JSONContent } from "@tiptap/core";
 import { Link2 } from "lucide-react";
 import Blockquote from "@tiptap/extension-blockquote";
 import Bold from "@tiptap/extension-bold";
@@ -242,6 +242,27 @@ const MarkdownLink = Link.extend({
 const NotesHorizontalRule = HorizontalRule.extend({
   addInputRules() {
     return [];
+  },
+});
+
+const NotesArrowReplacement = Extension.create({
+  name: "notesArrowReplacement",
+
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /-->$/,
+        handler: ({ chain, range }) => {
+          chain().insertContentAt(range, "→").run();
+        },
+      }),
+      new InputRule({
+        find: /<--$/,
+        handler: ({ chain, range }) => {
+          chain().insertContentAt(range, "←").run();
+        },
+      }),
+    ];
   },
 });
 
@@ -840,6 +861,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       Heading.configure({
         levels: [1, 2, 3],
       }),
+      NotesArrowReplacement,
       NotesHorizontalRule,
       MarkdownLink,
       Image,
