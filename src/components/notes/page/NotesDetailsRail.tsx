@@ -98,7 +98,7 @@ export function NotesDetailsRail({
   }
 
   return (
-    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
+    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:h-full sm:min-h-0 sm:flex-1 sm:flex-col sm:gap-4 sm:space-y-0 sm:overflow-hidden">
       <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
         <div className="flex items-center justify-between gap-3 sm:hidden">
           <p className="text-sm font-semibold text-foreground">Details</p>

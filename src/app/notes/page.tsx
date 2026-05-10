@@ -888,7 +888,7 @@ export default function NotesPage() {
                 </section>
 
                 {showDesktopDetailsRail ? (
-                  <aside className="hidden sm:block sm:min-h-0 sm:overflow-hidden">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton showHeader={false} /> : null)}</aside>
+                  <aside className="hidden sm:flex sm:min-h-0 sm:overflow-hidden">{detailsRail ?? (showSelectedPageLoading ? <NotesDetailsRailSkeleton showHeader={false} /> : null)}</aside>
                 ) : <div className="hidden sm:block" aria-hidden="true" />}
               </section>
             </>
