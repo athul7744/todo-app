@@ -49,6 +49,7 @@ export default function NotesPage() {
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
   const [optimisticBlockStructure, setOptimisticBlockStructure] = useState<Record<string, OptimisticBlockStructure>>({});
   const [showAbsoluteUpdatedTime, setShowAbsoluteUpdatedTime] = useState(false);
+  const [stableUpdatedTimestamp, setStableUpdatedTimestamp] = useState<{ relative: string; absolute: string } | null>(null);
   const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: number | "start" | "end" } | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPage, setIsDeletingPage] = useState(false);
@@ -192,6 +193,8 @@ export default function NotesPage() {
       ? resolvedPageEmoji
       : selectedPageEmoji;
   const absoluteUpdatedTimeTimeoutRef = useRef<number | null>(null);
+  const pendingUpdatedTimestampRef = useRef<{ relative: string; absolute: string } | null>(null);
+  const settleUpdatedTimestampTimeoutRef = useRef<number | null>(null);
 
   const revealAbsoluteUpdatedTime = () => {
     setShowAbsoluteUpdatedTime(true);
@@ -217,6 +220,7 @@ export default function NotesPage() {
       setBlockContentDrafts({});
       setOptimisticBlockStructure({});
       setShowAbsoluteUpdatedTime(false);
+      setStableUpdatedTimestamp(null);
       setFocusTarget(null);
       return;
     }
@@ -230,8 +234,54 @@ export default function NotesPage() {
     setBlockContentDrafts({});
     setOptimisticBlockStructure({});
     setShowAbsoluteUpdatedTime(false);
+    setStableUpdatedTimestamp(updatedTimestamp);
     setFocusTarget(null);
   }, [selectedPage?.id]);
+
+  useEffect(() => {
+    pendingUpdatedTimestampRef.current = updatedTimestamp;
+
+    if (!selectedPage) {
+      if (settleUpdatedTimestampTimeoutRef.current !== null) {
+        window.clearTimeout(settleUpdatedTimestampTimeoutRef.current);
+        settleUpdatedTimestampTimeoutRef.current = null;
+      }
+      setStableUpdatedTimestamp(null);
+      return;
+    }
+
+    if (!hasPendingWrites() && !hasPendingNoteEdgeReconciles()) {
+      if (settleUpdatedTimestampTimeoutRef.current !== null) {
+        window.clearTimeout(settleUpdatedTimestampTimeoutRef.current);
+        settleUpdatedTimestampTimeoutRef.current = null;
+      }
+      setStableUpdatedTimestamp(updatedTimestamp);
+      return;
+    }
+
+    if (settleUpdatedTimestampTimeoutRef.current !== null) {
+      return;
+    }
+
+    const waitForSettledTimestamp = () => {
+      if (hasPendingWrites() || hasPendingNoteEdgeReconciles()) {
+        settleUpdatedTimestampTimeoutRef.current = window.setTimeout(waitForSettledTimestamp, 240);
+        return;
+      }
+
+      settleUpdatedTimestampTimeoutRef.current = null;
+      setStableUpdatedTimestamp(pendingUpdatedTimestampRef.current);
+    };
+
+    settleUpdatedTimestampTimeoutRef.current = window.setTimeout(waitForSettledTimestamp, 240);
+
+    return () => {
+      if (settleUpdatedTimestampTimeoutRef.current !== null) {
+        window.clearTimeout(settleUpdatedTimestampTimeoutRef.current);
+        settleUpdatedTimestampTimeoutRef.current = null;
+      }
+    };
+  }, [selectedPage?.id, selectedPage?.updated_at]);
 
   useEffect(() => {
     if (!selectedPage) {
@@ -371,7 +421,7 @@ export default function NotesPage() {
     selectedBlockCount: selectedBlocks.length,
     linkedReferenceCount: linkedReferences.length,
     displayBlocks,
-    updatedTimestamp,
+    updatedTimestamp: stableUpdatedTimestamp,
   });
 
   const openPageById = (pageId: string) => {
@@ -679,7 +729,7 @@ export default function NotesPage() {
                       type="button"
                       onClick={revealAbsoluteUpdatedTime}
                       key={editorUpdatedTimestamp?.absolute}
-                      className="inline-flex max-w-full items-center justify-center truncate text-[11px] text-muted-foreground/75 animate-fade-slide-in transition-colors hover:text-foreground"
+                      className="inline-flex max-w-full items-center justify-center truncate text-[11px] text-muted-foreground/75 animate-fade-slide-in-soft transition-colors hover:text-foreground"
                     >
                       {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
                     </button>
@@ -743,7 +793,7 @@ export default function NotesPage() {
                         type="button"
                         onClick={revealAbsoluteUpdatedTime}
                         key={editorUpdatedTimestamp?.absolute}
-                        className="inline-flex items-center text-[11px] text-muted-foreground/75 animate-fade-slide-in transition-colors hover:text-foreground"
+                        className="inline-flex items-center text-[11px] text-muted-foreground/75 animate-fade-slide-in-soft transition-colors hover:text-foreground"
                       >
                         {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
                       </button>

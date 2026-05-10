@@ -4,6 +4,7 @@ import { serializeNoteDocument } from '@/lib/notes/notes-content';
 const DEBOUNCE_MS = 1000;
 type SQLValue = string | number | null;
 const TABLES_WITH_UPDATED_AT = new Set(['tasks', 'pages', 'blocks']);
+export const SQL_UTC_NOW_EXPRESSION = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
 
 type AfterFlushCallback = () => Promise<void> | void;
 
@@ -130,7 +131,7 @@ export async function flushUpdate(id: string, table?: string): Promise<any> {
     const values = changedKeys.map((field) => pending.fields[field]);
 
     if (TABLES_WITH_UPDATED_AT.has(pending.table)) {
-      setClauses.push("updated_at = datetime('now')");
+      setClauses.push(`updated_at = ${SQL_UTC_NOW_EXPRESSION}`);
     }
 
     await db.execute(

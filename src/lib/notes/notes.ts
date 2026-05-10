@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { extractNoteText, serializeNoteDocument } from "@/lib/notes/notes-content";
 import { db } from "@/lib/powersync/db";
 import { getCurrentUserId } from "@/lib/shared/auth";
-import { debouncedExecute, debouncedUpdate } from "@/lib/shared/debounced-update";
+import { debouncedExecute, debouncedUpdate, SQL_UTC_NOW_EXPRESSION } from "@/lib/shared/debounced-update";
 
 const NOTES_DEBOUNCE_MS = 10_000;
 
@@ -94,7 +94,7 @@ function touchNotePage(pageId: string | null | undefined) {
   if (!pageId) return;
 
   debouncedExecute(
-    "UPDATE pages SET updated_at = datetime('now') WHERE id = ?",
+    `UPDATE pages SET updated_at = ${SQL_UTC_NOW_EXPRESSION} WHERE id = ?`,
     [pageId],
     `notes:page-touch:${pageId}`,
     NOTES_DEBOUNCE_MS
@@ -131,7 +131,7 @@ function getBlockFlushOptions(pageId: string | null | undefined, blockId?: strin
   return {
     debounceMs: NOTES_DEBOUNCE_MS,
     afterFlush: async () => {
-      await db.execute("UPDATE pages SET updated_at = datetime('now') WHERE id = ?", [pageId]);
+      await db.execute(`UPDATE pages SET updated_at = ${SQL_UTC_NOW_EXPRESSION} WHERE id = ?`, [pageId]);
 
       if (!blockId) {
         return;
