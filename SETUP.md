@@ -263,7 +263,7 @@ npm test
 npx tsc --noEmit
 ```
 
-Notes:
+Development notes:
 
 - `npm run dev` and `npm run build` already use the repo's configured Webpack-based Next.js commands.
 - The `/share` route is wired as the PWA web share target, so mobile share-sheet flows can be exercised locally after sign-in.
@@ -274,26 +274,24 @@ Notes:
 Vitest is set up for module and small integration tests.
 
 - `tests/notes/` holds notes-specific tests.
-- `tests/tasks/` holds future task-specific tests.
-- `tests/tracker/` holds future tracker-specific tests.
+- `tests/tasks/` holds task-specific tests.
+- `tests/tracker/` holds tracker-specific tests.
 - `tests/shared/` holds shared fixtures and assertion helpers used across app groups.
 
 Use `npm test` for a one-shot run and `npm run test:watch` while developing.
 
-### Notes editor setup notes
+### Feature implementation notes
 
-The notes module uses a rich Tiptap schema. After dependencies install successfully, note blocks support:
+Keep feature structure aligned with the existing ownership split:
 
-- markdown-style shortcuts for headings, blockquotes, horizontal rules, links, task lists, code blocks, tables, and images
-- slash commands for common block transforms
-- outliner-aware key behavior so `Enter` and `Backspace` behave differently for plain blocks, task lists, and code blocks
+- Tasks logic lives in `src/app/tasks/page.tsx`, `src/components/tasks/`, and `src/lib/tasks/`.
+- Tracker logic lives in `src/app/tracker/page.tsx`, `src/components/tracker/`, and `src/lib/tracker/`.
+- Notes route-local UI lives in `src/components/notes/page/`, while block editor behavior stays alongside `src/components/notes/NoteBlockEditor.tsx` and `src/components/notes/NoteBlockEditorSlash.ts`.
 
-The route-level notes screen is intentionally split across feature-local modules in `src/components/notes/page/`:
+For notes specifically, keep `src/app/notes/page.tsx` as the route orchestrator and move reusable route-local sections or hooks into `src/components/notes/page/` before expanding the route file.
 
-- presentational route sections such as `NotesOverview.tsx`, `NotesNavigationRail.tsx`, `NotesDetailsRail.tsx`, `NotesEditorHeader.tsx`, `NotesEditorContent.tsx`, and `NotesPageSearchPopup.tsx`
-- supporting hooks such as `useNotesPageDerivedState.ts`, `useNoteBlockActions.ts`, `useNotePageActions.ts`, and `useNotesSurfaceState.ts`
 
-That layout keeps `src/app/notes/page.tsx` as the route orchestrator instead of a monolithic screen component. If you change this area, validate with both `npm run lint` and `npx tsc --noEmit` because the route behavior is spread across several typed hook boundaries.
+If you change route wiring or editor behavior, validate with both `npm run lint` and `npx tsc --noEmit`.
 
 If you update Tiptap packages, keep the versions aligned instead of mixing minor lines. The repo pins the Tiptap packages together so schema extensions resolve consistently.
 

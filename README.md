@@ -1,6 +1,6 @@
 # Dash.
 
-An offline-first productivity dashboard with **Task Management**, **Time Tracking**, and a local-first **Notes** module. It works offline, applies optimistic UI locally, and syncs to the cloud in the background when connectivity returns.
+An offline-first productivity workspace with **Tasks**, **Tracker**, and **Notes** under one shell. It works offline, keeps local interactions responsive, and syncs to the cloud in the background when connectivity returns.
 
 ## Docs
 
@@ -9,11 +9,11 @@ An offline-first productivity dashboard with **Task Management**, **Time Trackin
 
 ## Features
 
-**Tasks** — Offline-first task manager with subtasks, tags, due dates, priorities, smart filters, trash/restore, responsive masonry layout, and direct save from the system share sheet.
+**Tasks** — Offline-first task manager with subtasks, tags, due dates, priorities, smart filters, trash and restore, responsive masonry layout, and direct save from the system share sheet.
 
-**Time Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings (1–5), year activity heatmap, year rating calendar, and mobile-friendly week navigation with shared bottom FAB controls. User-defined activity types with a color palette.
+**Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings, yearly heatmaps, weekly widgets, and mobile-friendly navigation with shared bottom FAB controls.
 
-**Notes** — Local-first PKM outliner with page and block editing, nested blocks, LexoRank ordering, inline `[[page]]` and `#tag` references, backlinks, owned attachments, markdown-style editing, slash commands, and polished mobile rails for pages and details.
+**Notes** — Local-first outline editor with pages, nested blocks, backlinks, owned attachments, inline references, markdown-style transforms, and slash-driven block commands.
 
 **Week Widgets** — Activity breakdown donut chart, mood insights with sleep correlation, daily stacked bars, sleep stats (avg/range/per-night chart), and productivity ratio bar.
 
@@ -44,16 +44,10 @@ npx tsc --noEmit
 
 Vitest is configured for fast logic-level coverage.
 
-- `tests/notes/` contains notes-specific tests.
-- `tests/tasks/` is reserved for task-specific tests.
-- `tests/tracker/` is reserved for tracker-specific tests.
+- `tests/notes/` contains notes-focused tests.
+- `tests/tasks/` contains task-focused tests.
+- `tests/tracker/` contains tracker-focused tests.
 - `tests/shared/` contains reusable fixtures, builders, and assertions shared across app groups.
-
-Notes editor behavior:
-
-- markdown shortcuts for headings, quotes, horizontal rules, links, inline code, code blocks, task lists, tables, and images
-- slash commands for common block transforms
-- outliner-aware Enter and Backspace behavior for plain blocks, task lists, and code blocks
 
 ## How The Project Is Organized
 
@@ -64,13 +58,11 @@ Notes editor behavior:
 - `tests/` contains Vitest suites grouped by app plus shared test helpers.
 - `SETUP.md` contains the SQL you need to create the hosted Supabase schema and PowerSync stream configuration.
 
-Notable notes components:
+Feature entry points:
 
-- `src/components/notes/NoteBlockEditor.tsx` owns the rich Tiptap editor, markdown shortcuts, slash commands, and block-specific key handling.
-- `src/components/notes/NotesBlockTree.tsx` renders the nested visible block tree and handles sibling creation plumbing.
-- `src/components/notes/MobileRailDrawer.tsx` provides the shared mobile slide-out shell used by the notes page rails.
-- `src/components/notes/page/` contains the route-local notes page modules: overview, navigation rail, details rail, editor header/content shells, search popup, and the supporting hooks that keep `src/app/notes/page.tsx` focused on orchestration.
-- `src/components/notes/page/useNotesPageDerivedState.ts`, `useNoteBlockActions.ts`, `useNotePageActions.ts`, and `useNotesSurfaceState.ts` split the notes route logic into derived state, block mutations, page mutations, and transition/cache state.
+- `src/app/tasks/page.tsx` with `src/components/tasks/` for task editing, metadata, tags, and loading states.
+- `src/app/tracker/page.tsx` with `src/components/tracker/` for the week grid, activity management, yearly views, and widgets.
+- `src/app/notes/page.tsx` with `src/components/notes/page/` for route-local notes surfaces, plus `src/components/notes/NoteBlockEditor.tsx` and `src/components/notes/NoteBlockEditorSlash.ts` for block editing behavior.
 
 > For a deeper map of how tasks, tracker, share capture, optimistic updates, route loading, and PowerSync fit together, read [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md).
 > For environment setup and deployment, read [SETUP.md](SETUP.md).

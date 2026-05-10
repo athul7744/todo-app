@@ -13,7 +13,7 @@ Dash is an offline-first Next.js application with three primary apps under one s
 
 - `Tasks` — todo management with subtasks, tags, due dates, priorities, trash/restore, and share-target capture
 - `Tracker` — time-block logging on a 7-day x 24-hour grid, daily mood ratings, yearly heatmaps, and weekly widgets
-- `Notes` — a local-first PKM module built on pages, blocks, graph edges, and explicitly owned attachments
+- `Notes` — a local-first outline editor built on pages, blocks, graph edges, and explicitly owned attachments
 
 Testing is organized separately under `tests/`, with app-group suites and shared helpers rather than colocated source tests.
 
@@ -130,6 +130,7 @@ Important convention:
 ### Notes-specific components
 
 - `src/components/notes/NoteBlockEditor.tsx`
+- `src/components/notes/NoteBlockEditorSlash.ts`
 - `src/components/notes/NotesBlockTree.tsx`
 - `src/components/notes/MobileRailDrawer.tsx`
 - `src/components/notes/page/*`
@@ -165,7 +166,7 @@ Important convention:
 - `tests/tracker/*` — tracker-specific Vitest suites
 - `tests/shared/*` — shared fixtures, builders, and assertions reused across app groups
 
-### Notes app structure
+### Notes App Structure
 
 Primary route:
 
@@ -173,84 +174,35 @@ Primary route:
 
 Responsibilities:
 
-- Registers the notes module in the shared shell and launcher
-- Orchestrates the page list view and page editor view via `?page=` route state
-- Reads pages, blocks, backlinks, attachments, and tag mentions from local SQLite through `src/hooks/use-notes.ts`
-- Composes feature-local route modules from `src/components/notes/page/` instead of rendering the entire notes UI inline
-- Preserves the shared header-first loading model used by tasks and tracker
-- Notes pages and blocks carry `updated_at` so editor-heavy writes can use the shared debounced local update path
+- Registers the notes app in the shared shell and launcher.
+- Orchestrates overview and editor surfaces via `?page=` route state.
+- Reads pages, blocks, backlinks, attachments, and mentions from local SQLite through `src/hooks/use-notes.ts`.
+- Preserves the shared header-first loading model used across the app.
+- Uses the shared debounced write path for page and block updates.
 
-Current route-local module layout:
+Key modules:
 
-- `src/components/notes/page/NotesOverview.tsx`
-  - Overview surface with the search trigger plus favorites/recent page cards
-
-- `src/components/notes/page/NotesNavigationRail.tsx`
-  - Pages rail and desktop pages-rail header controls
-
-- `src/components/notes/page/NotesDetailsRail.tsx`
-  - Details sidebar covering outline, summary, tags, references, attachments, timestamps, and destructive actions
-
-- `src/components/notes/page/NotesEditorHeader.tsx`
-  - Title input, emoji picker, favorite toggle, and editor metadata pills
-
-- `src/components/notes/page/NotesEditorContent.tsx`
-  - Editor shell that binds the header, block tree, loading state, and content overlay behavior
-
-- `src/components/notes/page/NotesPageSearchPopup.tsx`
-  - Search and create-page popup content for the overview surface
-
-- `src/components/notes/page/items.tsx`
-  - Shared page item renderers used by the overview cards and navigation rail
-
-- `src/components/notes/page/types.ts`, `utils.ts`, `ui.tsx`
-  - Feature-local shared types, pure helpers, and small reusable UI primitives
-
-- `src/components/notes/page/useNotesPageDerivedState.ts`
-  - Derived note page collections, selected-page metadata, search results, and outline state
-
-- `src/components/notes/page/useNoteBlockActions.ts`
-  - Block creation, deletion, update, indent/outdent, optimistic movement, and block focus restoration
-
-- `src/components/notes/page/useNotePageActions.ts`
-  - Page metadata edits, favorite toggles, emoji selection, copy flow, and delete flow
-
-- `src/components/notes/page/useNotesSurfaceState.ts`
-  - Overview/editor surface transitions, cached render content, and smoothed loading choreography
-
-Important child components:
+- `src/components/notes/page/*`
+  - Route-local overview, navigation, details, search, and supporting notes hooks.
 
 - `src/components/notes/NoteBlockEditor.tsx`
-  - Tiptap-based editor for a single note block
-  - Handles inline reference highlighting, markdown shortcuts, slash commands, richer block types, commit behavior, and local/external content reconciliation
-  - Special-cases task-list and code-block key behavior so the outliner model stays predictable
+  - Per-block Tiptap editor with markdown-style transforms, block key handling, and local/external content reconciliation.
+
+- `src/components/notes/NoteBlockEditorSlash.ts`
+  - Slash command definitions plus query, filtering, and grouping helpers used by the block editor.
 
 - `src/components/notes/NotesBlockTree.tsx`
-  - Builds and renders the nested visible block tree
-  - Owns block-to-block navigation wiring, sibling creation plumbing, and empty-page creation affordance
+  - Nested visible block tree, block navigation wiring, and sibling creation plumbing.
 
 - `src/components/notes/MobileRailDrawer.tsx`
-  - Shared mobile drawer shell used by both the pages rail and the details rail on the notes route
-  - Keeps trigger styling and bounded drawer scrolling logic in one place
+  - Shared mobile drawer shell for the notes rails.
 
-Notes route design convention:
+Conventions:
 
 - Keep `src/app/notes/page.tsx` as the route orchestrator and state wiring layer.
-- Prefer moving reusable route-local UI and logic into `src/components/notes/page/` before expanding the route file.
-- Keep notes-specific hooks feature-local when they are tightly coupled to the notes route instead of promoting them to a global hooks folder.
-
-Notes attachment ownership:
-
-- attachments are owned by either a page or a block, never both
-- page-owned attachments cover page-level assets such as cover images stored in page properties
-- block-owned attachments cover inline embedded assets rendered by the editor
-
-Notes editor capabilities:
-
-- supported markdown-style transforms include headings, quotes, horizontal rules, links, inline code, code blocks, task lists, tables, and images
-- slash commands are implemented locally in the block editor rather than as a global command palette
-- `Enter` creates sibling outline blocks by default, but task-list blocks intentionally create the next sibling preconfigured as another task-list block
-- empty task-list and code blocks collapse back to a normal empty block on `Backspace` instead of deleting immediately
+- Move reusable route-local UI and hooks into `src/components/notes/page/` before expanding the route file.
+- Keep editor-owned helpers alongside the editor when they are specific to note block behavior.
+- Attachments are owned by either a page or a block, never both.
 
 ## Tasks App Structure
 
@@ -422,7 +374,7 @@ Vitest is the current test runner for fast logic-level coverage.
 - `tests/shared/`
   - Shared fixtures, builders, and assertions for cross-app behaviors such as ranked ordering
 
-Current shared testable seams:
+Shared testable seams:
 
 - `src/lib/notes/notes-content.ts`
 - `src/lib/notes/notes-tree.ts`
@@ -440,9 +392,9 @@ Current shared testable seams:
 - The header, switcher, and mobile FAB shell all rely on this registry
 - If a new app is added, start there first
 
-The `Notes` module follows that same pattern, so future work should extend the shared shell instead of introducing notes-specific chrome.
+The notes app follows that same pattern, so new shell behavior should extend the shared primitives instead of introducing app-only chrome.
 
-## PowerSync Notes
+## PowerSync
 
 - `src/components/powersync-provider.tsx` intentionally waits only for local init before rendering the app
 - Cloud sync happens after the app is already usable
@@ -453,7 +405,7 @@ This is one of the most important architectural choices in the codebase:
 - local DB ready == UI may render
 - cloud connected != required for first paint
 
-## Useful Working Notes For Future Agents
+## Debugging Entry Points
 
 If you are debugging behavior in this repo, start from the narrowest owning surface:
 
