@@ -154,22 +154,30 @@ interface PendingExecute {
   id?: string;
   sql: string;
   params: any[];
+  afterFlush?: AfterFlushCallback;
 }
 
 const pendingExecutes: PendingExecute[] = [];
 let executeTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function debouncedExecute(sql: string, params: any[], entityId?: string, debounceMs = DEBOUNCE_MS) {
+export function debouncedExecute(
+  sql: string,
+  params: any[],
+  entityId?: string,
+  debounceMs = DEBOUNCE_MS,
+  afterFlush?: AfterFlushCallback
+) {
   if (entityId) {
     const existing = pendingExecutes.find((execute) => execute.id === entityId);
     if (existing) {
       existing.sql = sql;
       existing.params = params;
+      existing.afterFlush = afterFlush ?? existing.afterFlush;
     } else {
-      pendingExecutes.push({ id: entityId, sql, params });
+      pendingExecutes.push({ id: entityId, sql, params, afterFlush });
     }
   } else {
-    pendingExecutes.push({ id: entityId, sql, params });
+    pendingExecutes.push({ id: entityId, sql, params, afterFlush });
   }
 
   if (executeTimer) clearTimeout(executeTimer);
@@ -191,9 +199,11 @@ export function cancelExecute(entityId: string) {
 
 export async function flushExecutes() {
   if (executeTimer) { clearTimeout(executeTimer); executeTimer = null; }
-  const batch = pendingExecutes.splice(0);
-  for (const { sql, params } of batch) {
-    await db.execute(sql, params);
+  while (pendingExecutes.length > 0) {
+    const pending = pendingExecutes[0];
+    await db.execute(pending.sql, pending.params);
+    pendingExecutes.shift();
+    await pending.afterFlush?.();
   }
 }
 

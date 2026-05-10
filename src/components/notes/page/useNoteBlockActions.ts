@@ -10,6 +10,8 @@ import {
   createNoteBlock,
   deleteNoteBlock,
   moveNoteBlock,
+  queueNoteBlockCreate,
+  queueNoteBlockCreates,
   updateNoteBlock,
   type JsonValue,
   type NoteBlockInsert,
@@ -193,6 +195,43 @@ export function useNoteBlockActions({
     }));
   };
 
+  const createOptimisticBlocks = (
+    blocks: Array<{
+      blockId: string;
+      parentBlockId: string | null | undefined;
+      sortRank: string;
+      content: JsonValue;
+      pageId: string;
+    }>
+  ) => {
+    if (blocks.length === 0) {
+      return;
+    }
+
+    const fallbackBlock = blocks
+      .map((block) => selectedBlockMap.get(block.parentBlockId ?? "") ?? structuredBlocks.find((candidate) => candidate.page_id === block.pageId) ?? selectedBlocks[0] ?? null)
+      .find((block) => block !== null) ?? null;
+
+    setOptimisticCreatedBlocks((currentBlocks) => {
+      const nextBlocks = { ...currentBlocks };
+
+      blocks.forEach((block) => {
+        nextBlocks[block.blockId] = {
+          id: block.blockId,
+          user_id: fallbackBlock?.user_id ?? "",
+          page_id: block.pageId,
+          parent_block_id: block.parentBlockId ?? null,
+          type: "text",
+          content: serializeNoteDocument(block.content),
+          sort_rank: block.sortRank,
+          updated_at: new Date().toISOString(),
+        };
+      });
+
+      return nextBlocks;
+    });
+  };
+
   const removeOptimisticCreatedBlock = (blockId: string) => {
     setOptimisticCreatedBlocks((currentBlocks) => {
       if (!(blockId in currentBlocks)) {
@@ -202,6 +241,28 @@ export function useNoteBlockActions({
       const nextBlocks = { ...currentBlocks };
       delete nextBlocks[blockId];
       return nextBlocks;
+    });
+  };
+
+  const removeOptimisticCreatedBlocks = (blockIds: string[]) => {
+    if (blockIds.length === 0) {
+      return;
+    }
+
+    setOptimisticCreatedBlocks((currentBlocks) => {
+      let hasChanges = false;
+      const nextBlocks = { ...currentBlocks };
+
+      blockIds.forEach((blockId) => {
+        if (!(blockId in nextBlocks)) {
+          return;
+        }
+
+        delete nextBlocks[blockId];
+        hasChanges = true;
+      });
+
+      return hasChanges ? nextBlocks : currentBlocks;
     });
   };
 
@@ -239,7 +300,7 @@ export function useNoteBlockActions({
         setFocusTarget({ blockId, placement: "end" });
       });
 
-      await createNoteBlock({
+      await queueNoteBlockCreate({
         id: blockId,
         pageId: selectedPageId,
         sortRank,
@@ -308,7 +369,7 @@ export function useNoteBlockActions({
         });
       });
 
-      await createNoteBlock({
+      await queueNoteBlockCreate({
         id: createdBlockId,
         pageId: selectedPageId,
         parentBlockId: nextParentBlockId,
@@ -342,7 +403,7 @@ export function useNoteBlockActions({
         setFocusTarget({ blockId: nextBlockId, placement: "end" });
       });
 
-      await createNoteBlock({
+      await queueNoteBlockCreate({
         id: nextBlockId,
         pageId: selectedPageId,
         parentBlockId: nextParentBlockId,
@@ -367,6 +428,21 @@ export function useNoteBlockActions({
     if (!selectedPageId || isCreatingBlock) return;
 
     const insertedBlocks: Array<Pick<NoteBlockRow, "id" | "parent_block_id" | "sort_rank">> = [];
+    const optimisticBlocksToCreate: Array<{
+      blockId: string;
+      parentBlockId: string | null;
+      sortRank: string;
+      content: JsonValue;
+      pageId: string;
+    }> = [];
+    const blockInputsToCreate: Array<{
+      id: string;
+      pageId: string;
+      parentBlockId: string | null;
+      sortRank: string;
+      type: string;
+      content: JsonValue;
+    }> = [];
 
     const getWorkingBlocks = () => {
       const nextBlocks = new Map<string, Pick<NoteBlockRow, "id" | "parent_block_id" | "sort_rank">>();
@@ -410,11 +486,15 @@ export function useNoteBlockActions({
           sort_rank: nextSortRank,
         });
 
-        flushSync(() => {
-          createOptimisticBlock(createdBlockId, nextParentBlockId, nextSortRank, blockToCreate.content, selectedPageId);
+        optimisticBlocksToCreate.push({
+          blockId: createdBlockId,
+          parentBlockId: nextParentBlockId,
+          sortRank: nextSortRank,
+          content: blockToCreate.content,
+          pageId: selectedPageId,
         });
 
-        await createNoteBlock({
+        blockInputsToCreate.push({
           id: createdBlockId,
           pageId: selectedPageId,
           parentBlockId: nextParentBlockId,
@@ -464,9 +544,17 @@ export function useNoteBlockActions({
         lastCreatedBlockId = await createInsertedBlocks(nextSiblingContents, parentBlockId ?? null, blockId) ?? lastCreatedBlockId;
       }
 
-      if (lastCreatedBlockId) {
-        setFocusTarget({ blockId: lastCreatedBlockId, placement: "end" });
-      }
+      flushSync(() => {
+        createOptimisticBlocks(optimisticBlocksToCreate);
+        if (lastCreatedBlockId) {
+          setFocusTarget({ blockId: lastCreatedBlockId, placement: "end" });
+        }
+      });
+
+      await queueNoteBlockCreates(blockInputsToCreate);
+    } catch (error) {
+      removeOptimisticCreatedBlocks(optimisticBlocksToCreate.map((block) => block.blockId));
+      throw error;
     } finally {
       setIsCreatingBlock(false);
     }
