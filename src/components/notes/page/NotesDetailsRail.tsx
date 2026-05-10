@@ -1,19 +1,9 @@
 "use client";
 
-import { Copy, Clock3, FileText, Files, Hash, Link2, Loader2, Paperclip, Settings2, Tags, Trash2 } from "lucide-react";
+import { Copy, Clock3, FileText, Files, Hash, Link2, Paperclip, Settings2, Tags, Trash2 } from "lucide-react";
 
 import type { LinkedNoteReferenceRow, NoteAttachmentRow, NoteBlockRow, NotePageRow, NoteTagMentionRow } from "@/hooks/use-notes";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,8 +42,6 @@ export function NotesDetailsRail({
   isLoadingLinkedReferences,
   isLoadingTagMentions,
   isLoadingAttachments,
-  isDeleteDialogOpen,
-  isDeletingPage,
   areAllDetailsSectionsOpen,
   onToggleAllDetailsSections,
   onToggleDetailsSection,
@@ -62,8 +50,6 @@ export function NotesDetailsRail({
   onPersistSelectedPageProperties,
   onSetFocusTarget,
   onOpenDeleteDialog,
-  onOpenChangeDeleteDialog,
-  onHandleDeletePage,
   onHandleCopyDocument,
 }: {
   selectedPage: NotePageRow | null;
@@ -79,8 +65,6 @@ export function NotesDetailsRail({
   isLoadingLinkedReferences: boolean;
   isLoadingTagMentions: boolean;
   isLoadingAttachments: boolean;
-  isDeleteDialogOpen: boolean;
-  isDeletingPage: boolean;
   areAllDetailsSectionsOpen: boolean;
   onToggleAllDetailsSections: () => void;
   onToggleDetailsSection: (section: keyof DetailsSectionState) => void;
@@ -89,8 +73,6 @@ export function NotesDetailsRail({
   onPersistSelectedPageProperties: (summary: string, tags: string) => void;
   onSetFocusTarget: (target: { blockId: string; placement: "start" | "end" }) => void;
   onOpenDeleteDialog: () => void;
-  onOpenChangeDeleteDialog: (open: boolean) => void;
-  onHandleDeletePage: () => void;
   onHandleCopyDocument: () => void | Promise<void>;
 }) {
   if (!selectedPage) {
@@ -330,33 +312,6 @@ export function NotesDetailsRail({
         </DetailsSection>
       </div>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={onOpenChangeDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete page?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the page, its blocks, attachments, and local note links. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingPage}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onHandleDeletePage}
-              disabled={isDeletingPage}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingPage ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete page"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

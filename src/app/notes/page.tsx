@@ -9,6 +9,16 @@ import { MobileBottomFabs } from "@/components/MobileBottomFabs";
 import { NotesDetailsRailSkeleton, NotesPageSkeleton } from "@/components/notes/NotesPageSkeleton";
 import { MobileRailDrawer } from "../../components/notes/MobileRailDrawer";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SEARCH_POPUP_CLOSE_ANIMATION_MS } from "@/components/ui/search-popup";
 import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages } from "@/hooks/use-notes";
 import { createStarterPage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, normalizeNotePageTitle } from "@/lib/notes/notes";
@@ -27,10 +37,14 @@ import { NotesPageSearchPopup } from "@/components/notes/page/NotesPageSearchPop
 import { useNotesPageDerivedState } from "@/components/notes/page/useNotesPageDerivedState";
 import { useNotesSurfaceState } from "@/components/notes/page/useNotesSurfaceState";
 import { formatTimestampLabel } from "@/components/notes/page/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 
 const notesApp = getApp("notes");
 const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
+const MOBILE_EDGE_SWIPE_START_PX = 24;
+const MOBILE_EDGE_SWIPE_TRIGGER_PX = 56;
+const MOBILE_EDGE_SWIPE_MAX_VERTICAL_DRIFT_PX = 48;
 
 export default function NotesPage() {
   const router = useRouter();
@@ -55,6 +69,8 @@ export default function NotesPage() {
   const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: number | "start" | "end" } | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPage, setIsDeletingPage] = useState(false);
+  const [isMobilePagesDrawerOpen, setIsMobilePagesDrawerOpen] = useState(false);
+  const [isMobileDetailsDrawerOpen, setIsMobileDetailsDrawerOpen] = useState(false);
   const [pageRailSectionOpen, setPageRailSectionOpen] = useState({
     favorites: true,
     recent: true,
@@ -74,6 +90,8 @@ export default function NotesPage() {
     timestamps: true,
     actions: true,
   });
+  const isMobileViewport = useMediaQuery("(max-width: 639px)");
+  const edgeSwipeStartRef = useRef<{ x: number; y: number; edge: "left" | "right" } | null>(null);
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
@@ -681,8 +699,6 @@ export default function NotesPage() {
       isLoadingLinkedReferences={isLoadingLinkedReferences}
       isLoadingTagMentions={isLoadingTagMentions}
       isLoadingAttachments={isLoadingAttachments}
-      isDeleteDialogOpen={isDeleteDialogOpen}
-      isDeletingPage={isDeletingPage}
       areAllDetailsSectionsOpen={areAllDetailsSectionsOpen}
       onToggleAllDetailsSections={toggleAllDetailsSections}
       onToggleDetailsSection={toggleDetailsSection}
@@ -690,15 +706,79 @@ export default function NotesPage() {
       onSetTagsDraft={setTagsDraft}
       onPersistSelectedPageProperties={persistSelectedPageProperties}
       onSetFocusTarget={setFocusTarget}
-      onOpenDeleteDialog={() => setIsDeleteDialogOpen(true)}
-      onOpenChangeDeleteDialog={setIsDeleteDialogOpen}
-      onHandleDeletePage={handleDeletePage}
+      onOpenDeleteDialog={() => {
+        setIsMobileDetailsDrawerOpen(false);
+        setIsDeleteDialogOpen(true);
+      }}
       onHandleCopyDocument={handleCopyDocument}
     />
   );
 
+  const handleMobileEdgeSwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobileViewport || isDeleteDialogOpen || isPageSearchOpen || isMobilePagesDrawerOpen || isMobileDetailsDrawerOpen) {
+      edgeSwipeStartRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    if (!touch) {
+      edgeSwipeStartRef.current = null;
+      return;
+    }
+
+    const { clientX, clientY } = touch;
+    const viewportWidth = window.innerWidth;
+
+    if (clientX <= MOBILE_EDGE_SWIPE_START_PX) {
+      edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "left" };
+      return;
+    }
+
+    if (clientX >= viewportWidth - MOBILE_EDGE_SWIPE_START_PX) {
+      edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "right" };
+      return;
+    }
+
+    edgeSwipeStartRef.current = null;
+  };
+
+  const handleMobileEdgeSwipeEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipeStart = edgeSwipeStartRef.current;
+    edgeSwipeStartRef.current = null;
+
+    if (!swipeStart || !isMobileViewport || isDeleteDialogOpen || isPageSearchOpen) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    if (!touch) {
+      return;
+    }
+
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = Math.abs(touch.clientY - swipeStart.y);
+    if (deltaY > MOBILE_EDGE_SWIPE_MAX_VERTICAL_DRIFT_PX) {
+      return;
+    }
+
+    if (swipeStart.edge === "left" && deltaX >= MOBILE_EDGE_SWIPE_TRIGGER_PX) {
+      setIsMobileDetailsDrawerOpen(false);
+      setIsMobilePagesDrawerOpen(true);
+      return;
+    }
+
+    if (swipeStart.edge === "right" && deltaX <= -MOBILE_EDGE_SWIPE_TRIGGER_PX && (detailsRail || showSelectedPageLoading)) {
+      setIsMobilePagesDrawerOpen(false);
+      setIsMobileDetailsDrawerOpen(true);
+    }
+  };
+
   return (
-    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
+    <div
+      className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background"
+      onTouchStart={handleMobileEdgeSwipeStart}
+      onTouchEnd={handleMobileEdgeSwipeEnd}
+    >
       {isDisplayingOverview || showEditorAppHeader ? (
         <AppHeader
           app={notesApp}
@@ -741,6 +821,8 @@ export default function NotesPage() {
                   triggerLabel="Pages"
                   title="Pages"
                   description="Browse and create notes pages."
+                  open={isMobilePagesDrawerOpen}
+                  onOpenChange={setIsMobilePagesDrawerOpen}
                 >
                   {navigationRail}
                 </MobileRailDrawer>
@@ -775,6 +857,8 @@ export default function NotesPage() {
                     triggerLabel="Details"
                     title="Details"
                     description="Summary, tags, files, timestamps, and actions for the current page."
+                    open={isMobileDetailsDrawerOpen}
+                    onOpenChange={setIsMobileDetailsDrawerOpen}
                   >
                     {detailsRail ?? <NotesDetailsRailSkeleton />}
                   </MobileRailDrawer>
@@ -925,6 +1009,27 @@ export default function NotesPage() {
         onSelectPage={handleSelectPageFromSearch}
         onCreatePage={handleCreatePageFromSearch}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete page?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the page, its blocks, attachments, and local note links. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingPage}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePage}
+              disabled={isDeletingPage}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingPage ? "Deleting..." : "Delete page"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

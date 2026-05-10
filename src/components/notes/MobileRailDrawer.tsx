@@ -16,6 +16,8 @@ export function MobileRailDrawer({
   triggerLabel,
   title,
   description,
+  open,
+  onOpenChange,
   children,
 }: {
   direction: "left" | "right";
@@ -23,10 +25,12 @@ export function MobileRailDrawer({
   triggerLabel: string;
   title: string;
   description: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
   return (
-    <Drawer direction={direction}>
+    <Drawer direction={direction} open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>
         <Button variant="ghost" size="sm" className={`min-w-0 whitespace-nowrap gap-1.5 ${mobileDrawerTriggerClassName}`}>
           <TriggerIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
