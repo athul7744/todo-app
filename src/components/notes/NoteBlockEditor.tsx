@@ -45,6 +45,7 @@ import {
   getSlashQuery,
   type SlashCommand,
 } from "@/components/notes/NoteBlockEditorSlash";
+import { parseStructuredMarkdownList } from "@/lib/notes/markdown-clipboard";
 import { createNoteDocumentFromText, extractNoteText, normalizeNoteDocument, serializeNoteDocumentToMarkdown } from "@/lib/notes/notes-content";
 import type { NoteBlockInsert } from "@/lib/notes/notes";
 import { logger } from "@/lib/shared/logger";
@@ -374,66 +375,15 @@ function parseMarkdownClipboardBlockContent(view: EditorView, text: string): Not
   return (parseHtmlDocument(view, nextHtml) ?? createScaffoldDocument(text)) as NoteBlockInsert["content"];
 }
 
-function getMarkdownListLineIndentWidth(lines: string[]) {
-  const positiveIndents = lines
-    .map((line) => {
-      const leadingWhitespace = line.match(/^\s*/)?.[0] ?? "";
-      return leadingWhitespace.replace(/\t/g, "  ").length;
-    })
-    .filter((indent) => indent > 0)
-    .sort((left, right) => left - right);
-
-  return positiveIndents[0] ?? 1;
-}
-
 function parseStructuredMarkdownListClipboardBlocks(view: EditorView, text: string): NoteBlockInsert[] | null {
-  const lines = text
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0);
+  const structuredItems = parseStructuredMarkdownList(text);
 
-  if (lines.length === 0) {
-    return null;
-  }
-
-  const listLineRegex = /^(\s*)([-*+]|\d+\.)(?:\s+(.*))?$/;
-  if (!lines.every((line) => listLineRegex.test(line))) {
-    return null;
-  }
-
-  const indentWidth = getMarkdownListLineIndentWidth(lines);
-  const roots: NoteBlockInsert[] = [];
-  const stack: Array<{ depth: number; block: NoteBlockInsert }> = [];
-
-  for (const line of lines) {
-    const match = line.match(listLineRegex);
-    if (!match) {
-      return null;
-    }
-
-    const leadingWhitespace = match[1] ?? "";
-    const rawIndent = leadingWhitespace.replace(/\t/g, "  ").length;
-    const computedDepth = Math.floor(rawIndent / indentWidth);
-    const depth = Math.min(computedDepth, stack.length);
-    const contentText = match[3] ?? "";
-    const block: NoteBlockInsert = {
-      content: parseMarkdownClipboardBlockContent(view, contentText),
-      children: [],
+  return structuredItems?.map(function toBlock(item): NoteBlockInsert {
+    return {
+      content: parseMarkdownClipboardBlockContent(view, item.text),
+      children: item.children.map(toBlock),
     };
-
-    while (stack.length > depth) {
-      stack.pop();
-    }
-
-    if (stack.length === 0) {
-      roots.push(block);
-    } else {
-      stack[stack.length - 1].block.children?.push(block);
-    }
-
-    stack.push({ depth, block });
-  }
-
-  return roots;
+  }) ?? null;
 }
 
 function parseListNodeToClipboardBlocks(node: JSONContent): NoteBlockInsert[] {
