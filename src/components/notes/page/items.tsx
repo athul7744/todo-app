@@ -109,17 +109,18 @@ export function OverviewPageCard({
         accentClasses?.border,
       )}
     >
+      <Link
+        href={`/notes?page=${page.id}`}
+        onClick={() => onSelectPage(page.id)}
+        className="absolute inset-0 z-0 rounded-2xl"
+        aria-label={`Open ${page.title || "Untitled page"}`}
+      />
       {accentClasses ? <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b", accentClasses.glow)} /> : null}
-      <div className="relative flex min-h-[11.5rem] flex-col gap-2.5 sm:min-h-[12.5rem] sm:gap-3">
+      <div className="relative z-10 flex min-h-[11.5rem] flex-col gap-2.5 pointer-events-none sm:min-h-[12.5rem] sm:gap-3">
         <div className="flex items-start justify-between gap-2.5 sm:gap-3">
-          <Link
-            href={`/notes?page=${page.id}`}
-            onClick={() => onSelectPage(page.id)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10"
-            aria-label={`Open ${page.title || "Untitled page"}`}
-          >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10">
             <PageIcon emoji={page.emoji} className="h-4 w-4 text-sm leading-none sm:h-4.5 sm:w-4.5 sm:text-base" />
-          </Link>
+          </span>
 
           <Button
             type="button"
@@ -127,7 +128,7 @@ export function OverviewPageCard({
             size="icon"
             onClick={() => onToggleFavorite(page)}
             className={cn(
-              "size-7 shrink-0 rounded-full sm:size-8",
+              "size-7 shrink-0 rounded-full pointer-events-auto sm:size-8",
               isFavorite ? "text-amber-500 hover:text-amber-500" : "text-muted-foreground hover:text-foreground",
             )}
             aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -136,11 +137,7 @@ export function OverviewPageCard({
           </Button>
         </div>
 
-        <Link
-          href={`/notes?page=${page.id}`}
-          onClick={() => onSelectPage(page.id)}
-          className="block min-w-0 space-y-1.5"
-        >
+        <div className="block min-w-0 space-y-1.5">
           <p className="text-[0.98rem] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] sm:text-[1.05rem] sm:leading-6">
             {page.title || "Untitled page"}
           </p>
@@ -154,7 +151,7 @@ export function OverviewPageCard({
               Open this page to start writing notes.
             </p>
           )}
-        </Link>
+        </div>
 
         <div className="mt-auto space-y-2 pt-1">
           {showTags && page.tags.length > 0 ? (
