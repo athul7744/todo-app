@@ -12,21 +12,32 @@ This folder holds the project's Vitest suites and lightweight test helpers.
 ## Current Notes Suites
 
 - `tests/notes/markdown-clipboard.test.ts`
-  Verifies structured markdown list parsing for pasted note content, including nested children and empty trailing bullets.
+  Verifies mdast-backed markdown clipboard parsing and block conversion for pasted note content, including nested children, task list markers, blockquote and heading routing, and single-block replacement decisions.
+
+- `tests/notes/block-editor-keyboard.test.ts`
+  Covers the notes editor keyboard decision layer for Enter, Shift+Enter, Tab, arrow navigation, and Backspace behavior under the plain-text-first editing model.
+
+- `tests/notes/block-editor-structure.test.ts`
+  Covers structural block outcomes for delete focus, merge planning, child reparenting, and indent/outdent placement.
 
 - `tests/notes/notes-content.test.ts`
-  Covers note document normalization, legacy text fallback, serialization, and plain-text extraction.
+  Covers note document normalization, legacy text fallback, serialization, plain-text extraction, and merge edge cases for note content.
 
 - `tests/notes/notes-tree.test.ts`
-  Covers nested block tree construction plus visible-order neighbor lookups.
+  Covers nested block tree construction plus visible-order neighbor lookups used by block navigation and merge behavior.
 
 - `tests/notes/notes-write.test.ts`
   Covers note block write behavior around batched queued creates, retry after failed flush, update-before-flush, delete-before-flush, and immediate starter-page creation.
 
+- `tests/notes/useNoteBlockActions.dom.test.ts`
+  Runs jsdom-backed integration coverage for `useNoteBlockActions`, including merge-into-previous behavior with child reparenting and delete focus behavior for the first visible block.
+
 ## Usage
 
-- `npm test` — one-shot Vitest run.
+- `npm test` — one-shot node-based Vitest run.
+- `npm run test:dom` — jsdom-backed integration run.
 - `npm run test:watch` — watch mode while developing.
-- `node .\\node_modules\\vitest\\vitest.mjs run tests/notes` — focused notes test run when working on notes behavior.
+- `node .\\node_modules\\vitest\\vitest.mjs run tests/notes` — focused node-based notes test run when working on notes behavior.
+- `node .\\node_modules\\vitest\\vitest.mjs run --config vitest.dom.config.ts tests/notes/useNoteBlockActions.dom.test.ts` — focused DOM integration run for note action behavior.
 
 Keep new tests close to the app area they protect, and move reusable builders or assertions into `tests/shared/` once they are used by more than one suite.

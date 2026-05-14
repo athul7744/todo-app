@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/// <reference types="vitest/globals" />
 
 const executeMock = vi.fn(async () => undefined);
 const getAllMock = vi.fn(async () => []);

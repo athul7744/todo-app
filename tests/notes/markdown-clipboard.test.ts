@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 
 import { parseClipboardMarkdown, shouldReplaceOnMarkdownPaste } from "@/lib/notes/markdown-clipboard-blocks";
 import { parseMarkdownListBlocks, parseStructuredMarkdownList } from "@/lib/notes/markdown-clipboard";

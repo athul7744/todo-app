@@ -1,4 +1,4 @@
-import { expect } from "vitest";
+/// <reference types="vitest/globals" />
 
 import { parseRank, type RankedOrderItem } from "@/lib/shared/ranked-order";
 

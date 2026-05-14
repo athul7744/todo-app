@@ -13,7 +13,7 @@ An offline-first productivity workspace with **Tasks**, **Tracker**, and **Notes
 
 **Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings, yearly heatmaps, weekly widgets, and mobile-friendly navigation with shared bottom FAB controls.
 
-**Notes** — Local-first outline editor with pages, nested blocks, backlinks, owned attachments, inline references, markdown-style transforms, and slash-driven block commands.
+**Notes** — Local-first outline editor with pages, nested blocks, backlinks, owned attachments, inline references, mdast-backed markdown paste handling, markdown-style transforms, and slash-driven block commands.
 
 **Week Widgets** — Activity breakdown donut chart, mood insights with sleep correlation, daily stacked bars, sleep stats (avg/range/per-night chart), and productivity ratio bar.
 
@@ -37,17 +37,23 @@ Optional validation:
 ```bash
 npm run lint
 npm test
+npm run test:dom
 npx tsc --noEmit
 ```
 
 ## Testing
 
-Vitest is configured for fast logic-level coverage.
+Vitest is split between fast node-based suites and a small jsdom integration layer for hook-level behavior.
 
 - `tests/notes/` contains notes-focused tests.
 - `tests/tasks/` contains task-focused tests.
 - `tests/tracker/` contains tracker-focused tests.
 - `tests/shared/` contains reusable fixtures, builders, and assertions shared across app groups.
+
+Primary commands:
+
+- `npm test` runs the default node-based suites.
+- `npm run test:dom` runs the jsdom-backed integration suites.
 
 See [tests/README.md](tests/README.md) for the current test suite map and what each suite covers.
 

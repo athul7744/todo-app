@@ -260,6 +260,7 @@ npm run dev
 npm run build && npm run start
 npm run lint
 npm test
+npm run test:dom
 npx tsc --noEmit
 ```
 
@@ -271,7 +272,10 @@ Development notes:
 
 ### Test layout
 
-Vitest is set up for module and small integration tests.
+Vitest is split by environment:
+
+- `npm test` runs the default node-based suites for pure logic and write-path behavior.
+- `npm run test:dom` runs the jsdom-backed integration suites used for React hook and DOM-adjacent editor behavior.
 
 - `tests/notes/` holds notes-specific tests.
 - `tests/tasks/` holds task-specific tests.
@@ -280,7 +284,7 @@ Vitest is set up for module and small integration tests.
 
 See [tests/README.md](tests/README.md) for the current suite-level breakdown.
 
-Use `npm test` for a one-shot run and `npm run test:watch` while developing.
+Use `npm test` for a one-shot node run, `npm run test:dom` for the jsdom integration layer, and `npm run test:watch` while developing.
 
 ### Feature implementation notes
 
@@ -291,6 +295,8 @@ Keep feature structure aligned with the existing ownership split:
 - Notes route-local UI lives in `src/components/notes/page/`, while block editor behavior stays alongside `src/components/notes/NoteBlockEditor.tsx` and `src/components/notes/NoteBlockEditorSlash.ts`.
 
 For notes specifically, keep `src/app/notes/page.tsx` as the route orchestrator and move reusable route-local sections or hooks into `src/components/notes/page/` before expanding the route file.
+
+If you change notes editing behavior, clipboard parsing, or block-merge semantics, keep the tests aligned with the intended visible-order editing rules and update the permanent project docs once that behavior is finalized.
 
 
 If you change route wiring or editor behavior, validate with both `npm run lint` and `npx tsc --noEmit`.
