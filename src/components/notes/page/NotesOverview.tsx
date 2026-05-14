@@ -3,7 +3,7 @@
 import type { RefObject } from "react";
 import { Files, Search, Star } from "lucide-react";
 
-import { NotesOverviewListSkeleton } from "@/components/notes/NotesPageSkeleton";
+import { NotesOverviewCardSkeletonItems, NotesOverviewListSkeleton } from "@/components/notes/NotesPageSkeleton";
 
 import type { NormalizedNotePage } from "./types";
 import { OverviewPageCard } from "./items";
@@ -61,7 +61,7 @@ export function NotesOverview({
             <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
               <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
                 {overviewFavoritePagesToRender.length === 0 ? (
-                  showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No favorites yet.</div>
+                  showOverviewLoading ? <NotesOverviewCardSkeletonItems /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No favorites yet.</div>
                 ) : (
                   overviewFavoritePagesToRender.map((page) => (
                     <OverviewPageCard
@@ -78,7 +78,9 @@ export function NotesOverview({
             </div>
             {showOverviewOverlay ? (
               <div className="pointer-events-none absolute inset-0 bg-background">
-                <NotesOverviewListSkeleton />
+                <div className="grid grid-cols-2 gap-3 animate-stagger sm:gap-4">
+                  <NotesOverviewCardSkeletonItems />
+                </div>
               </div>
             ) : null}
           </div>
@@ -94,7 +96,7 @@ export function NotesOverview({
             <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
               <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
                 {overviewRecentPagesToRender.length === 0 ? (
-                  showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No recent pages yet.</div>
+                  showOverviewLoading ? <NotesOverviewCardSkeletonItems /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No recent pages yet.</div>
                 ) : (
                   overviewRecentPagesToRender.map((page) => (
                     <OverviewPageCard
@@ -111,7 +113,9 @@ export function NotesOverview({
             </div>
             {showOverviewOverlay ? (
               <div className="pointer-events-none absolute inset-0 bg-background">
-                <NotesOverviewListSkeleton />
+                <div className="grid grid-cols-2 gap-3 animate-stagger sm:gap-4">
+                  <NotesOverviewCardSkeletonItems />
+                </div>
               </div>
             ) : null}
           </div>
