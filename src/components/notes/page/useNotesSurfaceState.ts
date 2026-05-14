@@ -85,7 +85,7 @@ export function useNotesSurfaceState({
   }, [favoritePages, isLoading, recentAccessPages]);
 
   useEffect(() => {
-    if (isLoadingSelectedPage || !selectedPageIdForEditor) return;
+    if (!selectedPageIdForEditor) return;
     setCachedEditorContent({
       pageId: selectedPageIdForEditor,
       title: selectedPageTitle || "Untitled page",
@@ -114,20 +114,24 @@ export function useNotesSurfaceState({
     : recentAccessPages;
   const showOverviewOverlay = showOverviewLoading && cachedOverviewContent !== null;
   const shouldAnimateOverviewContent = !showOverviewLoading && cachedOverviewContent === null;
-  const editorContentToRender: NotesEditorRenderableContent = showSelectedPageLoading
+  const liveEditorContent: NotesEditorRenderableContent = selectedPageIdForEditor
+    ? {
+        pageId: selectedPageIdForEditor,
+        title: selectedPageTitle || "Untitled page",
+        emoji: activePageEmoji,
+        favorite: isSelectedPageFavorite,
+        blockCount: selectedBlockCount,
+        backlinkCount: linkedReferenceCount,
+        blocks: displayBlocks,
+      }
+    : null;
+  const shouldUseCachedEditorContent = showSelectedPageLoading
+    && cachedEditorContent !== null
+    && cachedEditorContent.pageId !== selectedPageIdForEditor;
+  const editorContentToRender: NotesEditorRenderableContent = shouldUseCachedEditorContent
     ? cachedEditorContent
-    : selectedPageIdForEditor
-      ? {
-          pageId: selectedPageIdForEditor,
-          title: selectedPageTitle || "Untitled page",
-          emoji: activePageEmoji,
-          favorite: isSelectedPageFavorite,
-          blockCount: selectedBlockCount,
-          backlinkCount: linkedReferenceCount,
-          blocks: displayBlocks,
-        }
-      : null;
-  const showEditorOverlay = showSelectedPageLoading && cachedEditorContent !== null;
+    : liveEditorContent;
+  const showEditorOverlay = shouldUseCachedEditorContent;
   const shouldAnimateEditorContent = !showSelectedPageLoading && cachedEditorContent === null;
   const editorUpdatedTimestamp = editorContentToRender?.pageId === selectedPageIdForEditor
     ? updatedTimestamp

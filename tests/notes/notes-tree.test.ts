@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 
 import { buildNoteBlockTree, createVisibleNoteBlockNeighbors, getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
 import { createNestedTreeBlocks } from "@/../tests/shared/tree.helpers";
@@ -26,5 +26,29 @@ describe("notes-tree", () => {
     expect(previousBlockIdById.get("e")).toBe("c");
     expect(nextBlockIdById.get("e")).toBe("d");
     expect(nextBlockIdById.get("d")).toBeNull();
+  });
+
+  it("uses the last visible descendant from another subtree as the previous visible block", () => {
+    const crossSubtreeBlocks = [
+      { id: "a", parent_block_id: null },
+      { id: "b", parent_block_id: "a" },
+      { id: "c", parent_block_id: "b" },
+      { id: "d", parent_block_id: null },
+    ];
+
+    const { previousBlockIdById } = createVisibleNoteBlockNeighbors(crossSubtreeBlocks);
+
+    expect(previousBlockIdById.get("d")).toBe("c");
+  });
+
+  it("can use the direct parent as the previous visible block", () => {
+    const parentChildBlocks = [
+      { id: "a", parent_block_id: null },
+      { id: "b", parent_block_id: "a" },
+    ];
+
+    const { previousBlockIdById } = createVisibleNoteBlockNeighbors(parentChildBlocks);
+
+    expect(previousBlockIdById.get("b")).toBe("a");
   });
 });

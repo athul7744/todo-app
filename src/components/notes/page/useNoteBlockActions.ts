@@ -17,6 +17,14 @@ import {
   type NoteBlockInsert,
 } from "@/lib/notes/notes";
 import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
+import {
+  getDeleteChildMoves,
+  getDeleteFocusTarget,
+  getIndentPosition,
+  getMergeChildMoves,
+  getMergePlan,
+  getOutdentPosition,
+} from "@/lib/notes/block-editor-structure";
 import { flushUpdate } from "@/lib/shared/debounced-update";
 import { getRankAfterItem, getRankAtParentEnd, getRankBeforeItem } from "@/lib/shared/ranked-order";
 
@@ -52,6 +60,11 @@ export function useNoteBlockActions({
 }: UseNoteBlockActionsParams) {
   const [optimisticCreatedBlocks, setOptimisticCreatedBlocks] = useState<Record<string, NoteBlockRow>>({});
   const [optimisticDeletedBlockIds, setOptimisticDeletedBlockIds] = useState<Record<string, true>>({});
+
+  const applyDraftContent = (block: NoteBlockRow) => {
+    const draftContent = blockContentDrafts[block.id];
+    return draftContent ? { ...block, content: draftContent } : block;
+  };
 
   useEffect(() => {
     const selectedBlockIds = new Set(selectedBlocks.map((block) => block.id));
@@ -101,13 +114,15 @@ export function useNoteBlockActions({
         const optimisticStructure = optimisticBlockStructure[block.id];
         mergedBlocks.set(
           block.id,
-          optimisticStructure
-            ? {
-                ...block,
-                parent_block_id: optimisticStructure.parent_block_id,
-                sort_rank: optimisticStructure.sort_rank,
-              }
-            : block
+          applyDraftContent(
+            optimisticStructure
+              ? {
+                  ...block,
+                  parent_block_id: optimisticStructure.parent_block_id,
+                  sort_rank: optimisticStructure.sort_rank,
+                }
+              : block
+          )
         );
       });
 
@@ -119,19 +134,21 @@ export function useNoteBlockActions({
         const optimisticStructure = optimisticBlockStructure[block.id];
         mergedBlocks.set(
           block.id,
-          optimisticStructure
-            ? {
-                ...block,
-                parent_block_id: optimisticStructure.parent_block_id,
-                sort_rank: optimisticStructure.sort_rank,
-              }
-            : block
+          applyDraftContent(
+            optimisticStructure
+              ? {
+                  ...block,
+                  parent_block_id: optimisticStructure.parent_block_id,
+                  sort_rank: optimisticStructure.sort_rank,
+                }
+              : block
+          )
         );
       });
 
       return [...mergedBlocks.values()].sort((left, right) => (left.sort_rank ?? "").localeCompare(right.sort_rank ?? ""));
     },
-    [optimisticBlockStructure, optimisticCreatedBlocks, optimisticDeletedBlockIds, selectedBlocks]
+    [blockContentDrafts, optimisticBlockStructure, optimisticCreatedBlocks, optimisticDeletedBlockIds, selectedBlocks]
   );
 
   const selectedBlockMap = useMemo(
@@ -561,60 +578,70 @@ export function useNoteBlockActions({
   };
 
   const handleIndentBlock = (blockId: string, nextParentBlockId: string) => {
-    const nextSortRank = getSortRankAtParentEnd(nextParentBlockId, blockId);
+    const nextPosition = getIndentPosition(structuredBlocks, blockId, nextParentBlockId);
 
     flushSync(() => {
       setFocusTarget({ blockId, placement: "start" });
-      applyOptimisticBlockMove(blockId, nextParentBlockId, nextSortRank);
+      applyOptimisticBlockMove(blockId, nextPosition.parentBlockId, nextPosition.sortRank);
     });
 
     void moveNoteBlock({
       blockId,
       pageId: selectedPageIdForWrite,
-      parentBlockId: nextParentBlockId,
-      sortRank: nextSortRank,
+      parentBlockId: nextPosition.parentBlockId,
+      sortRank: nextPosition.sortRank,
     });
   };
 
   const handleOutdentBlock = (blockId: string, nextParentBlockId?: string | null) => {
-    const currentBlock = structuredBlocks.find((block) => block.id === blockId) ?? null;
-    const currentParentBlock = currentBlock?.parent_block_id
-      ? structuredBlocks.find((block) => block.id === currentBlock.parent_block_id) ?? null
-      : null;
-
-    const nextSortRank = currentParentBlock
-      ? getSortRankAfterBlock(currentParentBlock.id, nextParentBlockId, blockId)
-      : getSortRankAtParentEnd(nextParentBlockId, blockId);
+    const nextPosition = getOutdentPosition(structuredBlocks, blockId, nextParentBlockId);
 
     flushSync(() => {
       setFocusTarget({ blockId, placement: "start" });
-      applyOptimisticBlockMove(blockId, nextParentBlockId ?? null, nextSortRank);
+      applyOptimisticBlockMove(blockId, nextPosition.parentBlockId, nextPosition.sortRank);
     });
 
     void moveNoteBlock({
       blockId,
       pageId: selectedPageIdForWrite,
-      parentBlockId: nextParentBlockId ?? null,
-      sortRank: nextSortRank,
+      parentBlockId: nextPosition.parentBlockId,
+      sortRank: nextPosition.sortRank,
     });
   };
 
   const handleDeleteBlock = async (blockId: string) => {
-    const blockIndex = orderedVisibleBlockIds.findIndex((visibleBlockId) => visibleBlockId === blockId);
-    const previousBlockId = blockIndex > 0
-      ? orderedVisibleBlockIds[blockIndex - 1] ?? null
-      : orderedVisibleBlockIds[blockIndex + 1] ?? null;
+    if (isCreatingBlock) return;
+
+    const nextFocusTarget = getDeleteFocusTarget(orderedVisibleBlockIds, blockId);
+    const childMoves = getDeleteChildMoves(structuredBlocks, blockId);
+
+    setIsCreatingBlock(true);
 
     flushSync(() => {
       hideOptimisticBlock(blockId);
-      setFocusTarget(previousBlockId ? { blockId: previousBlockId, placement: "end" } : null);
+      childMoves.forEach((move) => {
+        applyOptimisticBlockMove(move.blockId, move.parentBlockId, move.sortRank);
+      });
+      setFocusTarget(nextFocusTarget);
     });
 
     try {
+      childMoves.forEach((move) => {
+        moveNoteBlock({
+          blockId: move.blockId,
+          pageId: selectedPageIdForWrite,
+          parentBlockId: move.parentBlockId,
+          sortRank: move.sortRank,
+        });
+      });
+
+      await Promise.all(childMoves.map((move) => flushUpdate(move.blockId, "blocks")));
       await deleteNoteBlock(blockId, selectedPageId ?? undefined);
     } catch (error) {
       restoreOptimisticBlock(blockId);
       throw error;
+    } finally {
+      setIsCreatingBlock(false);
     }
   };
 
@@ -632,59 +659,45 @@ export function useNoteBlockActions({
     try {
       const mergedContent = mergeNoteDocuments(previousBlock.content, nextContent) as JsonValue;
       const serializedMergedContent = JSON.stringify(mergedContent);
-
-      if (options?.hasChildren) {
-        const joinPlacement = getNoteDocumentEndSelection(previousBlock.content);
-
-        flushSync(() => {
-          hideOptimisticBlock(previousBlockId);
-          setBlockContentDrafts((currentDrafts) => ({
-            ...currentDrafts,
-            [blockId]: serializedMergedContent,
-            [previousBlockId]: JSON.stringify(normalizeNoteDocument(previousBlock.content)),
-          }));
-          setFocusTarget({ blockId, placement: joinPlacement });
-        });
-
-        updateNoteBlock({
-          blockId,
-          pageId: selectedPageId ?? undefined,
-          content: mergedContent,
-        });
-
-        await flushUpdate(blockId, "blocks");
-        try {
-          await deleteNoteBlock(previousBlockId, selectedPageId ?? undefined);
-        } catch (error) {
-          restoreOptimisticBlock(previousBlockId);
-          throw error;
-        }
-        return;
-      }
-
       const joinPlacement = getNoteDocumentEndSelection(previousBlock.content);
+      const mergePlan = getMergePlan(blockId, previousBlockId, joinPlacement);
+      const childMoves = options?.hasChildren
+        ? getMergeChildMoves(structuredBlocks, blockId, mergePlan.updatedBlockId)
+        : [];
 
       flushSync(() => {
-        hideOptimisticBlock(blockId);
+        hideOptimisticBlock(mergePlan.deletedBlockId);
         setBlockContentDrafts((currentDrafts) => ({
           ...currentDrafts,
           [previousBlockId]: serializedMergedContent,
           [blockId]: JSON.stringify(normalizeNoteDocument(nextContent)),
         }));
-        setFocusTarget({ blockId: previousBlockId, placement: joinPlacement });
+        childMoves.forEach((move) => {
+          applyOptimisticBlockMove(move.blockId, move.parentBlockId, move.sortRank);
+        });
+        setFocusTarget(mergePlan.focusTarget);
       });
 
       updateNoteBlock({
-        blockId: previousBlockId,
+        blockId: mergePlan.updatedBlockId,
         pageId: selectedPageId ?? undefined,
         content: mergedContent,
       });
+      childMoves.forEach((move) => {
+        moveNoteBlock({
+          blockId: move.blockId,
+          pageId: selectedPageId ?? undefined,
+          parentBlockId: move.parentBlockId,
+          sortRank: move.sortRank,
+        });
+      });
 
-      await flushUpdate(previousBlockId, "blocks");
+      await flushUpdate(mergePlan.updatedBlockId, "blocks");
+      await Promise.all(childMoves.map((move) => flushUpdate(move.blockId, "blocks")));
       try {
-        await deleteNoteBlock(blockId, selectedPageId ?? undefined);
+        await deleteNoteBlock(mergePlan.deletedBlockId, selectedPageId ?? undefined);
       } catch (error) {
-        restoreOptimisticBlock(blockId);
+        restoreOptimisticBlock(mergePlan.deletedBlockId);
         throw error;
       }
     } finally {

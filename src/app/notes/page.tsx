@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronDown, ChevronUp, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star } from "lucide-react";
 
@@ -215,6 +215,7 @@ export default function NotesPage() {
   const absoluteUpdatedTimeTimeoutRef = useRef<number | null>(null);
   const pendingUpdatedTimestampRef = useRef<{ relative: string; absolute: string } | null>(null);
   const settleUpdatedTimestampTimeoutRef = useRef<number | null>(null);
+  const hydratedPageIdRef = useRef<string | null>(null);
 
   const revealAbsoluteUpdatedTime = () => {
     setShowAbsoluteUpdatedTime(true);
@@ -230,7 +231,8 @@ export default function NotesPage() {
   };
 
   useEffect(() => {
-    if (!selectedPage) {
+    if (!selectedPageId) {
+      hydratedPageIdRef.current = null;
       setPageTitleDraft("");
       setPageTitleError(null);
       setPageEmojiDraft(undefined);
@@ -245,10 +247,20 @@ export default function NotesPage() {
       return;
     }
 
-    setPageTitleDraft(selectedPage?.title ?? "");
+    if (!selectedPage || selectedPage.id !== selectedPageId) {
+      return;
+    }
+
+    if (hydratedPageIdRef.current === selectedPageId) {
+      return;
+    }
+
+    hydratedPageIdRef.current = selectedPageId;
+
+    setPageTitleDraft(selectedPage.title ?? "");
     setPageTitleError(null);
     setPageEmojiDraft(undefined);
-  setResolvedPageEmoji(selectedPageEmoji);
+    setResolvedPageEmoji(selectedPageEmoji);
     setSummaryDraft(selectedPageSummary ?? "");
     setTagsDraft(selectedPageTags.join(", "));
     setBlockContentDrafts({});
@@ -256,7 +268,7 @@ export default function NotesPage() {
     setShowAbsoluteUpdatedTime(false);
     setStableUpdatedTimestamp(updatedTimestamp);
     setFocusTarget(null);
-  }, [selectedPage?.id]);
+  }, [selectedPage?.id, selectedPageId]);
 
   useEffect(() => {
     pendingUpdatedTimestampRef.current = updatedTimestamp;
@@ -454,11 +466,11 @@ export default function NotesPage() {
     isLoadingSelectedPage,
     favoritePages,
     recentAccessPages,
-    selectedPageIdForEditor: selectedPage?.id,
+    selectedPageIdForEditor: selectedPageId,
     selectedPageTitle: pageTitleDraft || selectedPage?.title || "Untitled page",
     activePageEmoji,
     isSelectedPageFavorite: selectedPageProperties.favorite === true,
-    selectedBlockCount: selectedBlocks.length,
+    selectedBlockCount: displayBlocks.length,
     linkedReferenceCount: linkedReferences.length,
     displayBlocks,
     updatedTimestamp: stableUpdatedTimestamp,
@@ -470,6 +482,14 @@ export default function NotesPage() {
       router.push(`/notes?page=${pageId}`);
     });
   };
+
+  const handleFocusApplied = useCallback(() => {
+    setFocusTarget(null);
+  }, []);
+
+  const handleFocusBlock = useCallback((blockId: string, placement: "start" | "end") => {
+    setFocusTarget({ blockId, placement });
+  }, []);
 
   const handleSelectPageFromSearch = (pageId: string) => {
     setIsPageSearchOpen(false);
@@ -956,8 +976,8 @@ export default function NotesPage() {
                     onEmojiPickerOpenChange={setIsEmojiPickerOpen}
                     onSelectEmoji={handleSelectPageEmoji}
                     onCreateFirstBlock={handleCreateRootBlock}
-                    onFocusApplied={() => setFocusTarget(null)}
-                    onFocusBlock={(blockId, placement) => setFocusTarget({ blockId, placement })}
+                    onFocusApplied={handleFocusApplied}
+                    onFocusBlock={handleFocusBlock}
                     onOpenPageReference={handleOpenPageReference}
                     onCreateSibling={handleCreateSiblingBlock}
                     onCreateEmptySibling={handleCreateEmptySiblingBlock}

@@ -45,6 +45,13 @@ import {
   getSlashQuery,
   type SlashCommand,
 } from "@/components/notes/NoteBlockEditorSlash";
+import {
+  getBlockBackspaceAction,
+  getBlockEnterAction,
+  getBlockTabAction,
+  getSplitSiblingOptions,
+  shouldNavigateBetweenBlocks,
+} from "@/lib/notes/block-editor-keyboard";
 import { parseClipboardMarkdown, shouldReplaceOnMarkdownPaste } from "@/lib/notes/markdown-clipboard-blocks";
 import { createNoteDocumentFromText, extractNoteText, normalizeNoteDocument, serializeNoteDocumentToMarkdown } from "@/lib/notes/notes-content";
 import type { NoteBlockInsert } from "@/lib/notes/notes";
@@ -1090,8 +1097,23 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
         }
 
-        if (event.key === "Enter" && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
-          if (editor?.isActive("codeBlock") || editor?.isActive("table")) {
+        const isEmptyBlock = view.state.doc.textContent.trim().length === 0;
+
+        const enterAction = getBlockEnterAction({
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          isTaskItem: Boolean(editor?.isActive("taskItem")),
+          isCodeBlock: Boolean(editor?.isActive("codeBlock")),
+          isTable: Boolean(editor?.isActive("table")),
+          isHorizontalRuleOnly: Boolean(editor && isHorizontalRuleOnlyDocument(editor.getJSON())),
+          isEmptyBlock,
+          hasChildren,
+        });
+
+        if (enterAction === "create-code-or-table-sibling") {
+          if (editor) {
             event.preventDefault();
             const nextContent = flushEditorContent() ?? editor.getJSON();
             onCreateSiblingRef.current(nextContent);
@@ -1100,7 +1122,16 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
         }
 
         if (event.key === "Enter" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
-          if (editor?.isActive("taskItem")) {
+          if (enterAction === "exit-empty-task") {
+            event.preventDefault();
+            const nextContent = emptyDocument();
+            pendingLocalContentRef.current = JSON.stringify(nextContent);
+            editor?.commands.setContent(nextContent, { emitUpdate: true });
+            onCommitRef.current?.(nextContent);
+            return true;
+          }
+
+          if (enterAction === "create-task-sibling") {
             event.preventDefault();
             const nextContent = flushEditorContent();
             if (nextContent) {
@@ -1109,7 +1140,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
             return true;
           }
 
-          if (editor && isHorizontalRuleOnlyDocument(editor.getJSON())) {
+          if (enterAction === "create-horizontal-rule-sibling" && editor) {
             event.preventDefault();
             const nextContent = editor.getJSON();
             onCreateSiblingRef.current(nextContent, emptyDocument(), {
@@ -1120,7 +1151,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
             return true;
           }
 
-          if (editor?.isActive("codeBlock") || editor?.isActive("table")) {
+          if (enterAction === "none" && (editor?.isActive("codeBlock") || editor?.isActive("table"))) {
             return false;
           }
 
@@ -1132,43 +1163,41 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           if (editor) {
             const { currentContent, nextSiblingContent } = splitEditorDocumentAtSelection(editor);
             const isAtBlockStart = isAtStartOfBlockContent(editor);
+            const splitOptions = getSplitSiblingOptions({ hasChildren, isAtBlockStart });
 
             if (hasChildren) {
               pendingLocalContentRef.current = JSON.stringify(nextSiblingContent);
               editor.commands.setContent(nextSiblingContent, { emitUpdate: true });
-              onCreateSiblingRef.current(nextSiblingContent, createNormalTextSiblingContent(currentContent), {
-                focusPlacement: isAtBlockStart ? "end" : "start",
-                focusTarget: isAtBlockStart ? "created" : "current",
-                insertionSide: "before",
-              });
+              onCreateSiblingRef.current(nextSiblingContent, createNormalTextSiblingContent(currentContent), splitOptions);
             } else {
               pendingLocalContentRef.current = JSON.stringify(currentContent);
               editor.commands.setContent(currentContent, { emitUpdate: true });
-              onCreateSiblingRef.current(currentContent, createNormalTextSiblingContent(nextSiblingContent), {
-                focusPlacement: "start",
-                focusTarget: "created",
-                insertionSide: "after",
-              });
+              onCreateSiblingRef.current(currentContent, createNormalTextSiblingContent(nextSiblingContent), splitOptions);
             }
           }
           return true;
         }
 
         if (event.key === "Tab") {
-          if (editor?.isActive("table") || editor?.isActive("codeBlock")) {
+          const tabAction = getBlockTabAction({
+            shiftKey: event.shiftKey,
+            isCodeBlock: Boolean(editor?.isActive("codeBlock")),
+            isTable: Boolean(editor?.isActive("table")),
+            isAtBlockStart: view.state.selection.empty && view.state.selection.$from.parentOffset === 0,
+          });
+
+          if (tabAction === "none") {
             return false;
           }
 
           event.preventDefault();
-          const isAtBlockStart = view.state.selection.empty && view.state.selection.$from.parentOffset === 0;
+          if (tabAction === "indent") {
+            onIndentRef.current();
+            return true;
+          }
 
-          if (isAtBlockStart) {
-            if (event.shiftKey) {
-              onOutdentRef.current();
-            } else {
-              onIndentRef.current();
-            }
-
+          if (tabAction === "outdent") {
+            onOutdentRef.current();
             return true;
           }
 
@@ -1176,7 +1205,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           return true;
         }
 
-        if (event.key === "ArrowUp" && view.state.selection.empty && view.endOfTextblock("up")) {
+        if (event.key === "ArrowUp" && shouldNavigateBetweenBlocks({
+          selectionEmpty: view.state.selection.empty,
+          atTextBoundary: view.endOfTextblock("up"),
+          hasAdjacentBlock: Boolean(onNavigateUpRef.current),
+        })) {
           if (onNavigateUpRef.current) {
             event.preventDefault();
             suppressBlurCommitRef.current = true;
@@ -1195,7 +1228,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
         }
 
-        if (event.key === "ArrowDown" && view.state.selection.empty && view.endOfTextblock("down")) {
+        if (event.key === "ArrowDown" && shouldNavigateBetweenBlocks({
+          selectionEmpty: view.state.selection.empty,
+          atTextBoundary: view.endOfTextblock("down"),
+          hasAdjacentBlock: Boolean(onNavigateDownRef.current),
+        })) {
           if (onNavigateDownRef.current) {
             event.preventDefault();
             suppressBlurCommitRef.current = true;
@@ -1214,13 +1251,26 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
         }
 
-        if (event.key === "Backspace" && view.state.doc.textContent.trim().length === 0) {
+        const backspaceAction = getBlockBackspaceAction({
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          isEmptyBlock,
+          isTaskItem: Boolean(editor?.isActive("taskItem")),
+          isCodeBlock: Boolean(editor?.isActive("codeBlock")),
+          isTable: Boolean(editor?.isActive("table")),
+          isAtBlockStart: Boolean(editor && isAtStartOfBlockContent(editor)),
+          canMergeWithPrevious: Boolean(onMergeWithPreviousRef.current),
+        });
+
+        if (event.key === "Backspace" && (backspaceAction === "reset-empty-special-block" || backspaceAction === "delete-empty-block")) {
           event.preventDefault();
 
-          if (editor?.isActive("taskItem") || editor?.isActive("codeBlock")) {
+          if (backspaceAction === "reset-empty-special-block") {
             const nextContent = emptyDocument();
             pendingLocalContentRef.current = JSON.stringify(nextContent);
-            editor.commands.setContent(nextContent, { emitUpdate: true });
+            editor?.commands.setContent(nextContent, { emitUpdate: true });
             onCommitRef.current?.(nextContent);
             return true;
           }
@@ -1230,25 +1280,14 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           return true;
         }
 
-        if (
-          event.key === "Backspace" &&
-          !event.shiftKey &&
-          !event.altKey &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          view.state.selection.empty &&
-          editor &&
-          isAtStartOfBlockContent(editor) &&
-          !editor?.isActive("taskItem") &&
-          !editor?.isActive("codeBlock") &&
-          !editor?.isActive("table") &&
-          onMergeWithPreviousRef.current
-        ) {
+        const mergeWithPrevious = onMergeWithPreviousRef.current;
+
+        if (event.key === "Backspace" && backspaceAction === "merge-with-previous" && editor && mergeWithPrevious) {
           event.preventDefault();
           const nextContent = flushEditorContent() ?? editor?.getJSON();
           if (nextContent) {
             suppressBlurCommitRef.current = true;
-            void onMergeWithPreviousRef.current(nextContent, { hasChildren });
+            void mergeWithPrevious(nextContent, { hasChildren });
             return true;
           }
         }
@@ -1324,7 +1363,14 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     } else {
       editor.chain().focus(focusPlacement).run();
     }
-    onFocusApplied?.();
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      onFocusApplied?.();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
   }, [editor, focusPlacement, onFocusApplied, shouldFocus]);
 
   if (!editor) {

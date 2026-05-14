@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+/// <reference types="vitest/globals" />
 
 import {
   createEmptyNoteDocument,
   createNoteDocumentFromText,
   extractNoteText,
+  mergeNoteDocuments,
   normalizeNoteDocument,
   serializeNoteDocument,
 } from "@/lib/notes/notes-content";
@@ -55,5 +56,138 @@ describe("notes-content", () => {
     };
 
     expect(extractNoteText(document)).toBe("One Two Three");
+  });
+
+  it("merges into an effectively empty previous paragraph without keeping a blank node", () => {
+    expect(
+      mergeNoteDocuments(
+        { type: "doc", content: [{ type: "paragraph" }] },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual(createNoteDocumentFromText("Next"));
+  });
+
+  it("preserves a previous non-paragraph trailing node instead of inline joining", () => {
+    expect(
+      mergeNoteDocuments(
+        {
+          type: "doc",
+          content: [{ type: "horizontalRule" }],
+        },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        { type: "horizontalRule" },
+        { type: "paragraph", content: [{ type: "text", text: "Next" }] },
+      ],
+    });
+  });
+
+  it("preserves task list content when merging a later paragraph block", () => {
+    expect(
+      mergeNoteDocuments(
+        {
+          type: "doc",
+          content: [
+            {
+              type: "taskList",
+              content: [
+                {
+                  type: "taskItem",
+                  attrs: { checked: false },
+                  content: [{ type: "paragraph", content: [{ type: "text", text: "Todo" }] }],
+                },
+              ],
+            },
+          ],
+        },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: false },
+              content: [{ type: "paragraph", content: [{ type: "text", text: "Todo" }] }],
+            },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Next" }] },
+      ],
+    });
+  });
+
+  it("preserves code block content when merging a later paragraph block", () => {
+    expect(
+      mergeNoteDocuments(
+        {
+          type: "doc",
+          content: [
+            {
+              type: "codeBlock",
+              attrs: { language: null },
+              content: [{ type: "text", text: "const value = 1" }],
+            },
+          ],
+        },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "codeBlock",
+          attrs: { language: null },
+          content: [{ type: "text", text: "const value = 1" }],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Next" }] },
+      ],
+    });
+  });
+
+  it("preserves table content when merging a later paragraph block", () => {
+    expect(
+      mergeNoteDocuments(
+        {
+          type: "doc",
+          content: [
+            {
+              type: "table",
+              content: [
+                {
+                  type: "tableRow",
+                  content: [
+                    { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }] },
+              ],
+            },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Next" }] },
+      ],
+    });
   });
 });
