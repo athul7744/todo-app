@@ -12,7 +12,7 @@ import {
   updateNotePageTitle,
 } from "@/lib/notes/notes";
 
-import type { NormalizedNotePage } from "./types";
+import type { NormalizedNotePage, NoteTag } from "./types";
 import { parseProperties } from "./utils";
 
 type FocusTarget = { blockId: string; placement: "start" | "end" } | null;
@@ -24,11 +24,11 @@ type UseNotePageActionsParams = {
   selectedPage: NotePageRow | null | undefined;
   selectedPageProperties: Record<string, unknown>;
   selectedPageSummary: string | null;
-  selectedPageTags: string[];
+  selectedPageTags: NoteTag[];
   pageTitleDraft: string;
   activePageEmoji: string | null;
   summaryDraft: string;
-  tagsDraft: string;
+  selectedTagIdsDraft: string[];
   blockContentDrafts: Record<string, string>;
   orderedVisibleBlockIds: string[];
   selectedBlockMap: Map<string, NoteBlockRow>;
@@ -50,7 +50,7 @@ export function useNotePageActions({
   pageTitleDraft,
   activePageEmoji,
   summaryDraft,
-  tagsDraft,
+  selectedTagIdsDraft,
   blockContentDrafts,
   orderedVisibleBlockIds,
   selectedBlockMap,
@@ -64,15 +64,12 @@ export function useNotePageActions({
 }: UseNotePageActionsParams) {
   const persistSelectedPageProperties = (
     nextSummary: string,
-    nextTagsRaw: string,
+    nextTagIds: string[],
     nextEmoji = activePageEmoji
   ) => {
     if (!selectedPageId) return;
 
-    const nextTags = nextTagsRaw
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
+    const nextTags = [...new Set(nextTagIds.map((tagId) => tagId.trim()).filter(Boolean))];
 
     updateNotePageProperties(selectedPageId, {
       ...(selectedPageProperties as PagePropertiesRecord),
@@ -118,7 +115,7 @@ export function useNotePageActions({
 
   const handleSelectPageEmoji = (emoji: string | null) => {
     setPageEmojiDraft(emoji);
-    persistSelectedPageProperties(summaryDraft, tagsDraft, emoji);
+    persistSelectedPageProperties(summaryDraft, selectedTagIdsDraft, emoji);
     setIsEmojiPickerOpen(false);
   };
 
@@ -155,7 +152,7 @@ export function useNotePageActions({
     }
 
     if (selectedPageTags.length > 0) {
-      lines.push("", `Tags: ${selectedPageTags.map((tag) => `#${tag}`).join(", ")}`);
+      lines.push("", `Tags: ${selectedPageTags.map((tag) => `#${tag.name}`).join(", ")}`);
     }
 
     const blockLines = orderedVisibleBlockIds

@@ -2,7 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronUp, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star, Tag as TagIcon } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SEARCH_POPUP_CLOSE_ANIMATION_MS } from "@/components/ui/search-popup";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages } from "@/hooks/use-notes";
 import { createStarterPage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, normalizeNotePageTitle } from "@/lib/notes/notes";
 import { getApp } from "@/lib/shared/apps";
@@ -37,6 +38,7 @@ import { NotesPageSearchPopup } from "@/components/notes/page/NotesPageSearchPop
 import { useNotesPageDerivedState } from "@/components/notes/page/useNotesPageDerivedState";
 import { useNotesSurfaceState } from "@/components/notes/page/useNotesSurfaceState";
 import { formatTimestampLabel } from "@/components/notes/page/utils";
+import { ManageTagsDialog } from "@/components/tasks/ManageTagsDialog";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 
@@ -62,7 +64,7 @@ export default function NotesPage() {
   const [pageEmojiDraft, setPageEmojiDraft] = useState<string | null | undefined>(undefined);
   const [resolvedPageEmoji, setResolvedPageEmoji] = useState<string | null | undefined>(undefined);
   const [summaryDraft, setSummaryDraft] = useState("");
-  const [tagsDraft, setTagsDraft] = useState("");
+  const [selectedTagIdsDraft, setSelectedTagIdsDraft] = useState<string[]>([]);
   const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
   const [optimisticBlockStructure, setOptimisticBlockStructure] = useState<Record<string, OptimisticBlockStructure>>({});
   const [showAbsoluteUpdatedTime, setShowAbsoluteUpdatedTime] = useState(false);
@@ -70,6 +72,7 @@ export default function NotesPage() {
   const [focusTarget, setFocusTarget] = useState<{ blockId: string; placement: number | "start" | "end" } | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPage, setIsDeletingPage] = useState(false);
+  const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
   const [isMobilePagesDrawerOpen, setIsMobilePagesDrawerOpen] = useState(false);
   const [isMobileDetailsDrawerOpen, setIsMobileDetailsDrawerOpen] = useState(false);
   const [pageRailSectionOpen, setPageRailSectionOpen] = useState({
@@ -199,6 +202,7 @@ export default function NotesPage() {
     selectedPageEmoji,
     selectedPageProperties,
     selectedPageSummary,
+    selectedPageTagIds,
     selectedPageTags,
     tagDirectory,
     updatedTimestamp,
@@ -241,7 +245,7 @@ export default function NotesPage() {
       setPageEmojiDraft(undefined);
       setResolvedPageEmoji(undefined);
       setSummaryDraft("");
-      setTagsDraft("");
+      setSelectedTagIdsDraft([]);
       setBlockContentDrafts({});
       setOptimisticBlockStructure({});
       setShowAbsoluteUpdatedTime(false);
@@ -265,7 +269,7 @@ export default function NotesPage() {
     setPageEmojiDraft(undefined);
     setResolvedPageEmoji(selectedPageEmoji);
     setSummaryDraft(selectedPageSummary ?? "");
-    setTagsDraft(selectedPageTags.join(", "));
+    setSelectedTagIdsDraft(selectedPageTagIds);
     setBlockContentDrafts({});
     setOptimisticBlockStructure({});
     setShowAbsoluteUpdatedTime(false);
@@ -400,7 +404,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     setTagDirectoryOpen((current) => {
-      const selectedTagKeys = new Set(selectedPageTags.map((tag) => tag.trim().toLowerCase()).filter(Boolean));
+      const selectedTagKeys = new Set(selectedPageTags.map((tag) => tag.key));
       const next: Record<string, boolean> = {};
       let hasChanged = Object.keys(current).length !== tagDirectory.length;
 
@@ -473,6 +477,7 @@ export default function NotesPage() {
     selectedPageTitle: pageTitleDraft || selectedPage?.title || "Untitled page",
     activePageEmoji,
     isSelectedPageFavorite: selectedPageProperties.favorite === true,
+    selectedPageTags,
     selectedBlockCount: displayBlocks.length,
     linkedReferenceCount: linkedReferences.length,
     displayBlocks,
@@ -608,7 +613,7 @@ export default function NotesPage() {
     pageTitleDraft,
     activePageEmoji,
     summaryDraft,
-    tagsDraft,
+    selectedTagIdsDraft,
     blockContentDrafts,
     orderedVisibleBlockIds,
     selectedBlockMap,
@@ -713,7 +718,8 @@ export default function NotesPage() {
       detailsSectionOpen={detailsSectionOpen}
       pageOutline={pageOutline}
       summaryDraft={summaryDraft}
-      tagsDraft={tagsDraft}
+      selectedPageTags={selectedPageTags}
+      selectedTagIdsDraft={selectedTagIdsDraft}
       linkedReferences={linkedReferences}
       pageTagMentions={pageTagMentions}
       selectedPageAttachments={selectedPageAttachments}
@@ -726,7 +732,7 @@ export default function NotesPage() {
       onToggleAllDetailsSections={toggleAllDetailsSections}
       onToggleDetailsSection={toggleDetailsSection}
       onSetSummaryDraft={setSummaryDraft}
-      onSetTagsDraft={setTagsDraft}
+      onSelectedTagIdsChange={setSelectedTagIdsDraft}
       onPersistSelectedPageProperties={persistSelectedPageProperties}
       onSetFocusTarget={setFocusTarget}
       onOpenDeleteDialog={() => {
@@ -807,17 +813,29 @@ export default function NotesPage() {
       {isDisplayingOverview || showEditorAppHeader ? (
         <AppHeader
           app={notesApp}
+          mobileMenuItems={isDisplayingOverview ? (
+            <DropdownMenuItem onClick={() => setIsManageTagsOpen(true)}>
+              <div className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-0.5 py-0.5 text-sm outline-none transition-colors">
+                <TagIcon className="h-4 w-4" />
+                Manage Tags
+              </div>
+            </DropdownMenuItem>
+          ) : undefined}
           actions={isDisplayingOverview ? (
-            <Button
-              onClick={handleCreateStarterPage}
-              variant="ghost"
-              size="sm"
-              disabled={isCreatingPage}
-              className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-amber-700 dark:hover:text-amber-400"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>{isCreatingPage ? "Creating..." : "Page"}</span>
-            </Button>
+            <>
+              <ManageTagsDialog />
+              <ManageTagsDialog open={isManageTagsOpen} onOpenChange={setIsManageTagsOpen} hideTrigger />
+              <Button
+                onClick={handleCreateStarterPage}
+                variant="ghost"
+                size="sm"
+                disabled={isCreatingPage}
+                className="gap-1.5 rounded-full text-xs h-8 px-2.5 hover:text-amber-700 dark:hover:text-amber-400"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>{isCreatingPage ? "Creating..." : "Page"}</span>
+              </Button>
+            </>
           ) : undefined}
         />
       ) : null}
@@ -966,6 +984,7 @@ export default function NotesPage() {
                     pageTitleError={pageTitleError}
                     isEmojiPickerOpen={isEmojiPickerOpen}
                     activePageEmoji={activePageEmoji}
+                    selectedTagIdsDraft={selectedTagIdsDraft}
                     focusTarget={focusTarget}
                     notePageTitles={notePageTitles}
                     onBack={() => {
@@ -980,6 +999,10 @@ export default function NotesPage() {
                     onToggleFavorite={handleToggleFavorite}
                     onEmojiPickerOpenChange={setIsEmojiPickerOpen}
                     onSelectEmoji={handleSelectPageEmoji}
+                    onSelectedTagIdsChange={(nextTagIds) => {
+                      setSelectedTagIdsDraft(nextTagIds);
+                      persistSelectedPageProperties(summaryDraft, nextTagIds);
+                    }}
                     onCreateFirstBlock={handleCreateRootBlock}
                     onFocusApplied={handleFocusApplied}
                     onFocusBlock={handleFocusBlock}

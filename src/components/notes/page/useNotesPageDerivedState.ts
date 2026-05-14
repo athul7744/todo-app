@@ -1,13 +1,15 @@
 "use client";
 
+import { useQuery } from "@powersync/react";
 import { useMemo } from "react";
 
 import type { NoteBlockRow, NotePageRow } from "@/hooks/use-notes";
 import { extractNoteText } from "@/lib/notes/notes-content";
 import { normalizeNotePageTitle } from "@/lib/notes/notes";
+import type { Tag } from "@/lib/powersync/AppSchema";
 
 import { type NormalizedNotePage, type OutlineEntry, type TagDirectoryEntry } from "./types";
-import { extractOutlineEntries, formatTimestampLabel, normalizePageEmoji, parseProperties } from "./utils";
+import { extractOutlineEntries, formatTimestampLabel, normalizePageEmoji, parseProperties, parseStoredTagIds, resolveNoteTags } from "./utils";
 
 type UseNotesPageDerivedStateParams = {
   allPages: NotePageRow[];
@@ -18,14 +20,12 @@ type UseNotesPageDerivedStateParams = {
   pageSearchQuery: string;
 };
 
-function normalizePages(pages: NotePageRow[]): NormalizedNotePage[] {
+function normalizePages(pages: NotePageRow[], availableTags: Tag[]): NormalizedNotePage[] {
   return pages.map((page) => {
     const properties = parseProperties(page.properties);
     const persistedSummary = typeof properties.summary === "string" ? properties.summary.trim() : "";
     const previewSummary = persistedSummary ? "" : extractNoteText(page.preview_content).trim();
-    const tags = Array.isArray(properties.tags)
-      ? properties.tags.filter((tag): tag is string => typeof tag === "string")
-      : [];
+    const tags = resolveNoteTags(parseStoredTagIds(properties.tags), availableTags);
 
     return {
       ...page,
@@ -44,14 +44,16 @@ export function useNotesPageDerivedState({
   blockContentDrafts,
   pageSearchQuery,
 }: UseNotesPageDerivedStateParams) {
+  const { data: availableTags = [] } = useQuery<Tag>("SELECT * FROM tags ORDER BY name ASC");
+
   const normalizedPages = useMemo<NormalizedNotePage[]>(
-    () => normalizePages(recentPages),
-    [recentPages]
+    () => normalizePages(recentPages, availableTags),
+    [availableTags, recentPages]
   );
 
   const allNormalizedPages = useMemo<NormalizedNotePage[]>(
-    () => normalizePages(allPages),
-    [allPages]
+    () => normalizePages(allPages, availableTags),
+    [allPages, availableTags]
   );
 
   const notePageTitles = useMemo(() => {
@@ -100,7 +102,7 @@ export function useNotesPageDerivedState({
     return allNormalizedPages.filter((page) => {
       const title = (normalizeNotePageTitle(page.title) || "Untitled").toLocaleLowerCase();
       const summary = (page.summary ?? "").toLocaleLowerCase();
-      const tags = page.tags.join(" ").toLocaleLowerCase();
+      const tags = page.tags.map((tag) => tag.name).join(" ").toLocaleLowerCase();
       return title.includes(nextQuery) || summary.includes(nextQuery) || tags.includes(nextQuery);
     });
   }, [allNormalizedPages, normalizedSearchQuery]);
@@ -115,11 +117,14 @@ export function useNotesPageDerivedState({
     [selectedPage?.properties]
   );
 
-  const selectedPageTags = useMemo(
-    () => Array.isArray(selectedPageProperties.tags)
-      ? selectedPageProperties.tags.filter((tag): tag is string => typeof tag === "string")
-      : [],
+  const selectedPageTagIds = useMemo(
+    () => parseStoredTagIds(selectedPageProperties.tags),
     [selectedPageProperties.tags]
+  );
+
+  const selectedPageTags = useMemo(
+    () => resolveNoteTags(selectedPageTagIds, availableTags),
+    [availableTags, selectedPageTagIds]
   );
 
   const selectedPageEmoji = useMemo(
@@ -140,11 +145,7 @@ export function useNotesPageDerivedState({
 
     normalizedPages.forEach((page) => {
       page.tags.forEach((tag) => {
-        const trimmedTag = tag.trim();
-        if (!trimmedTag) return;
-
-        const key = trimmedTag.toLowerCase();
-        const entry = tagMap.get(key);
+        const entry = tagMap.get(tag.key);
 
         if (entry) {
           entry.count += 1;
@@ -152,9 +153,10 @@ export function useNotesPageDerivedState({
           return;
         }
 
-        tagMap.set(key, {
-          key,
-          label: trimmedTag,
+        tagMap.set(tag.key, {
+          key: tag.key,
+          label: tag.name,
+          color: tag.color,
           count: 1,
           pages: [page],
         });
@@ -213,6 +215,7 @@ export function useNotesPageDerivedState({
     selectedPageEmoji,
     selectedPageProperties,
     selectedPageSummary,
+    selectedPageTagIds,
     selectedPageTags,
     tagDirectory,
     updatedTimestamp,

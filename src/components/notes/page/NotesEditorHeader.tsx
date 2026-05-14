@@ -1,18 +1,24 @@
 "use client";
 
+import { useMemo } from "react";
+import { useQuery } from "@powersync/react";
 import { ArrowLeft, Files, Link2, Star } from "lucide-react";
 
+import { TagPillStrip } from "@/components/tags/TagPillStrip";
+import { TagSelector } from "@/components/tags/TagSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tag } from "@/lib/powersync/AppSchema";
 import { cn } from "@/lib/shared/utils";
 
-import { NOTE_PAGE_EMOJI_OPTIONS } from "./types";
+import { NOTE_PAGE_EMOJI_OPTIONS, type NoteTag } from "./types";
 
 type EditorHeaderContent = {
   title: string;
   emoji: string | null;
   favorite: boolean;
+  tags: NoteTag[];
   blockCount: number;
   backlinkCount: number;
 };
@@ -25,12 +31,14 @@ export function NotesEditorHeader({
   pageTitleError,
   isEmojiPickerOpen,
   activePageEmoji,
+  selectedTagIdsDraft,
   onBack,
   onTitleChange,
   onCommitTitle,
   onToggleFavorite,
   onEmojiPickerOpenChange,
   onSelectEmoji,
+  onSelectedTagIdsChange,
 }: {
   editorContent: EditorHeaderContent;
   showEditorOverlay: boolean;
@@ -39,13 +47,28 @@ export function NotesEditorHeader({
   pageTitleError: string | null;
   isEmojiPickerOpen: boolean;
   activePageEmoji: string | null;
+  selectedTagIdsDraft: string[];
   onBack: () => void;
   onTitleChange: (value: string) => void;
   onCommitTitle: () => void | Promise<void>;
   onToggleFavorite: () => void;
   onEmojiPickerOpenChange: (open: boolean) => void;
   onSelectEmoji: (emoji: string | null) => void;
+  onSelectedTagIdsChange: (tagIds: string[]) => void;
 }) {
+  const { data: allTags = [] } = useQuery<Tag>("SELECT * FROM tags ORDER BY name ASC");
+  const visibleTags = useMemo(
+    () => selectedTagIdsDraft
+      .map((tagId) => allTags.find((tag) => tag.id === tagId) ?? null)
+      .filter((tag): tag is Tag => tag !== null)
+      .map((tag) => ({
+        id: tag.id,
+        name: tag.name?.trim() || "Tag",
+        color: tag.color || "slate",
+      })),
+    [allTags, selectedTagIdsDraft]
+  );
+
   return (
     <>
       <div className="contents">
@@ -86,9 +109,9 @@ export function NotesEditorHeader({
         </Button>
       </div>
 
-      <div className={`col-span-2 flex flex-wrap items-center gap-2 pl-3 text-xs text-muted-foreground sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
+      <div className={`col-span-2 flex items-center gap-2 overflow-x-auto overscroll-y-none pl-3 text-xs text-muted-foreground [touch-action:pan-x_pan-y] sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
         {pageTitleError ? <span className="text-destructive">{pageTitleError}</span> : null}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-max items-center gap-2 pr-1">
           <Popover open={isEmojiPickerOpen} onOpenChange={onEmojiPickerOpenChange}>
             <PopoverTrigger className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-muted px-2.5 text-xs text-foreground transition-colors hover:bg-accent hover:text-foreground">
               <span className="leading-none">{activePageEmoji ?? "🖤"}</span>
@@ -123,6 +146,37 @@ export function NotesEditorHeader({
               </button>
             </PopoverContent>
           </Popover>
+          {visibleTags.length === 0 ? (
+            <TagSelector
+              selectedTagIds={selectedTagIdsDraft}
+              onSelectedTagIdsChange={onSelectedTagIdsChange}
+              density="compact"
+              triggerLabel="Add tag"
+              triggerClassName="h-7 rounded-full bg-muted px-2.5 text-xs text-foreground hover:bg-accent hover:text-foreground"
+              popoverWidthClassName="w-[240px]"
+              showSelectedTags={false}
+              maxSelected={5}
+            />
+          ) : (
+            <TagSelector
+              selectedTagIds={selectedTagIdsDraft}
+              onSelectedTagIdsChange={onSelectedTagIdsChange}
+              triggerClassName="rounded-sm"
+              popoverWidthClassName="w-[240px]"
+              showSelectedTags={false}
+              maxSelected={5}
+              triggerContent={(
+                <TagPillStrip
+                  tags={visibleTags}
+                  className="max-w-[11rem] sm:max-w-[14rem]"
+                  collapsible
+                  autoCollapseMs={10000}
+                  expandOnClick
+                  useParentScroll
+                />
+              )}
+            />
+          )}
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Files className="h-3 w-3" />{editorContent.blockCount} blocks</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1"><Link2 className="h-3 w-3" />{editorContent.backlinkCount} backlinks</span>
         </div>

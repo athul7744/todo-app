@@ -18,6 +18,7 @@ export function NotesEditorContent({
   pageTitleError,
   isEmojiPickerOpen,
   activePageEmoji,
+  selectedTagIdsDraft,
   focusTarget,
   notePageTitles,
   onBack,
@@ -26,6 +27,7 @@ export function NotesEditorContent({
   onToggleFavorite,
   onEmojiPickerOpenChange,
   onSelectEmoji,
+  onSelectedTagIdsChange,
   onCreateFirstBlock,
   onFocusApplied,
   onFocusBlock,
@@ -49,6 +51,7 @@ export function NotesEditorContent({
   pageTitleError: string | null;
   isEmojiPickerOpen: boolean;
   activePageEmoji: string | null;
+  selectedTagIdsDraft: string[];
   focusTarget: FocusTarget;
   notePageTitles: string[];
   onBack: () => void;
@@ -57,6 +60,7 @@ export function NotesEditorContent({
   onToggleFavorite: () => void;
   onEmojiPickerOpenChange: (open: boolean) => void;
   onSelectEmoji: (emoji: string | null) => void;
+  onSelectedTagIdsChange: (tagIds: string[]) => void;
   onCreateFirstBlock: () => void | Promise<void>;
   onFocusApplied: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
@@ -110,12 +114,14 @@ export function NotesEditorContent({
             pageTitleError={pageTitleError}
             isEmojiPickerOpen={isEmojiPickerOpen}
             activePageEmoji={activePageEmoji}
+            selectedTagIdsDraft={selectedTagIdsDraft}
             onBack={onBack}
             onTitleChange={onTitleChange}
             onCommitTitle={onCommitTitle}
             onToggleFavorite={onToggleFavorite}
             onEmojiPickerOpenChange={onEmojiPickerOpenChange}
             onSelectEmoji={onSelectEmoji}
+            onSelectedTagIdsChange={onSelectedTagIdsChange}
           />
 
           <div className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>

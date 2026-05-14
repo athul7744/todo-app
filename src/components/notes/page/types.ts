@@ -7,15 +7,23 @@ export const NOTE_PAGE_EMOJI_OPTIONS = [
   "📷", "🍀", "🌸", "🪴", "🏠", "✈️", "💬", "🔒", "🛠️", "🧩",
 ] as const;
 
+export type NoteTag = {
+  id: string;
+  key: string;
+  name: string;
+  color: string;
+};
+
 export type NormalizedNotePage = NotePageRow & {
   summary: string | null;
-  tags: string[];
+  tags: NoteTag[];
   emoji: string | null;
 };
 
 export type TagDirectoryEntry = {
   key: string;
   label: string;
+  color: string;
   count: number;
   pages: NormalizedNotePage[];
 };
@@ -33,6 +41,7 @@ export type NotesEditorRenderableContent = {
   title: string;
   emoji: string | null;
   favorite: boolean;
+  tags: NoteTag[];
   blockCount: number;
   backlinkCount: number;
   blocks: NoteBlockRow[];

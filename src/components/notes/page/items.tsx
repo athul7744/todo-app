@@ -4,13 +4,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Star } from "lucide-react";
 
+import { TagPillStrip } from "@/components/tags/TagPillStrip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/shared/utils";
-import { getTagColorClasses, getTagDotClass } from "@/lib/tasks/colors";
 
 import {
   formatTimestampLabel,
-  getDeterministicTagColor,
   parseProperties,
 } from "./utils";
 import { PageIcon } from "./ui";
@@ -65,18 +64,6 @@ export function NavigationPageLink({
         </div>
         {trailing ?? null}
       </div>
-      {showTags && page.tags.length > 0 ? (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {page.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${isSelected ? "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </Link>
   );
 }
@@ -97,7 +84,7 @@ export function OverviewPageCard({
   const updatedLabel = formatTimestampLabel(page.updated_at)?.relative;
   const pageProperties = parseProperties(page.properties);
   const isFavorite = pageProperties.favorite === true;
-  const accentColor = getDeterministicTagColor(page.tags[0]);
+  const accentColor = page.tags[0]?.color ?? null;
   const accentClasses = accentColor
     ? NOTE_OVERVIEW_ACCENT_CLASSES[accentColor] ?? NOTE_OVERVIEW_ACCENT_CLASSES.slate
     : null;
@@ -121,6 +108,8 @@ export function OverviewPageCard({
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10">
             <PageIcon emoji={page.emoji} className="h-4 w-4 text-sm leading-none sm:h-4.5 sm:w-4.5 sm:text-base" />
           </span>
+
+          {showTags ? <TagPillStrip tags={page.tags} className="flex-1" /> : <div className="flex-1" />}
 
           <Button
             type="button"
@@ -154,27 +143,6 @@ export function OverviewPageCard({
         </div>
 
         <div className="mt-auto space-y-2 pt-1">
-          {showTags && page.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {page.tags.slice(0, 3).map((tag) => {
-                const tagColor = getDeterministicTagColor(tag) ?? "slate";
-
-                return (
-                  <span
-                    key={tag}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px]",
-                      getTagColorClasses(tagColor),
-                    )}
-                  >
-                    <span className={cn("h-1.5 w-1.5 rounded-full", getTagDotClass(tagColor))} />
-                    #{tag}
-                  </span>
-                );
-              })}
-            </div>
-          ) : null}
-
           {showUpdated && updatedLabel ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 sm:text-[11px]">
               Updated {updatedLabel}

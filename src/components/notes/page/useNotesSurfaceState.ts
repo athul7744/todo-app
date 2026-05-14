@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { NoteBlockRow } from "@/hooks/use-notes";
 
-import type { NormalizedNotePage, NotesEditorRenderableContent } from "./types";
+import type { NormalizedNotePage, NoteTag, NotesEditorRenderableContent } from "./types";
 import { useSmoothedLoading } from "./utils";
 
 type UseNotesSurfaceStateParams = {
@@ -17,6 +17,7 @@ type UseNotesSurfaceStateParams = {
   selectedPageTitle: string | null | undefined;
   activePageEmoji: string | null;
   isSelectedPageFavorite: boolean;
+  selectedPageTags?: NoteTag[];
   selectedBlockCount: number;
   linkedReferenceCount: number;
   displayBlocks: NoteBlockRow[];
@@ -33,6 +34,7 @@ export function useNotesSurfaceState({
   selectedPageTitle,
   activePageEmoji,
   isSelectedPageFavorite,
+  selectedPageTags = [],
   selectedBlockCount,
   linkedReferenceCount,
   displayBlocks,
@@ -91,6 +93,7 @@ export function useNotesSurfaceState({
       title: selectedPageTitle || "Untitled page",
       emoji: activePageEmoji,
       favorite: isSelectedPageFavorite,
+      tags: selectedPageTags,
       blockCount: selectedBlockCount,
       backlinkCount: linkedReferenceCount,
       blocks: displayBlocks,
@@ -98,9 +101,9 @@ export function useNotesSurfaceState({
   }, [
     activePageEmoji,
     displayBlocks,
-    isLoadingSelectedPage,
     isSelectedPageFavorite,
     linkedReferenceCount,
+    selectedPageTags,
     selectedBlockCount,
     selectedPageIdForEditor,
     selectedPageTitle,
@@ -120,6 +123,7 @@ export function useNotesSurfaceState({
         title: selectedPageTitle || "Untitled page",
         emoji: activePageEmoji,
         favorite: isSelectedPageFavorite,
+      tags: selectedPageTags,
         blockCount: selectedBlockCount,
         backlinkCount: linkedReferenceCount,
         blocks: displayBlocks,

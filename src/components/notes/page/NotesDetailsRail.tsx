@@ -1,16 +1,15 @@
 "use client";
 
-import { Copy, Clock3, FileText, Files, Hash, Link2, Paperclip, Settings2, Tags, Trash2 } from "lucide-react";
+import { Copy, Clock3, FileText, Files, Hash, Link2, Paperclip, Settings2, Trash2 } from "lucide-react";
 
 import type { LinkedNoteReferenceRow, NoteAttachmentRow, NoteBlockRow, NotePageRow, NoteTagMentionRow } from "@/hooks/use-notes";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import { attachmentLabel } from "./utils";
 import { Bone, DetailsRailCardSkeleton, DetailsSection } from "./ui";
-import type { OutlineEntry } from "./types";
+import type { NoteTag, OutlineEntry } from "./types";
 
 type TimestampLabel = {
   relative: string;
@@ -33,7 +32,8 @@ export function NotesDetailsRail({
   detailsSectionOpen,
   pageOutline,
   summaryDraft,
-  tagsDraft,
+  selectedPageTags,
+  selectedTagIdsDraft,
   linkedReferences,
   pageTagMentions,
   selectedPageAttachments,
@@ -46,7 +46,7 @@ export function NotesDetailsRail({
   onToggleAllDetailsSections,
   onToggleDetailsSection,
   onSetSummaryDraft,
-  onSetTagsDraft,
+  onSelectedTagIdsChange,
   onPersistSelectedPageProperties,
   onSetFocusTarget,
   onOpenDeleteDialog,
@@ -56,7 +56,8 @@ export function NotesDetailsRail({
   detailsSectionOpen: DetailsSectionState;
   pageOutline: OutlineEntry[];
   summaryDraft: string;
-  tagsDraft: string;
+  selectedPageTags: NoteTag[];
+  selectedTagIdsDraft: string[];
   linkedReferences: LinkedNoteReferenceRow[];
   pageTagMentions: NoteTagMentionRow[];
   selectedPageAttachments: NoteAttachmentRow[];
@@ -69,8 +70,8 @@ export function NotesDetailsRail({
   onToggleAllDetailsSections: () => void;
   onToggleDetailsSection: (section: keyof DetailsSectionState) => void;
   onSetSummaryDraft: (value: string) => void;
-  onSetTagsDraft: (value: string) => void;
-  onPersistSelectedPageProperties: (summary: string, tags: string) => void;
+  onSelectedTagIdsChange: (tagIds: string[]) => void;
+  onPersistSelectedPageProperties: (summary: string, tagIds: string[]) => void;
   onSetFocusTarget: (target: { blockId: string; placement: "start" | "end" }) => void;
   onOpenDeleteDialog: () => void;
   onHandleCopyDocument: () => void | Promise<void>;
@@ -133,29 +134,11 @@ export function NotesDetailsRail({
             value={summaryDraft}
             onChange={(event) => {
               onSetSummaryDraft(event.target.value);
-              onPersistSelectedPageProperties(event.target.value, tagsDraft);
+              onPersistSelectedPageProperties(event.target.value, selectedTagIdsDraft);
             }}
             rows={4}
             placeholder="Add page context"
             className="min-h-24 rounded-xl border-0 bg-muted/95 px-3 py-2.5 text-[13px] leading-5 shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0"
-          />
-        </DetailsSection>
-
-        <DetailsSection
-          title="Tags"
-          icon={Tags}
-          accentClassName="bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/18 dark:text-emerald-300"
-          isOpen={detailsSectionOpen.tags}
-          onToggle={() => onToggleDetailsSection("tags")}
-        >
-          <Input
-            value={tagsDraft}
-            onChange={(event) => {
-              onSetTagsDraft(event.target.value);
-              onPersistSelectedPageProperties(summaryDraft, event.target.value);
-            }}
-            placeholder="comma, separated, tags"
-            className="h-10 rounded-xl border-0 bg-muted/95 px-3 text-[13px] shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0"
           />
         </DetailsSection>
 

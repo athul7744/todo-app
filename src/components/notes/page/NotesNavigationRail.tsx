@@ -4,6 +4,8 @@ import { ChevronDown, Clock3, Hash, PanelLeftClose, Star, Tags } from "lucide-re
 
 import { NotesNavigationRailSkeleton } from "@/components/notes/NotesPageSkeleton";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/shared/utils";
+import { getTagDotClass } from "@/lib/tasks/colors";
 
 import { DetailsSection } from "./ui";
 import type { NormalizedNotePage, TagDirectoryEntry } from "./types";
@@ -128,6 +130,7 @@ export function NotesNavigationRail({
                       page={page}
                       selectedPageId={selectedPageId}
                       onSelectPage={onSelectPage}
+                      showTags={false}
                       trailing={<Star className="mt-0.5 h-4 w-4 shrink-0 fill-current text-amber-500" />}
                     />
                   ))
@@ -152,6 +155,7 @@ export function NotesNavigationRail({
                       page={page}
                       selectedPageId={selectedPageId}
                       onSelectPage={onSelectPage}
+                      showTags={false}
                     />
                   ))
                 )}
@@ -183,7 +187,7 @@ export function NotesNavigationRail({
                         >
                           <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
                             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground">
-                              <Hash className="h-3.5 w-3.5" />
+                              <span className={cn("h-2.5 w-2.5 rounded-full", getTagDotClass(entry.color || "slate"))} />
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate text-[13px] font-medium text-foreground">#{entry.label}</span>

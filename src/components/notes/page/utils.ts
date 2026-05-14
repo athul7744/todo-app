@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { Tag } from "@/lib/powersync/AppSchema";
 import { parseSerializedRecord } from "@/lib/notes/notes-content";
 import type { JsonValue } from "@/lib/notes/notes";
 import { formatRelativeTime } from "@/lib/shared/utils";
 import { TAG_COLORS } from "@/lib/tasks/colors";
 
-import type { OutlineEntry } from "./types";
+import type { NoteTag, OutlineEntry } from "./types";
 
 type RichContentNode = {
   type?: string;
@@ -134,6 +135,46 @@ export function createBlockDocument(text = ""): JsonValue {
 
 export function parseProperties(raw: unknown) {
   return parseSerializedRecord(raw) ?? {};
+}
+
+export function parseStoredTagIds(raw: unknown) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const seenIds = new Set<string>();
+
+  return raw.flatMap((value) => {
+    if (typeof value !== "string") {
+      return [];
+    }
+
+    const trimmedValue = value.trim();
+    if (!trimmedValue || seenIds.has(trimmedValue)) {
+      return [];
+    }
+
+    seenIds.add(trimmedValue);
+    return [trimmedValue];
+  });
+}
+
+export function resolveNoteTags(tagIds: string[], availableTags: Tag[]): NoteTag[] {
+  const tagsById = new Map(availableTags.map((tag) => [tag.id, tag]));
+
+  return tagIds.flatMap((tagId) => {
+    const tag = tagsById.get(tagId);
+    if (!tag) {
+      return [];
+    }
+
+    return [{
+      id: tag.id,
+      key: tag.id,
+      name: tag.name?.trim() || "Tag",
+      color: tag.color || "slate",
+    }];
+  });
 }
 
 export function getDeterministicTagColor(tag: string | null | undefined) {
