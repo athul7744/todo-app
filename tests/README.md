@@ -29,6 +29,9 @@ This folder holds the project's Vitest suites and lightweight test helpers.
 - `tests/notes/notes-write.test.ts`
   Covers note block write behavior around batched queued creates, retry after failed flush, update-before-flush, delete-before-flush, and immediate starter-page creation.
 
+- `tests/notes/note-page-utils.test.ts`
+  Covers note page metadata helpers for stored tag id parsing and shared tag resolution from the shared tags table.
+
 - `tests/notes/useNoteBlockActions.dom.test.ts`
   Runs jsdom-backed integration coverage for `useNoteBlockActions`, including merge-into-previous behavior with child reparenting and delete focus behavior for the first visible block.
 

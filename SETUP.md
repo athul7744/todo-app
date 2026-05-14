@@ -49,7 +49,7 @@ CREATE TABLE public.tasks (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Tags table
+-- Tags table (shared by tasks and note page metadata)
 CREATE TABLE public.tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -237,6 +237,8 @@ streams:
 4. Note your **PowerSync Instance URL**
 
 This needs to stay aligned with the tables created in the Supabase SQL Editor. If you add or rename synced tables later, update both the publication and the PowerSync stream queries together.
+
+The `tags` table is shared by tasks and notes. Tasks store selected tag ids in `tasks.tags`, while notes store selected tag ids in `pages.properties.tags` alongside other page metadata such as emoji and favorite state.
 
 Attachment ownership is explicit: each attachment belongs to either a page or a block. Use page-owned attachments for page-level assets like cover images, and block-owned attachments for embedded files inside note content.
 

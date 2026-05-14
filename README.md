@@ -9,11 +9,11 @@ An offline-first productivity workspace with **Tasks**, **Tracker**, and **Notes
 
 ## Features
 
-**Tasks** — Offline-first task manager with subtasks, tags, due dates, priorities, smart filters, trash and restore, responsive masonry layout, and direct save from the system share sheet.
+**Tasks** — Offline-first task manager with subtasks, shared tags, due dates, priorities, smart filters, trash and restore, responsive masonry layout, and direct save from the system share sheet.
 
 **Tracker** — 7-day × 24-hour paint grid for logging time blocks, inline daily mood ratings, yearly heatmaps, weekly widgets, and mobile-friendly navigation with shared bottom FAB controls.
 
-**Notes** — Local-first outline editor with pages, nested blocks, backlinks, owned attachments, inline references, mdast-backed markdown paste handling, markdown-style transforms, and slash-driven block commands.
+**Notes** — Local-first outline editor with pages, nested blocks, shared tags, backlinks, owned attachments, inline references, mdast-backed markdown paste handling, markdown-style transforms, and slash-driven block commands.
 
 **Week Widgets** — Activity breakdown donut chart, mood insights with sleep correlation, daily stacked bars, sleep stats (avg/range/per-night chart), and productivity ratio bar.
 

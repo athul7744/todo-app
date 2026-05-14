@@ -108,6 +108,7 @@ Important convention:
 - `src/components/SyncIndicator.tsx`
 - `src/components/LogViewerDialog.tsx`
 - `src/components/ManageNamedColorItemsDialog.tsx`
+- `src/components/tags/*` — shared tag selection and pill-strip primitives used by tasks and notes
 
 ### Task-specific components
 
@@ -178,6 +179,7 @@ Responsibilities:
 - Registers the notes app in the shared shell and launcher.
 - Orchestrates overview and editor surfaces via `?page=` route state.
 - Reads pages, blocks, backlinks, attachments, and mentions from local SQLite through `src/hooks/use-notes.ts`.
+- Resolves note page tag ids from `pages.properties.tags` through the shared `tags` table.
 - Preserves the shared header-first loading model used across the app.
 - Uses the shared debounced write path for page and block updates.
 
@@ -185,6 +187,7 @@ Key modules:
 
 - `src/components/notes/page/*`
   - Route-local overview, navigation, details, search, and supporting notes hooks.
+  - Includes the notes editor header metadata row, which reuses the shared tag selector and tag pill strip.
 
 - `src/components/notes/NoteBlockEditor.tsx`
   - Per-block Tiptap editor with markdown-style transforms, block key handling, and local/external content reconciliation.
@@ -312,6 +315,13 @@ It is wrapped by:
 
 - `src/components/tasks/ManageTagsDialog.tsx`
 - `src/components/tracker/ManageActivitiesDialog.tsx`
+
+The shared tag selection UI lives separately in:
+
+- `src/components/tags/TagSelector.tsx`
+- `src/components/tags/TagPillStrip.tsx`
+
+Tasks and notes both resolve against the same `public.tags` rows, so changes to tag names or colors should be reflected consistently across both apps.
 
 If one of these dialogs breaks, start with the shared component first.
 
