@@ -42,7 +42,8 @@ import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 
 const notesApp = getApp("notes");
 const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
-const MOBILE_EDGE_SWIPE_START_PX = 24;
+const MOBILE_SWIPE_START_FRACTION = 1 / 3;
+const MOBILE_SWIPE_START_BAND_PX = 56;
 const MOBILE_EDGE_SWIPE_TRIGGER_PX = 56;
 const MOBILE_EDGE_SWIPE_MAX_VERTICAL_DRIFT_PX = 48;
 
@@ -750,13 +751,15 @@ export default function NotesPage() {
 
     const { clientX, clientY } = touch;
     const viewportWidth = window.innerWidth;
+    const leftSwipeZoneCenter = viewportWidth * MOBILE_SWIPE_START_FRACTION;
+    const rightSwipeZoneCenter = viewportWidth * (1 - MOBILE_SWIPE_START_FRACTION);
 
-    if (clientX <= MOBILE_EDGE_SWIPE_START_PX) {
+    if (Math.abs(clientX - leftSwipeZoneCenter) <= MOBILE_SWIPE_START_BAND_PX) {
       edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "left" };
       return;
     }
 
-    if (clientX >= viewportWidth - MOBILE_EDGE_SWIPE_START_PX) {
+    if (Math.abs(clientX - rightSwipeZoneCenter) <= MOBILE_SWIPE_START_BAND_PX) {
       edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "right" };
       return;
     }
