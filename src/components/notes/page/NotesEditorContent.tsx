@@ -38,6 +38,7 @@ export function NotesEditorContent({
   onIndent,
   onOutdent,
   onDelete,
+  onDeleteRange,
   onUpdateContent,
 }: {
   editorContent: NotesEditorRenderableContent;
@@ -78,6 +79,7 @@ export function NotesEditorContent({
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
   onDelete: (blockId: string) => void | Promise<void>;
+  onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
 }) {
   if (showSelectedPageLoading && !editorContent) {
@@ -134,6 +136,7 @@ export function NotesEditorContent({
               onIndent={onIndent}
               onOutdent={onOutdent}
               onDelete={onDelete}
+              onDeleteRange={onDeleteRange}
               onUpdateContent={onUpdateContent}
             />
           </div>

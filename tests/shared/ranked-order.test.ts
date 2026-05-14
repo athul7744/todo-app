@@ -55,4 +55,15 @@ describe("ranked-order", () => {
     const fallbackRank = getRankAfterItem(items, "missing", "root-a", getTestParentId);
     expectRankAfter(fallbackRank, "0|i0000n:");
   });
+
+  it("uses sort-rank order rather than array order when inserting after a newly appended sibling", () => {
+    const unsortedWorkingItems = [
+      { id: "root-a", parentId: null, sort_rank: "0|hzzzzz:" },
+      { id: "root-b", parentId: null, sort_rank: "0|i00007:" },
+      { id: "inserted", parentId: null, sort_rank: "0|hyzzzz:" },
+    ];
+
+    const insertedRank = getRankAfterItem(unsortedWorkingItems, "inserted", null, getTestParentId);
+    expectRankBetween(insertedRank, "0|hyzzzz:", "0|i00007:");
+  });
 });

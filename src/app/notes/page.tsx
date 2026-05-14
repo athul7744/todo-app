@@ -161,6 +161,7 @@ export default function NotesPage() {
     handleCreateSiblingBlock,
     handleCreateSiblingBlocks,
     handleDeleteBlock,
+    handleDeleteBlockRange,
     handleIndentBlock,
     handleMergeWithPreviousBlock,
     handleOutdentBlock,
@@ -987,6 +988,7 @@ export default function NotesPage() {
                     onIndent={handleIndentBlock}
                     onOutdent={handleOutdentBlock}
                     onDelete={handleDeleteBlock}
+                    onDeleteRange={handleDeleteBlockRange}
                     onUpdateContent={handleUpdateBlockContent}
                   />
                 </section>

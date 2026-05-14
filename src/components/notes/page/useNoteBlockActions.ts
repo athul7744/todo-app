@@ -442,7 +442,7 @@ export function useNoteBlockActions({
     nextContent: NoteBlockInsert,
     nextSiblingContents: NoteBlockInsert[]
   ) => {
-    if (!selectedPageId || isCreatingBlock) return;
+    if (!selectedPageId) return;
 
     const insertedBlocks: Array<Pick<NoteBlockRow, "id" | "parent_block_id" | "sort_rank">> = [];
     const optimisticBlocksToCreate: Array<{
@@ -645,6 +645,13 @@ export function useNoteBlockActions({
     }
   };
 
+  const handleDeleteBlockRange = async (blockIds: string[]) => {
+    for (let index = blockIds.length - 1; index >= 0; index -= 1) {
+      const blockId = blockIds[index];
+      await handleDeleteBlock(blockId);
+    }
+  };
+
   const handleMergeWithPreviousBlock = async (
     blockId: string,
     previousBlockId: string,
@@ -754,6 +761,7 @@ export function useNoteBlockActions({
     handleCreateSiblingBlock,
     handleCreateSiblingBlocks,
     handleDeleteBlock,
+    handleDeleteBlockRange,
     handleIndentBlock,
     handleMergeWithPreviousBlock,
     handleOutdentBlock,

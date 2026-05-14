@@ -36,6 +36,7 @@ type BackspaceActionInput = {
   altKey: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
+  selectionEmpty: boolean;
   isEmptyBlock: boolean;
   isTaskItem: boolean;
   isCodeBlock: boolean;
@@ -112,6 +113,10 @@ export function shouldNavigateBetweenBlocks(input: ArrowNavigationInput) {
 }
 
 export function getBlockBackspaceAction(input: BackspaceActionInput): BlockBackspaceAction {
+  if (!input.selectionEmpty) {
+    return "none";
+  }
+
   if (input.isEmptyBlock) {
     if (input.isTaskItem || input.isCodeBlock) {
       return "reset-empty-special-block";

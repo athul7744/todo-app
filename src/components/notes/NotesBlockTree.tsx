@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { NoteBlockEditor } from "@/components/notes/NoteBlockEditor";
 import type { NoteBlockRow } from "@/hooks/use-notes";
+import {
+  buildBlockClipboardBlocks,
+  getSelectedBlockIds,
+  NOTES_BLOCK_CLIPBOARD_MIME,
+  serializeBlockClipboardData,
+  serializeBlockClipboardMarkdown,
+} from "@/lib/notes/block-line-selection";
 import { extractNoteText } from "@/lib/notes/notes-content";
 import { buildNoteBlockTree, createVisibleNoteBlockNeighbors, type NoteTreeNode } from "@/lib/notes/notes-tree";
 import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
@@ -36,9 +43,14 @@ function BlockNodeView({
   onIndent,
   onOutdent,
   onDelete,
+  onDeleteRange,
   onUpdateContent,
   onToggleMarkdownMode,
   markdownToggleVersions,
+  selectedBlockIds,
+  onSelectUp,
+  onSelectDown,
+  onClearSelection,
 }: {
   node: BlockTreeNode;
   depth?: number;
@@ -70,9 +82,14 @@ function BlockNodeView({
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
   onDelete: (blockId: string) => void;
+  onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
   onToggleMarkdownMode: (blockId: string) => void;
   markdownToggleVersions: Record<string, number>;
+  selectedBlockIds: ReadonlySet<string>;
+  onSelectUp: (blockId: string, previousBlockId: string) => void;
+  onSelectDown: (blockId: string, nextBlockId: string) => void;
+  onClearSelection: () => void;
 }) {
   const previousBlockId = previousBlockIdById.get(node.block.id) ?? null;
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
@@ -81,6 +98,11 @@ function BlockNodeView({
     <div className="space-y-0">
       <article
         className="group relative"
+        onMouseDownCapture={(event) => {
+          if (!event.shiftKey && selectedBlockIds.size > 0) {
+            onClearSelection();
+          }
+        }}
         style={{ marginLeft: depth === 0 ? 0 : depth * 18 }}
       >
         <div className="flex items-center gap-px px-0 py-0">
@@ -99,7 +121,7 @@ function BlockNodeView({
             </button>
             {depth > 0 ? <span className="absolute bottom-0 left-1/2 top-1/2 w-px -translate-x-1/2 bg-border/60" /> : null}
           </div>
-          <div className="min-w-0 flex-1 transition-smooth">
+          <div className={`min-w-0 flex-1 rounded-sm transition-smooth ${selectedBlockIds.has(node.block.id) ? "bg-accent/45" : ""}`}>
             <NoteBlockEditor
               content={node.block.content}
               notePageTitles={notePageTitles}
@@ -120,6 +142,8 @@ function BlockNodeView({
               onOpenPageReference={onOpenPageReference}
               onNavigateUp={previousBlockId ? () => onFocusBlock(previousBlockId, "end") : undefined}
               onNavigateDown={nextBlockId ? () => onFocusBlock(nextBlockId, "start") : undefined}
+              onSelectUp={previousBlockId ? () => onSelectUp(node.block.id, previousBlockId) : undefined}
+              onSelectDown={nextBlockId ? () => onSelectDown(node.block.id, nextBlockId) : undefined}
               onIndent={() => {
                 if (!previousSiblingId) return;
                 onIndent(node.block.id, previousSiblingId);
@@ -151,15 +175,22 @@ function BlockNodeView({
               onFocusApplied={onFocusApplied}
               onFocusBlock={onFocusBlock}
               notePageTitles={notePageTitles}
+              onOpenPageReference={onOpenPageReference}
               onCreateSibling={onCreateSibling}
+              onCreateSiblings={onCreateSiblings}
               onCommitContent={onCommitContent}
               onMergeWithPrevious={onMergeWithPrevious}
               onIndent={onIndent}
               onOutdent={onOutdent}
               onDelete={onDelete}
+              onDeleteRange={onDeleteRange}
               onUpdateContent={onUpdateContent}
               onToggleMarkdownMode={onToggleMarkdownMode}
               markdownToggleVersions={markdownToggleVersions}
+              selectedBlockIds={selectedBlockIds}
+              onSelectUp={onSelectUp}
+              onSelectDown={onSelectDown}
+              onClearSelection={onClearSelection}
             />
           ))}
         </div>
@@ -185,6 +216,7 @@ export function NotesBlockTree({
   onIndent,
   onOutdent,
   onDelete,
+  onDeleteRange,
   onUpdateContent,
 }: {
   blocks: NoteBlockRow[];
@@ -213,19 +245,89 @@ export function NotesBlockTree({
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
   onDelete: (blockId: string) => void;
+  onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
 }) {
   const [markdownToggleVersions, setMarkdownToggleVersions] = useState<Record<string, number>>({});
+  const [blockRangeSelection, setBlockRangeSelection] = useState<{ anchorBlockId: string; focusBlockId: string } | null>(null);
   const tree = buildNoteBlockTree(blocks);
-  const { previousBlockIdById, nextBlockIdById } = createVisibleNoteBlockNeighbors(blocks);
+  const { orderedBlockIds, previousBlockIdById, nextBlockIdById } = createVisibleNoteBlockNeighbors(blocks);
   const lastRootBlock = tree[tree.length - 1]?.block ?? null;
+  const selectedBlockIds = useMemo(() => {
+    if (!blockRangeSelection) {
+      return [];
+    }
+
+    return getSelectedBlockIds(orderedBlockIds, blockRangeSelection.anchorBlockId, blockRangeSelection.focusBlockId);
+  }, [blockRangeSelection, orderedBlockIds]);
+  const selectedBlockIdSet = useMemo(() => new Set(selectedBlockIds), [selectedBlockIds]);
 
   const handleToggleMarkdownMode = (blockId: string) => {
     setMarkdownToggleVersions((current) => ({
       ...current,
       [blockId]: (current[blockId] ?? 0) + 1,
     }));
+    setBlockRangeSelection(null);
     onFocusBlock(blockId, "end");
+  };
+
+  const handleCopySelectedBlocks = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (selectedBlockIds.length === 0 || !event.clipboardData) {
+      return;
+    }
+
+    const clipboardBlocks = buildBlockClipboardBlocks(blocks, selectedBlockIds);
+    if (clipboardBlocks.length === 0) {
+      return;
+    }
+
+    const markdown = serializeBlockClipboardMarkdown(clipboardBlocks);
+    event.preventDefault();
+    event.clipboardData.setData(NOTES_BLOCK_CLIPBOARD_MIME, serializeBlockClipboardData(clipboardBlocks));
+    event.clipboardData.setData("text/plain", markdown);
+    event.clipboardData.setData("text/markdown", markdown);
+  };
+
+  const handleCutSelectedBlocks = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (selectedBlockIds.length === 0 || !event.clipboardData) {
+      return;
+    }
+
+    const clipboardBlocks = buildBlockClipboardBlocks(blocks, selectedBlockIds);
+    if (clipboardBlocks.length === 0) {
+      return;
+    }
+
+    const markdown = serializeBlockClipboardMarkdown(clipboardBlocks);
+    event.preventDefault();
+    event.clipboardData.setData(NOTES_BLOCK_CLIPBOARD_MIME, serializeBlockClipboardData(clipboardBlocks));
+    event.clipboardData.setData("text/plain", markdown);
+    event.clipboardData.setData("text/markdown", markdown);
+    void onDeleteRange(selectedBlockIds);
+    setBlockRangeSelection(null);
+  };
+
+  const handleSelectUp = (blockId: string, previousBlockId: string) => {
+    setBlockRangeSelection((currentSelection) => (
+      currentSelection && currentSelection.focusBlockId === blockId
+        ? { ...currentSelection, focusBlockId: previousBlockId }
+        : { anchorBlockId: blockId, focusBlockId: previousBlockId }
+    ));
+    onFocusBlock(previousBlockId, "end");
+  };
+
+  const handleSelectDown = (blockId: string, nextBlockId: string) => {
+    setBlockRangeSelection((currentSelection) => (
+      currentSelection && currentSelection.focusBlockId === blockId
+        ? { ...currentSelection, focusBlockId: nextBlockId }
+        : { anchorBlockId: blockId, focusBlockId: nextBlockId }
+    ));
+    onFocusBlock(nextBlockId, "start");
+  };
+
+  const handleFocusBlock = (blockId: string, placement: "start" | "end") => {
+    setBlockRangeSelection(null);
+    onFocusBlock(blockId, placement);
   };
 
   if (tree.length === 0) {
@@ -253,7 +355,7 @@ export function NotesBlockTree({
   }
 
   return (
-    <div className="space-y-0 transition-smooth">
+    <div className="space-y-0 transition-smooth" onCopy={handleCopySelectedBlocks} onCut={handleCutSelectedBlocks}>
       {tree.map((node, index) => (
         <BlockNodeView
           key={node.block.id}
@@ -266,7 +368,7 @@ export function NotesBlockTree({
           previousBlockIdById={previousBlockIdById}
           nextBlockIdById={nextBlockIdById}
           onFocusApplied={onFocusApplied}
-          onFocusBlock={onFocusBlock}
+          onFocusBlock={handleFocusBlock}
           notePageTitles={notePageTitles}
           onOpenPageReference={onOpenPageReference}
           onCreateSibling={onCreateSibling}
@@ -276,9 +378,14 @@ export function NotesBlockTree({
           onIndent={onIndent}
           onOutdent={onOutdent}
           onDelete={onDelete}
+          onDeleteRange={onDeleteRange}
           onUpdateContent={onUpdateContent}
           onToggleMarkdownMode={handleToggleMarkdownMode}
           markdownToggleVersions={markdownToggleVersions}
+          selectedBlockIds={selectedBlockIdSet}
+          onSelectUp={handleSelectUp}
+          onSelectDown={handleSelectDown}
+          onClearSelection={() => setBlockRangeSelection(null)}
         />
       ))}
 

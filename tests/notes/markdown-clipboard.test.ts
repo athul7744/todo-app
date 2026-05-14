@@ -2,8 +2,19 @@
 
 import { parseClipboardMarkdown, shouldReplaceOnMarkdownPaste } from "@/lib/notes/markdown-clipboard-blocks";
 import { parseMarkdownListBlocks, parseStructuredMarkdownList } from "@/lib/notes/markdown-clipboard";
+import { buildBlockClipboardBlocks, serializeBlockClipboardMarkdown } from "@/lib/notes/block-line-selection";
+import { createNoteDocumentFromText } from "@/lib/notes/notes-content";
 
 describe("markdown-clipboard", () => {
+  function renderMarkdown(text: string) {
+    return `<p>${text}</p>`;
+  }
+
+  function parseHtmlDocument(html: string) {
+    const text = html.replace(/^<p>/, "").replace(/<\/p>$/, "");
+    return createNoteDocumentFromText(text);
+  }
+
   it("parses the nested pasted markdown case into parent and child items", () => {
     const markdown = `- ## Weekly Reading
 	- [Design Notes](https://example.com/design-notes)
@@ -295,6 +306,52 @@ describe("markdown-clipboard", () => {
         ],
       },
     ]);
+  });
+
+  it("round-trips copied child-root blocks with later sibling roots through markdown fallback", () => {
+    const copiedBlocks = buildBlockClipboardBlocks(
+      [
+        { id: "a", parent_block_id: "parent", content: createNoteDocumentFromText("sffsfsf") },
+        { id: "b", parent_block_id: "a", content: createNoteDocumentFromText("sfsfsfsf") },
+        { id: "c", parent_block_id: "a", content: createNoteDocumentFromText("dgdgdgdg") },
+        { id: "d", parent_block_id: "parent", content: createNoteDocumentFromText("dgdgd") },
+        { id: "e", parent_block_id: null, content: createNoteDocumentFromText("dgdgdgd") },
+      ],
+      ["a", "b", "c", "d", "e"],
+    );
+
+    const markdown = serializeBlockClipboardMarkdown(copiedBlocks);
+    const parsed = parseClipboardMarkdown(markdown, {
+      renderMarkdown,
+      parseHtmlDocument,
+      createScaffoldDocument: createNoteDocumentFromText,
+    });
+
+    expect(parsed).toHaveLength(3);
+    expect(parsed[0]?.children).toHaveLength(2);
+    expect(parsed[1]?.children).toHaveLength(0);
+    expect(parsed[2]?.children).toHaveLength(0);
+  });
+
+  it("parses the reported multi-root pasted markdown shape without dropping later roots", () => {
+    const markdown = [
+      "- sffsfsf",
+      "  - sfsfsfsf",
+      "  - dgdgdgdg",
+      "- dgdgd",
+      "- dgdgdgd",
+    ].join("\n");
+
+    const parsed = parseClipboardMarkdown(markdown, {
+      renderMarkdown,
+      parseHtmlDocument,
+      createScaffoldDocument: createNoteDocumentFromText,
+    });
+
+    expect(parsed).toHaveLength(3);
+    expect(parsed[0]?.children).toHaveLength(2);
+    expect(parsed[1]?.children).toHaveLength(0);
+    expect(parsed[2]?.children).toHaveLength(0);
   });
 
   it("preserves mixed loose and tight nested lists", () => {

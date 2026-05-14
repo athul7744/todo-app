@@ -93,6 +93,8 @@ async function mountNoteBlockEditor(options?: {
   const onCreateSibling = vi.fn();
   const onNavigateUp = vi.fn();
   const onNavigateDown = vi.fn();
+  const onSelectUp = vi.fn();
+  const onSelectDown = vi.fn();
   const onMergeWithPrevious = vi.fn();
   const onIndent = vi.fn();
   const onOutdent = vi.fn();
@@ -117,6 +119,8 @@ async function mountNoteBlockEditor(options?: {
         onCreateSibling,
         onNavigateUp,
         onNavigateDown,
+        onSelectUp,
+        onSelectDown,
         onMergeWithPrevious,
         onIndent,
         onOutdent,
@@ -135,6 +139,8 @@ async function mountNoteBlockEditor(options?: {
     onCreateSibling,
     onNavigateUp,
     onNavigateDown,
+    onSelectUp,
+    onSelectDown,
     onMergeWithPrevious,
     onIndent,
     onOutdent,
@@ -159,6 +165,25 @@ function dispatchEditorKey(target: HTMLElement, key: string, options?: KeyboardE
 
   target.dispatchEvent(event);
   return event;
+}
+
+async function selectAllEditorText(target: HTMLElement) {
+  target.focus();
+
+  const selection = window.getSelection();
+  if (!selection) {
+    throw new Error("Selection API unavailable");
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(target);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 it("splits a parent block in place when Enter is pressed mid-line", async () => {
@@ -240,6 +265,23 @@ it("does not trigger a structural merge when Backspace is pressed at the start o
   await mounted.unmount();
 });
 
+it("does not trigger a structural merge when all block text is selected from the start", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument(createNoteDocumentFromText("Hello world")),
+    focusPlacement: "start",
+  });
+
+  await selectAllEditorText(mounted.editorElement);
+
+  await act(async () => {
+    dispatchEditorKey(mounted.editorElement, "Backspace");
+  });
+
+  expect(mounted.onMergeWithPrevious).not.toHaveBeenCalled();
+  expect(mounted.onDeleteEmpty).not.toHaveBeenCalled();
+  await mounted.unmount();
+});
+
 it("does not delete an empty block when a non-Backspace key is pressed", async () => {
   const mounted = await mountNoteBlockEditor({
     content: serializeNoteDocument(createNoteDocumentFromText("")),
@@ -257,5 +299,21 @@ it("does not delete an empty block when a non-Backspace key is pressed", async (
   });
 
   expect(mounted.onDeleteEmpty).not.toHaveBeenCalled();
+  await mounted.unmount();
+});
+
+it("uses shift-arrow to extend whole-line selection instead of plain navigation", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument(createNoteDocumentFromText("Hello world")),
+    focusPlacement: "end",
+  });
+
+  await act(async () => {
+    dispatchEditorKey(mounted.editorElement, "ArrowDown", { shiftKey: true });
+  });
+
+  expect(mounted.onSelectDown).toHaveBeenCalledTimes(1);
+  expect(mounted.onNavigateDown).not.toHaveBeenCalled();
+
   await mounted.unmount();
 });

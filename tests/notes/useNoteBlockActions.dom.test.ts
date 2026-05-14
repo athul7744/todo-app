@@ -13,6 +13,7 @@ import {
   queueNoteBlockCreates,
   updateNoteBlock,
   type JsonValue,
+  type NoteBlockInsert,
 } from "@/lib/notes/notes";
 import { flushUpdate } from "@/lib/shared/debounced-update";
 import { useNoteBlockActions } from "@/components/notes/page/useNoteBlockActions";
@@ -45,6 +46,7 @@ type FocusTarget = { blockId: string; placement: number | "start" | "end" } | nu
 type HarnessHandle = {
   deleteBlock: (blockId: string) => Promise<void>;
   createEmptySibling: (blockId: string, parentBlockId?: string | null) => Promise<void>;
+  createSiblingBlocks: (blockId: string, parentBlockId: string | null | undefined, nextContent: NoteBlockInsert, nextSiblingContents: NoteBlockInsert[]) => Promise<void>;
   mergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => Promise<void>;
   updateBlockContent: (blockId: string, nextContent: JsonValue) => void;
   snapshot: () => {
@@ -74,6 +76,7 @@ const HookHost = forwardRef<HarnessHandle, { blocks: NoteBlockRow[] }>(({ blocks
 
   useImperativeHandle(ref, () => ({
     createEmptySibling: actions.handleCreateEmptySiblingBlock,
+    createSiblingBlocks: actions.handleCreateSiblingBlocks,
     deleteBlock: actions.handleDeleteBlock,
     mergeWithPrevious: actions.handleMergeWithPreviousBlock,
     updateBlockContent: actions.handleUpdateBlockContent,
@@ -283,6 +286,206 @@ it("keeps typed content visible on a newly created optimistic block before persi
   expect(extractNoteText(updatedCreatedBlock?.content as JsonValue)).toBe("Typed now");
 
   await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("pastes copied child blocks into another child block without flattening them to the root", async () => {
+  vi.clearAllMocks();
+  flushUpdateMock.mockResolvedValue(undefined);
+  queueNoteBlockCreatesMock.mockResolvedValue([]);
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("parent-a", null, "0|hzzzzz:", "Parent A"),
+    createBlock("child-a", "parent-a", "0|i00007:", "Child A"),
+    createBlock("grandchild-a", "child-a", "0|i0000f:", "Grandchild A"),
+    createBlock("parent-b", null, "0|i0000n:", "Parent B"),
+    createBlock("child-b", "parent-b", "0|i0000v:", "Child B"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await act(async () => {
+    await ref.current?.createSiblingBlocks(
+      "child-b",
+      "parent-b",
+      {
+        content: createNoteDocumentFromText("Child A"),
+        children: [
+          {
+            content: createNoteDocumentFromText("Grandchild A"),
+            children: [],
+          },
+        ],
+      },
+      [],
+    );
+  });
+
+  const snapshot = ref.current?.snapshot();
+  expect(snapshot?.structuredBlocks.find((block) => block.id === "child-b")?.parent_block_id).toBe("parent-b");
+  expect(extractNoteText(snapshot?.structuredBlocks.find((block) => block.id === "child-b")?.content as JsonValue)).toBe("Child A");
+
+  const createdNestedChild = snapshot?.structuredBlocks.find((block) => block.id !== "parent-a" && block.id !== "child-a" && block.id !== "grandchild-a" && block.id !== "parent-b" && block.id !== "child-b");
+  expect(createdNestedChild).toBeTruthy();
+  expect(createdNestedChild?.parent_block_id).toBe("child-b");
+  expect(extractNoteText(createdNestedChild?.content as JsonValue)).toBe("Grandchild A");
+
+  await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("preserves relative subtree structure when mixed-indent blocks are pasted at a different depth", async () => {
+  vi.clearAllMocks();
+  flushUpdateMock.mockResolvedValue(undefined);
+  queueNoteBlockCreatesMock.mockResolvedValue([]);
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("source-parent", null, "0|hzzzzz:", "Source Parent"),
+    createBlock("source-child", "source-parent", "0|i00007:", "Source Child"),
+    createBlock("source-grandchild", "source-child", "0|i0000f:", "Source Grandchild"),
+    createBlock("source-sibling-root", null, "0|i0000n:", "Source Sibling Root"),
+    createBlock("source-sibling-child", "source-sibling-root", "0|i0000v:", "Source Sibling Child"),
+    createBlock("target-parent", null, "0|i00013:", "Target Parent"),
+    createBlock("target-child", "target-parent", "0|i0001b:", "Target Child"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await act(async () => {
+    await ref.current?.createSiblingBlocks(
+      "target-child",
+      "target-parent",
+      {
+        content: createNoteDocumentFromText("Source Child"),
+        children: [
+          {
+            content: createNoteDocumentFromText("Source Grandchild"),
+            children: [],
+          },
+        ],
+      },
+      [
+        {
+          content: createNoteDocumentFromText("Source Sibling Root"),
+          children: [
+            {
+              content: createNoteDocumentFromText("Source Sibling Child"),
+              children: [],
+            },
+          ],
+        },
+      ],
+    );
+  });
+
+  const snapshot = ref.current?.snapshot();
+  const targetChild = snapshot?.structuredBlocks.find((block) => block.id === "target-child");
+  expect(extractNoteText(targetChild?.content as JsonValue)).toBe("Source Child");
+  expect(targetChild?.parent_block_id).toBe("target-parent");
+
+  const createdBlocks = snapshot?.structuredBlocks.filter((block) => !blocks.some((existingBlock) => existingBlock.id === block.id)) ?? [];
+  expect(createdBlocks).toHaveLength(3);
+
+  const pastedGrandchild = createdBlocks.find((block) => extractNoteText(block.content) === "Source Grandchild");
+  const pastedSiblingRoot = createdBlocks.find((block) => extractNoteText(block.content) === "Source Sibling Root");
+  const pastedSiblingChild = createdBlocks.find((block) => extractNoteText(block.content) === "Source Sibling Child");
+
+  expect(pastedGrandchild?.parent_block_id).toBe("target-child");
+  expect(pastedSiblingRoot?.parent_block_id).toBe("target-parent");
+  expect(pastedSiblingChild?.parent_block_id).toBe(pastedSiblingRoot?.id);
+
+  await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("pastes all selected blocks into a newly created pending child block", async () => {
+  vi.clearAllMocks();
+  flushUpdateMock.mockResolvedValue(undefined);
+  queueNoteBlockCreatesMock.mockResolvedValue([]);
+
+  const pendingCreate = { resolve: null as ((value: string) => void) | null };
+  queueNoteBlockCreateMock.mockImplementationOnce(() => new Promise<string>((resolve) => {
+    pendingCreate.resolve = resolve;
+  }));
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("parent", null, "0|hzzzzz:", "Parent"),
+    createBlock("child-a", "parent", "0|i00007:", "Child A"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await act(async () => {
+    void ref.current?.createEmptySibling("child-a", "parent");
+    await Promise.resolve();
+  });
+
+  const pendingCreatedBlock = ref.current?.snapshot().structuredBlocks.find((block) => !blocks.some((existingBlock) => existingBlock.id === block.id));
+  expect(pendingCreatedBlock).toBeTruthy();
+
+  await act(async () => {
+    await ref.current?.createSiblingBlocks(
+      pendingCreatedBlock?.id ?? "",
+      "parent",
+      {
+        content: createNoteDocumentFromText("Top"),
+        children: [
+          {
+            content: createNoteDocumentFromText("Nested"),
+            children: [],
+          },
+        ],
+      },
+      [
+        {
+          content: createNoteDocumentFromText("Sibling"),
+          children: [],
+        },
+      ],
+    );
+  });
+
+  const snapshot = ref.current?.snapshot();
+  const updatedPendingBlock = snapshot?.structuredBlocks.find((block) => block.id === pendingCreatedBlock?.id);
+  expect(extractNoteText(updatedPendingBlock?.content as JsonValue)).toBe("Top");
+
+  const createdBlocks = snapshot?.structuredBlocks.filter((block) => !blocks.some((existingBlock) => existingBlock.id === block.id) && block.id !== pendingCreatedBlock?.id) ?? [];
+  const nestedChild = createdBlocks.find((block) => extractNoteText(block.content) === "Nested");
+  const siblingBlock = createdBlocks.find((block) => extractNoteText(block.content) === "Sibling");
+
+  expect(nestedChild?.parent_block_id).toBe(pendingCreatedBlock?.id);
+  expect(siblingBlock?.parent_block_id).toBe("parent");
+
+  if (pendingCreate.resolve) {
+    pendingCreate.resolve("pending-created");
+  }
+
+  await act(async () => {
+    await Promise.resolve();
     root?.unmount();
   });
 });

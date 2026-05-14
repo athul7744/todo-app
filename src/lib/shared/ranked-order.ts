@@ -110,7 +110,8 @@ export function getRankAfterItem<TItem extends RankedOrderItem>(
   getParentId: (item: TItem) => string | null | undefined,
   excludeItemId?: string
 ) {
-  const siblingItems = getSiblingItems(items, parentId, getParentId, excludeItemId);
+  const siblingItems = getSiblingItems(items, parentId, getParentId, excludeItemId)
+    .sort((left, right) => (left.sort_rank ?? "").localeCompare(right.sort_rank ?? ""));
   const siblingIndex = siblingItems.findIndex((item) => item.id === siblingItemId);
   const currentSibling = siblingIndex >= 0 ? siblingItems[siblingIndex] : null;
   const nextSibling = siblingIndex >= 0 ? siblingItems[siblingIndex + 1] : null;
@@ -127,7 +128,8 @@ export function getRankBeforeItem<TItem extends RankedOrderItem>(
   getParentId: (item: TItem) => string | null | undefined,
   excludeItemId?: string
 ) {
-  const siblingItems = getSiblingItems(items, parentId, getParentId, excludeItemId);
+  const siblingItems = getSiblingItems(items, parentId, getParentId, excludeItemId)
+    .sort((left, right) => (left.sort_rank ?? "").localeCompare(right.sort_rank ?? ""));
   const siblingIndex = siblingItems.findIndex((item) => item.id === siblingItemId);
   const previousSibling = siblingIndex > 0 ? siblingItems[siblingIndex - 1] : null;
   const currentSibling = siblingIndex >= 0 ? siblingItems[siblingIndex] : null;

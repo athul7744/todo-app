@@ -52,6 +52,7 @@ import {
   getSplitSiblingOptions,
   shouldNavigateBetweenBlocks,
 } from "@/lib/notes/block-editor-keyboard";
+import { NOTES_BLOCK_CLIPBOARD_MIME, parseBlockClipboardData } from "@/lib/notes/block-line-selection";
 import { parseClipboardMarkdown, shouldReplaceOnMarkdownPaste } from "@/lib/notes/markdown-clipboard-blocks";
 import { createNoteDocumentFromText, extractNoteText, normalizeNoteDocument, serializeNoteDocumentToMarkdown } from "@/lib/notes/notes-content";
 import type { NoteBlockInsert } from "@/lib/notes/notes";
@@ -580,6 +581,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onOpenPageReference,
   onNavigateUp,
   onNavigateDown,
+  onSelectUp,
+  onSelectDown,
   onIndent,
   onOutdent,
   onDeleteEmpty,
@@ -607,6 +610,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onOpenPageReference?: (title: string) => void;
   onNavigateUp?: () => void;
   onNavigateDown?: () => void;
+  onSelectUp?: () => void;
+  onSelectDown?: () => void;
   onIndent: () => void;
   onOutdent: () => void;
   onDeleteEmpty: () => void;
@@ -620,6 +625,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const onOpenPageReferenceRef = useRef(onOpenPageReference);
   const onNavigateUpRef = useRef(onNavigateUp);
   const onNavigateDownRef = useRef(onNavigateDown);
+  const onSelectUpRef = useRef(onSelectUp);
+  const onSelectDownRef = useRef(onSelectDown);
   const onIndentRef = useRef(onIndent);
   const onOutdentRef = useRef(onOutdent);
   const onDeleteEmptyRef = useRef(onDeleteEmpty);
@@ -787,10 +794,12 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     onOpenPageReferenceRef.current = onOpenPageReference;
     onNavigateUpRef.current = onNavigateUp;
     onNavigateDownRef.current = onNavigateDown;
+    onSelectUpRef.current = onSelectUp;
+    onSelectDownRef.current = onSelectDown;
     onIndentRef.current = onIndent;
     onOutdentRef.current = onOutdent;
     onDeleteEmptyRef.current = onDeleteEmpty;
-  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onMergeWithPrevious, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent]);
+  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onMergeWithPrevious, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent, onSelectDown, onSelectUp]);
 
   useEffect(() => {
     slashQueryRef.current = slashQuery;
@@ -962,6 +971,21 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
         },
       },
       handlePaste(view, event) {
+        const blockClipboardData = event.clipboardData?.getData(NOTES_BLOCK_CLIPBOARD_MIME) ?? "";
+        const pastedBlocks = parseBlockClipboardData(blockClipboardData);
+
+        if (pastedBlocks && pastedBlocks.length > 0) {
+          const [nextContent, ...nextSiblingContents] = pastedBlocks;
+
+          event.preventDefault();
+          pendingLocalContentRef.current = JSON.stringify(nextContent.content);
+          editor?.commands.setContent(nextContent.content as JSONContent, { emitUpdate: true });
+          void onCreateSiblingsRef.current?.(nextContent, nextSiblingContents);
+          updateSlashQuery(editor ?? view as unknown as Editor);
+          updatePageReferenceQuery(editor ?? view as unknown as Editor);
+          return true;
+        }
+
         const markdownClipboardText = getMarkdownClipboardText(event);
 
         if (!markdownClipboardText) {
@@ -1005,6 +1029,40 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
         return true;
       },
       handleKeyDown(view: EditorView, event: KeyboardEvent) {
+        if (event.shiftKey && event.key === "ArrowUp" && onSelectUpRef.current) {
+          event.preventDefault();
+          suppressBlurCommitRef.current = true;
+
+          if (isEditingMarkdownSourceRef.current) {
+            const nextContent = renderCurrentMarkdownSource();
+            if (nextContent) {
+              onCommitRef.current?.(nextContent);
+            }
+          } else {
+            emitEditorContentIfChanged();
+          }
+
+          onSelectUpRef.current();
+          return true;
+        }
+
+        if (event.shiftKey && event.key === "ArrowDown" && onSelectDownRef.current) {
+          event.preventDefault();
+          suppressBlurCommitRef.current = true;
+
+          if (isEditingMarkdownSourceRef.current) {
+            const nextContent = renderCurrentMarkdownSource();
+            if (nextContent) {
+              onCommitRef.current?.(nextContent);
+            }
+          } else {
+            emitEditorContentIfChanged();
+          }
+
+          onSelectDownRef.current();
+          return true;
+        }
+
         if (pageReferenceQueryRef.current !== null) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -1256,6 +1314,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           altKey: event.altKey,
           ctrlKey: event.ctrlKey,
           metaKey: event.metaKey,
+          selectionEmpty: view.state.selection.empty,
           isEmptyBlock,
           isTaskItem: Boolean(editor?.isActive("taskItem")),
           isCodeBlock: Boolean(editor?.isActive("codeBlock")),
