@@ -59,7 +59,7 @@ function renderClipboardBlockMarkdown(block: NoteBlockInsert, depth = 0): string
     renderedLines.push(`${indent}  ${line}`.trimEnd());
   });
 
-  block.children.forEach((child) => {
+  (block.children ?? []).forEach((child) => {
     renderedLines.push(...renderClipboardBlockMarkdown(child, depth + 1));
   });
 

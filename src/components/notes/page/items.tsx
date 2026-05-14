@@ -53,9 +53,13 @@ export function NavigationPageLink({
             />
           </span>
           <div className="min-w-0">
-            <p className={`truncate text-[12px] font-medium ${isSelected ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>{page.title || "Untitled page"}</p>
+            <p className={`truncate text-[12px] font-medium ${isSelected ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
+              {page.title || "Untitled page"}
+            </p>
             {page.summary ? (
-              <p className={`mt-0.5 line-clamp-2 text-[11px] leading-4.5 ${isSelected ? "text-amber-700/80 dark:text-amber-300/80" : "text-muted-foreground"}`}>{page.summary}</p>
+              <p className={`mt-0.5 line-clamp-2 text-[11px] leading-4.5 ${isSelected ? "text-amber-700/80 dark:text-amber-300/80" : "text-muted-foreground"}`}>
+                {page.summary}
+              </p>
             ) : null}
           </div>
         </div>
@@ -101,32 +105,29 @@ export function OverviewPageCard({
   return (
     <article
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border/65 bg-card/95 p-4 shadow-[0_12px_38px_-28px_rgba(0,0,0,0.45)] transition-smooth hover:-translate-y-0.5 hover:border-border hover:bg-accent/20",
+        "group relative overflow-hidden rounded-2xl border border-border/65 bg-card/95 p-3.5 shadow-[0_12px_38px_-28px_rgba(0,0,0,0.45)] transition-smooth hover:-translate-y-0.5 hover:border-border hover:bg-accent/20 sm:p-4",
         accentClasses?.border,
       )}
     >
       {accentClasses ? <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b", accentClasses.glow)} /> : null}
-      <div className="relative flex h-full min-h-40 flex-col gap-4">
-        <div className="flex items-center gap-3">
+      <div className="relative flex min-h-[11.5rem] flex-col gap-2.5 sm:min-h-[12.5rem] sm:gap-3">
+        <div className="flex items-start justify-between gap-2.5 sm:gap-3">
           <Link
             href={`/notes?page=${page.id}`}
             onClick={() => onSelectPage(page.id)}
-            className="flex min-w-0 flex-1 items-center gap-3"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10"
+            aria-label={`Open ${page.title || "Untitled page"}`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white">
-              <PageIcon emoji={page.emoji} className="h-4 w-4 text-base leading-none" />
-            </span>
-            <p className="min-w-0 flex-1 text-base font-semibold leading-6 text-foreground break-words">
-              {page.title || "Untitled page"}
-            </p>
+            <PageIcon emoji={page.emoji} className="h-4 w-4 text-sm leading-none sm:h-4.5 sm:w-4.5 sm:text-base" />
           </Link>
+
           <Button
             type="button"
             variant="ghost"
             size="icon"
             onClick={() => onToggleFavorite(page)}
             className={cn(
-              "size-8 shrink-0 rounded-full",
+              "size-7 shrink-0 rounded-full sm:size-8",
               isFavorite ? "text-amber-500 hover:text-amber-500" : "text-muted-foreground hover:text-foreground",
             )}
             aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -138,25 +139,36 @@ export function OverviewPageCard({
         <Link
           href={`/notes?page=${page.id}`}
           onClick={() => onSelectPage(page.id)}
-          className="block flex-1"
+          className="block min-w-0 space-y-1.5"
         >
+          <p className="text-[0.98rem] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] sm:text-[1.05rem] sm:leading-6">
+            {page.title || "Untitled page"}
+          </p>
+
           {page.summary ? (
-            <p className="line-clamp-4 text-sm leading-6 text-muted-foreground">{page.summary}</p>
+            <p className="line-clamp-4 text-[12.5px] leading-5 text-muted-foreground sm:text-sm sm:leading-5.5">
+              {page.summary}
+            </p>
           ) : (
-            <p className="line-clamp-4 text-sm leading-6 text-muted-foreground/70">Open this page to start writing notes.</p>
+            <p className="line-clamp-3 text-[12.5px] leading-5 text-muted-foreground/70 sm:text-sm sm:leading-5.5">
+              Open this page to start writing notes.
+            </p>
           )}
         </Link>
 
-        <div className="mt-auto space-y-3">
+        <div className="mt-auto space-y-2 pt-1">
           {showTags && page.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {page.tags.slice(0, 4).map((tag) => {
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {page.tags.slice(0, 3).map((tag) => {
                 const tagColor = getDeterministicTagColor(tag) ?? "slate";
 
                 return (
                   <span
                     key={tag}
-                    className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium", getTagColorClasses(tagColor))}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px]",
+                      getTagColorClasses(tagColor),
+                    )}
                   >
                     <span className={cn("h-1.5 w-1.5 rounded-full", getTagDotClass(tagColor))} />
                     #{tag}
@@ -167,7 +179,7 @@ export function OverviewPageCard({
           ) : null}
 
           {showUpdated && updatedLabel ? (
-            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/80">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 sm:text-[11px]">
               Updated {updatedLabel}
             </p>
           ) : null}

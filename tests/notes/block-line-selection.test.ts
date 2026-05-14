@@ -50,7 +50,8 @@ describe("block-line-selection", () => {
     expect(clipboardBlocks).toHaveLength(1);
     expect(clipboardBlocks[0]?.content).toEqual(createNoteDocumentFromText("Child"));
     expect(clipboardBlocks[0]?.children).toHaveLength(1);
-    expect(clipboardBlocks[0]?.children[0]?.content).toEqual(createNoteDocumentFromText("Grandchild"));
+    const firstChild = clipboardBlocks[0]?.children?.[0];
+    expect(firstChild?.content).toEqual(createNoteDocumentFromText("Grandchild"));
   });
 
   it("round-trips the custom block clipboard payload", () => {

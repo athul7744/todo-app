@@ -48,7 +48,7 @@ export function NotesOverview({
         </button>
       </div>
 
-      <div className="grid gap-10 sm:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-2">
         <section>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export function NotesOverview({
 
           <div className="relative mt-4 min-h-24">
             <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-              <div className={`grid grid-cols-2 gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
+              <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
                 {overviewFavoritePagesToRender.length === 0 ? (
                   showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No favorites yet.</div>
                 ) : (
@@ -92,7 +92,7 @@ export function NotesOverview({
 
           <div className="relative mt-4 min-h-24">
             <div className={showOverviewOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
-              <div className={`grid grid-cols-2 gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
+              <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${shouldAnimateOverviewContent ? "animate-stagger" : ""}`}>
                 {overviewRecentPagesToRender.length === 0 ? (
                   showOverviewLoading ? <NotesOverviewListSkeleton /> : <div className="col-span-2 py-6 text-sm text-muted-foreground">No recent pages yet.</div>
                 ) : (

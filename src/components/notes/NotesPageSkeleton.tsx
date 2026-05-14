@@ -33,35 +33,37 @@ function EditorBlockRowSkeleton({ indent = 0, widthClassName = "w-full" }: { ind
 
 export function NotesOverviewListSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 animate-stagger">
-      <div className="rounded-2xl border border-border/50 bg-card/80 p-4">
-        <div className="flex items-start justify-between gap-3">
+    <div className="grid grid-cols-2 gap-3 animate-stagger sm:gap-4">
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-3.5 sm:p-4">
+        <div className="flex items-start justify-between gap-2.5">
           <Bone className="h-9 w-9 rounded-xl" />
           <Bone className="h-4 w-4 rounded-full" />
         </div>
-        <div className="mt-6 space-y-2">
-          <Bone className="h-5 w-3/4" />
+        <div className="mt-3 space-y-1.5">
+          <Bone className="h-5 w-full" />
+          <Bone className="h-5 w-4/5" />
           <Bone className="h-4 w-full" />
           <Bone className="h-4 w-5/6" />
         </div>
-        <div className="mt-5 flex gap-2">
-          <Bone className="h-6 w-16 rounded-full" />
-          <Bone className="h-6 w-20 rounded-full" />
+        <div className="mt-5 flex gap-1.5 sm:gap-2">
+          <Bone className="h-5 w-14 rounded-full sm:h-6 sm:w-16" />
+          <Bone className="h-5 w-16 rounded-full sm:h-6 sm:w-20" />
         </div>
       </div>
-      <div className="rounded-2xl border border-border/50 bg-card/80 p-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-3.5 sm:p-4">
+        <div className="flex items-start justify-between gap-2.5">
           <Bone className="h-9 w-9 rounded-xl" />
-          <Bone className="h-4 w-10" />
+          <Bone className="h-4 w-4 rounded-full" />
         </div>
-        <div className="mt-6 space-y-2">
-          <Bone className="h-5 w-2/3" />
+        <div className="mt-3 space-y-1.5">
+          <Bone className="h-5 w-5/6" />
+          <Bone className="h-5 w-3/5" />
           <Bone className="h-4 w-full" />
           <Bone className="h-4 w-4/5" />
         </div>
-        <div className="mt-5 flex gap-2">
-          <Bone className="h-6 w-14 rounded-full" />
-          <Bone className="h-6 w-18 rounded-full" />
+        <div className="mt-5 flex gap-1.5 sm:gap-2">
+          <Bone className="h-5 w-12 rounded-full sm:h-6 sm:w-14" />
+          <Bone className="h-5 w-16 rounded-full sm:h-6 sm:w-18" />
         </div>
       </div>
     </div>
