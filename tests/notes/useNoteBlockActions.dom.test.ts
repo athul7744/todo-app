@@ -66,6 +66,7 @@ const HookHost = forwardRef<HarnessHandle, { blocks: NoteBlockRow[] }>(({ blocks
     selectedPageId: "page-1",
     selectedPageIdForWrite: "page-1",
     isCreatingBlock,
+    currentFocusTarget: focusTarget,
     blockContentDrafts,
     optimisticBlockStructure,
     setIsCreatingBlock,
@@ -235,6 +236,7 @@ it("deletes an empty parent block without dropping its direct children", async (
   expect(snapshot?.structuredBlocks.find((block) => block.id === "child-a")?.parent_block_id).toBeNull();
   expect(snapshot?.structuredBlocks.find((block) => block.id === "child-b")?.parent_block_id).toBeNull();
   expect(moveNoteBlockMock).toHaveBeenCalledTimes(2);
+  expect(flushUpdateMock).toHaveBeenCalledWith("current", "blocks");
   expect(moveNoteBlockMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
     blockId: "child-a",
     pageId: "page-1",
@@ -246,6 +248,90 @@ it("deletes an empty parent block without dropping its direct children", async (
     parentBlockId: null,
   }));
   expect(deleteNoteBlockMock).toHaveBeenCalledWith("current", "page-1");
+
+  await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("allows deleting a newly created pending block before its create promise settles", async () => {
+  vi.clearAllMocks();
+  flushUpdateMock.mockResolvedValue(undefined);
+
+  const pendingCreate = { resolve: null as ((value: string) => void) | null };
+  queueNoteBlockCreateMock.mockImplementationOnce(() => new Promise<string>((resolve) => {
+    pendingCreate.resolve = resolve;
+  }));
+  deleteNoteBlockMock.mockResolvedValue(undefined);
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("first", null, "0|hzzzzz:", "First"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await act(async () => {
+    void ref.current?.createEmptySibling("first", null);
+    await Promise.resolve();
+  });
+
+  const pendingCreatedBlock = ref.current?.snapshot().structuredBlocks.find((block) => block.id !== "first");
+  expect(pendingCreatedBlock).toBeTruthy();
+
+  await act(async () => {
+    await ref.current?.deleteBlock(pendingCreatedBlock?.id ?? "");
+  });
+
+  expect(deleteNoteBlockMock).toHaveBeenCalledWith(pendingCreatedBlock?.id, "page-1");
+  expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first"]);
+
+  await act(async () => {
+    pendingCreate.resolve?.(pendingCreatedBlock?.id ?? "");
+    await Promise.resolve();
+  });
+
+  await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("restores the deleted block and child structure when delete persistence fails", async () => {
+  vi.clearAllMocks();
+  flushUpdateMock.mockResolvedValue(undefined);
+  deleteNoteBlockMock.mockRejectedValueOnce(new Error("delete failed"));
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("previous", null, "0|hzzzzz:", "Previous"),
+    createBlock("current", null, "0|i00007:", ""),
+    createBlock("child-a", "current", "0|i0000f:", "Child A"),
+    createBlock("child-b", "current", "0|i0000n:", "Child B"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await expect(act(async () => {
+    await ref.current?.deleteBlock("current");
+  })).rejects.toThrow("delete failed");
+
+  const snapshot = ref.current?.snapshot();
+  expect(snapshot?.focusTarget).toBeNull();
+  expect(snapshot?.structuredBlocks.map((block) => block.id)).toEqual(["previous", "current", "child-a", "child-b"]);
+  expect(snapshot?.structuredBlocks.find((block) => block.id === "child-a")?.parent_block_id).toBe("current");
+  expect(snapshot?.structuredBlocks.find((block) => block.id === "child-b")?.parent_block_id).toBe("current");
 
   await act(async () => {
     root?.unmount();

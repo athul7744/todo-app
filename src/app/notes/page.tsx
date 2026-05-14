@@ -174,6 +174,7 @@ export default function NotesPage() {
     selectedPageId,
     selectedPageIdForWrite,
     isCreatingBlock,
+    currentFocusTarget: focusTarget,
     blockContentDrafts,
     optimisticBlockStructure,
     setIsCreatingBlock,

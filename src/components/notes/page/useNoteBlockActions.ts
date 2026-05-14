@@ -38,6 +38,7 @@ type UseNoteBlockActionsParams = {
   selectedPageId: string | null;
   selectedPageIdForWrite: string | undefined;
   isCreatingBlock: boolean;
+  currentFocusTarget: FocusTarget;
   blockContentDrafts: Record<string, string>;
   optimisticBlockStructure: Record<string, OptimisticBlockStructure>;
   setIsCreatingBlock: Dispatch<SetStateAction<boolean>>;
@@ -51,6 +52,7 @@ export function useNoteBlockActions({
   selectedPageId,
   selectedPageIdForWrite,
   isCreatingBlock,
+  currentFocusTarget,
   blockContentDrafts,
   optimisticBlockStructure,
   setIsCreatingBlock,
@@ -154,6 +156,10 @@ export function useNoteBlockActions({
   const selectedBlockMap = useMemo(
     () => new Map(structuredBlocks.map((block) => [block.id, block])),
     [structuredBlocks]
+  );
+  const persistedSelectedBlockIds = useMemo(
+    () => new Set(selectedBlocks.map((block) => block.id)),
+    [selectedBlocks]
   );
 
   const orderedVisibleBlockIds = useMemo(
@@ -299,6 +305,53 @@ export function useNoteBlockActions({
       const nextIds = { ...currentIds };
       delete nextIds[blockId];
       return nextIds;
+    });
+  };
+
+  const restoreOptimisticBlockMoves = (entries: Array<{ blockId: string; structure: OptimisticBlockStructure | undefined }>) => {
+    if (entries.length === 0) {
+      return;
+    }
+
+    setOptimisticBlockStructure((current) => {
+      let hasChanges = false;
+      const next = { ...current };
+
+      entries.forEach(({ blockId, structure }) => {
+        if (structure) {
+          if (
+            next[blockId]?.parent_block_id === structure.parent_block_id
+            && next[blockId]?.sort_rank === structure.sort_rank
+          ) {
+            return;
+          }
+
+          next[blockId] = structure;
+          hasChanges = true;
+          return;
+        }
+
+        if (!(blockId in next)) {
+          return;
+        }
+
+        delete next[blockId];
+        hasChanges = true;
+      });
+
+      return hasChanges ? next : current;
+    });
+  };
+
+  const removeBlockContentDraft = (blockId: string) => {
+    setBlockContentDrafts((currentDrafts) => {
+      if (!(blockId in currentDrafts)) {
+        return currentDrafts;
+      }
+
+      const nextDrafts = { ...currentDrafts };
+      delete nextDrafts[blockId];
+      return nextDrafts;
     });
   };
 
@@ -610,10 +663,17 @@ export function useNoteBlockActions({
   };
 
   const handleDeleteBlock = async (blockId: string) => {
-    if (isCreatingBlock) return;
+    if (!selectedPageId) return;
+
+    const isOptimisticCreatedBlock = Boolean(optimisticCreatedBlocks[blockId]) && !persistedSelectedBlockIds.has(blockId);
+    if (isCreatingBlock && !isOptimisticCreatedBlock) return;
 
     const nextFocusTarget = getDeleteFocusTarget(orderedVisibleBlockIds, blockId);
     const childMoves = getDeleteChildMoves(structuredBlocks, blockId);
+    const previousChildMoveStructures = childMoves.map((move) => ({
+      blockId: move.blockId,
+      structure: optimisticBlockStructure[move.blockId],
+    }));
 
     setIsCreatingBlock(true);
 
@@ -635,10 +695,26 @@ export function useNoteBlockActions({
         });
       });
 
-      await Promise.all(childMoves.map((move) => flushUpdate(move.blockId, "blocks")));
-      await deleteNoteBlock(blockId, selectedPageId ?? undefined);
+      await Promise.all([
+        flushUpdate(blockId, "blocks"),
+        ...childMoves.map((move) => flushUpdate(move.blockId, "blocks")),
+      ]);
+      await deleteNoteBlock(blockId, selectedPageId);
+
+      flushSync(() => {
+        removeBlockContentDraft(blockId);
+
+        if (isOptimisticCreatedBlock) {
+          removeOptimisticCreatedBlock(blockId);
+          restoreOptimisticBlock(blockId);
+        }
+      });
     } catch (error) {
-      restoreOptimisticBlock(blockId);
+      flushSync(() => {
+        restoreOptimisticBlock(blockId);
+        restoreOptimisticBlockMoves(previousChildMoveStructures);
+        setFocusTarget(currentFocusTarget);
+      });
       throw error;
     } finally {
       setIsCreatingBlock(false);

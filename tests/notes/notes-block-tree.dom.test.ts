@@ -1,10 +1,51 @@
 /// <reference types="vitest/globals" />
 
-import React, { act } from "react";
+import React, { act, forwardRef, useImperativeHandle, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { NotesBlockTree } from "@/components/notes/NotesBlockTree";
+import { useNoteBlockActions } from "@/components/notes/page/useNoteBlockActions";
+import type { NoteBlockRow } from "@/hooks/use-notes";
 import { createNoteDocumentFromText, serializeNoteDocument } from "@/lib/notes/notes-content";
+import {
+  createNoteBlock,
+  deleteNoteBlock,
+  moveNoteBlock,
+  queueNoteBlockCreate,
+  queueNoteBlockCreates,
+  updateNoteBlock,
+} from "@/lib/notes/notes";
+import { flushUpdate } from "@/lib/shared/debounced-update";
+
+vi.mock("@/lib/notes/notes", () => ({
+  createNoteBlock: vi.fn(),
+  deleteNoteBlock: vi.fn(async () => undefined),
+  moveNoteBlock: vi.fn(),
+  queueNoteBlockCreate: vi.fn(),
+  queueNoteBlockCreates: vi.fn(),
+  updateNoteBlock: vi.fn(),
+}));
+
+vi.mock("@/lib/shared/debounced-update", () => ({
+  flushUpdate: vi.fn(async () => undefined),
+}));
+
+const createNoteBlockMock = vi.mocked(createNoteBlock);
+const deleteNoteBlockMock = vi.mocked(deleteNoteBlock);
+const moveNoteBlockMock = vi.mocked(moveNoteBlock);
+const queueNoteBlockCreateMock = vi.mocked(queueNoteBlockCreate);
+const queueNoteBlockCreatesMock = vi.mocked(queueNoteBlockCreates);
+const updateNoteBlockMock = vi.mocked(updateNoteBlock);
+const flushUpdateMock = vi.mocked(flushUpdate);
+
+type FocusTarget = { blockId: string; placement: number | "start" | "end" } | null;
+
+type TreeHarnessHandle = {
+  snapshot: () => {
+    structuredBlocks: NoteBlockRow[];
+    focusTarget: FocusTarget;
+  };
+};
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -48,7 +89,7 @@ if (!Range.prototype.getClientRects) {
   }) as DOMRectList;
 }
 
-function createBlock(id: string, parentBlockId: string | null, sortRank: string, text: string) {
+function createBlock(id: string, parentBlockId: string | null, sortRank: string, text: string): NoteBlockRow {
   return {
     id,
     user_id: "user-1",
@@ -75,6 +116,86 @@ async function waitForEditors(container: HTMLElement) {
 
   throw new Error("Editors failed to initialize");
 }
+
+async function waitForEditorCount(container: HTMLElement, count: number) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const editorElements = container.querySelectorAll(".ProseMirror");
+    if (editorElements.length === count) {
+      return Array.from(editorElements) as HTMLElement[];
+    }
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  throw new Error(`Expected ${count} editors`);
+}
+
+function dispatchEditorKey(target: HTMLElement, key: string, options?: KeyboardEventInit) {
+  const event = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...options,
+  });
+
+  target.dispatchEvent(event);
+  return event;
+}
+
+const TreeHarness = forwardRef<TreeHarnessHandle, {
+  blocks: NoteBlockRow[];
+  initialFocusTarget: FocusTarget;
+}>(({ blocks, initialFocusTarget }, ref) => {
+  const [isCreatingBlock, setIsCreatingBlock] = useState(false);
+  const [blockContentDrafts, setBlockContentDrafts] = useState<Record<string, string>>({});
+  const [optimisticBlockStructure, setOptimisticBlockStructure] = useState<Record<string, { parent_block_id: string | null; sort_rank: string | null }>>({});
+  const [focusTarget, setFocusTarget] = useState<FocusTarget>(initialFocusTarget);
+
+  const actions = useNoteBlockActions({
+    selectedBlocks: blocks,
+    selectedPageId: "page-1",
+    selectedPageIdForWrite: "page-1",
+    isCreatingBlock,
+    currentFocusTarget: focusTarget,
+    blockContentDrafts,
+    optimisticBlockStructure,
+    setIsCreatingBlock,
+    setBlockContentDrafts,
+    setOptimisticBlockStructure,
+    setFocusTarget,
+  });
+
+  useImperativeHandle(ref, () => ({
+    snapshot: () => ({
+      structuredBlocks: actions.structuredBlocks,
+      focusTarget,
+    }),
+  }), [actions.structuredBlocks, focusTarget]);
+
+  return React.createElement(NotesBlockTree, {
+    blocks: actions.structuredBlocks,
+    focusedBlockId: focusTarget?.blockId ?? null,
+    focusPlacement: focusTarget?.placement ?? undefined,
+    onCreateFirstBlock: () => undefined,
+    onFocusApplied: () => undefined,
+    onFocusBlock: (blockId: string, placement: "start" | "end") => setFocusTarget({ blockId, placement }),
+    notePageTitles: [],
+    onCreateSibling: actions.handleCreateSiblingBlock,
+    onCreateEmptySibling: actions.handleCreateEmptySiblingBlock,
+    onCreateSiblings: actions.handleCreateSiblingBlocks,
+    onMergeWithPrevious: actions.handleMergeWithPreviousBlock,
+    onCommitContent: actions.handleCommitBlockContent,
+    onIndent: actions.handleIndentBlock,
+    onOutdent: actions.handleOutdentBlock,
+    onDelete: actions.handleDeleteBlock,
+    onDeleteRange: actions.handleDeleteBlockRange,
+    onUpdateContent: actions.handleUpdateBlockContent,
+  });
+});
+
+TreeHarness.displayName = "TreeHarness";
 
 it("forwards structured paste handlers to nested child editors", async () => {
   const onCreateSiblings = vi.fn();
@@ -139,6 +260,54 @@ it("forwards structured paste handlers to nested child editors", async () => {
     expect.objectContaining({ children: [expect.any(Object)] }),
     expect.any(Array),
   );
+
+  await act(async () => {
+    root?.unmount();
+  });
+  container.remove();
+});
+
+it("deletes an empty block through the Backspace editor flow and updates tree state optimistically", async () => {
+  vi.clearAllMocks();
+  createNoteBlockMock.mockReset();
+  deleteNoteBlockMock.mockResolvedValue(undefined);
+  moveNoteBlockMock.mockReset();
+  queueNoteBlockCreateMock.mockReset();
+  queueNoteBlockCreatesMock.mockReset();
+  updateNoteBlockMock.mockReset();
+  flushUpdateMock.mockResolvedValue(undefined);
+
+  const ref = React.createRef<TreeHarnessHandle>();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      React.createElement(TreeHarness, {
+        ref,
+        blocks: [
+          createBlock("first", null, "0|hzzzzz:", "First"),
+          createBlock("current", null, "0|i00007:", ""),
+        ],
+        initialFocusTarget: { blockId: "current", placement: "start" },
+      }),
+    );
+  });
+
+  const [, emptyEditor] = await waitForEditors(container);
+
+  await act(async () => {
+    dispatchEditorKey(emptyEditor, "Backspace");
+    await Promise.resolve();
+  });
+
+  await waitForEditorCount(container, 1);
+
+  expect(deleteNoteBlockMock).toHaveBeenCalledWith("current", "page-1");
+  expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first"]);
+  expect(ref.current?.snapshot().focusTarget).toEqual({ blockId: "first", placement: "end" });
 
   await act(async () => {
     root?.unmount();
