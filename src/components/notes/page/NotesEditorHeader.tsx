@@ -109,7 +109,7 @@ export function NotesEditorHeader({
         </Button>
       </div>
 
-      <div className={`col-span-2 flex items-center gap-2 overflow-x-auto overscroll-y-none pl-3 text-xs text-muted-foreground [touch-action:pan-x_pan-y] sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
+      <div className={`col-span-2 flex items-center gap-2 overflow-x-auto overscroll-x-contain overscroll-y-none pl-3 text-xs text-muted-foreground [touch-action:pan-x] sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>
         {pageTitleError ? <span className="text-destructive">{pageTitleError}</span> : null}
         <div className="flex min-w-max items-center gap-2 pr-1">
           <Popover open={isEmojiPickerOpen} onOpenChange={onEmojiPickerOpenChange}>
