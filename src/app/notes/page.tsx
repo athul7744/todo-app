@@ -168,6 +168,7 @@ export default function NotesPage() {
     handleDeleteBlockRange,
     handleIndentBlock,
     handleMergeWithPreviousBlock,
+    handleMoveSelectedBlockRange,
     handleOutdentBlock,
     handleUpdateBlockContent,
     orderedVisibleBlockIds,
@@ -1014,6 +1015,7 @@ export default function NotesPage() {
                     onCommitContent={handleCommitBlockContent}
                     onIndent={handleIndentBlock}
                     onOutdent={handleOutdentBlock}
+                    onMoveSelectedBlockRange={handleMoveSelectedBlockRange}
                     onDelete={handleDeleteBlock}
                     onDeleteRange={handleDeleteBlockRange}
                     onUpdateContent={handleUpdateBlockContent}

@@ -6,6 +6,7 @@ import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
 
 import { NotesEditorHeader } from "./NotesEditorHeader";
 import type { NotesEditorRenderableContent } from "./types";
+import type { BlockRangeMoveDirection } from "@/lib/notes/block-editor-structure";
 
 type FocusTarget = { blockId: string; placement: number | "start" | "end" } | null;
 
@@ -39,6 +40,7 @@ export function NotesEditorContent({
   onCommitContent,
   onIndent,
   onOutdent,
+  onMoveSelectedBlockRange,
   onDelete,
   onDeleteRange,
   onUpdateContent,
@@ -82,6 +84,7 @@ export function NotesEditorContent({
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
+  onMoveSelectedBlockRange: (blockIds: string[], direction: BlockRangeMoveDirection, focusBlockId: string) => void;
   onDelete: (blockId: string) => void | Promise<void>;
   onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
@@ -141,6 +144,7 @@ export function NotesEditorContent({
               onCommitContent={onCommitContent}
               onIndent={onIndent}
               onOutdent={onOutdent}
+              onMoveSelectedBlockRange={onMoveSelectedBlockRange}
               onDelete={onDelete}
               onDeleteRange={onDeleteRange}
               onUpdateContent={onUpdateContent}

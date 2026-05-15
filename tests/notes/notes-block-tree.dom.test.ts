@@ -144,6 +144,12 @@ function dispatchEditorKey(target: HTMLElement, key: string, options?: KeyboardE
   return event;
 }
 
+function dispatchMouseClick(target: HTMLElement) {
+  target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+  target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
+  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+}
+
 const TreeHarness = forwardRef<TreeHarnessHandle, {
   blocks: NoteBlockRow[];
   initialFocusTarget: FocusTarget;
@@ -189,6 +195,7 @@ const TreeHarness = forwardRef<TreeHarnessHandle, {
     onCommitContent: actions.handleCommitBlockContent,
     onIndent: actions.handleIndentBlock,
     onOutdent: actions.handleOutdentBlock,
+    onMoveSelectedBlockRange: actions.handleMoveSelectedBlockRange,
     onDelete: actions.handleDeleteBlock,
     onDeleteRange: actions.handleDeleteBlockRange,
     onUpdateContent: actions.handleUpdateBlockContent,
@@ -221,6 +228,7 @@ it("forwards structured paste handlers to nested child editors", async () => {
         onCommitContent: vi.fn(),
         onIndent: vi.fn(),
         onOutdent: vi.fn(),
+        onMoveSelectedBlockRange: vi.fn(),
         onDelete: vi.fn(),
         onDeleteRange: vi.fn(),
         onUpdateContent: vi.fn(),
@@ -308,6 +316,236 @@ it("deletes an empty block through the Backspace editor flow and updates tree st
   expect(deleteNoteBlockMock).toHaveBeenCalledWith("current", "page-1");
   expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first"]);
   expect(ref.current?.snapshot().focusTarget).toEqual({ blockId: "first", placement: "end" });
+
+  await act(async () => {
+    root?.unmount();
+  });
+  container.remove();
+});
+
+it("moves a focused unselected block with Alt+ArrowDown", async () => {
+  vi.clearAllMocks();
+  moveNoteBlockMock.mockReset();
+
+  const ref = React.createRef<TreeHarnessHandle>();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      React.createElement(TreeHarness, {
+        ref,
+        blocks: [
+          createBlock("first", null, "0|hzzzzz:", "First"),
+          createBlock("second", null, "0|i00007:", "Second"),
+          createBlock("third", null, "0|i0000f:", "Third"),
+        ],
+        initialFocusTarget: null,
+      }),
+    );
+  });
+
+  const [, focusedEditor] = await waitForEditors(container);
+
+  await act(async () => {
+    dispatchEditorKey(focusedEditor, "ArrowDown", { altKey: true });
+    await Promise.resolve();
+  });
+
+  expect(moveNoteBlockMock).toHaveBeenCalledTimes(1);
+  expect(moveNoteBlockMock).toHaveBeenCalledWith(expect.objectContaining({
+    blockId: "second",
+    pageId: "page-1",
+    parentBlockId: null,
+  }));
+  expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first", "third", "second"]);
+  expect(ref.current?.snapshot().focusTarget).toEqual({ blockId: "second", placement: "start" });
+
+  await act(async () => {
+    root?.unmount();
+  });
+  container.remove();
+});
+
+it("preserves shift selection across focus moves and moves the selected range with Alt+ArrowDown", async () => {
+  vi.clearAllMocks();
+  moveNoteBlockMock.mockReset();
+
+  const ref = React.createRef<TreeHarnessHandle>();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      React.createElement(TreeHarness, {
+        ref,
+        blocks: [
+          createBlock("first", null, "0|hzzzzz:", "First"),
+          createBlock("second", null, "0|i00007:", "Second"),
+          createBlock("third", null, "0|i0000f:", "Third"),
+          createBlock("fourth", null, "0|i0000n:", "Fourth"),
+        ],
+        initialFocusTarget: { blockId: "second", placement: "start" },
+      }),
+    );
+  });
+
+  const [, secondEditor, thirdEditor] = await waitForEditors(container);
+
+  await act(async () => {
+    dispatchEditorKey(secondEditor, "ArrowDown", { shiftKey: true });
+    await Promise.resolve();
+  });
+
+  const selectedBlocksAfterShift = Array.from(container.querySelectorAll('[class*="bg-accent/45"]'));
+  expect(selectedBlocksAfterShift).toHaveLength(2);
+
+  await act(async () => {
+    dispatchEditorKey(thirdEditor, "ArrowDown", { altKey: true });
+    await Promise.resolve();
+  });
+
+  expect(moveNoteBlockMock).toHaveBeenCalledTimes(2);
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ blockId: "second" }));
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ blockId: "third" }));
+  expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first", "fourth", "second", "third"]);
+
+  await act(async () => {
+    root?.unmount();
+  });
+  container.remove();
+});
+
+it("shows block context menu move actions and routes them through the block move handler", async () => {
+  const onMoveSelectedBlockRange = vi.fn();
+  const onDelete = vi.fn();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      React.createElement(NotesBlockTree, {
+        blocks: [
+          createBlock("first", null, "0|hzzzzz:", "First"),
+          createBlock("second", null, "0|i00007:", "Second"),
+          createBlock("third", null, "0|i0000f:", "Third"),
+        ],
+        onCreateFirstBlock: vi.fn(),
+        onFocusBlock: vi.fn(),
+        notePageTitles: [],
+        onCreateSibling: vi.fn(),
+        onCreateEmptySibling: vi.fn(),
+        onCreateSiblings: vi.fn(),
+        onMergeWithPrevious: vi.fn(),
+        onCommitContent: vi.fn(),
+        onIndent: vi.fn(),
+        onOutdent: vi.fn(),
+        onMoveSelectedBlockRange,
+        onDelete,
+        onDeleteRange: vi.fn(),
+        onUpdateContent: vi.fn(),
+      }),
+    );
+  });
+
+  const bulletButtons = Array.from(container.querySelectorAll('button[aria-label="Toggle raw markdown view"]')) as HTMLButtonElement[];
+
+  await act(async () => {
+    bulletButtons[1].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  });
+
+  const moveUpButton = container.querySelector('button[aria-label="Move block up"]') as HTMLButtonElement | null;
+  const moveDownButton = container.querySelector('button[aria-label="Move block down"]') as HTMLButtonElement | null;
+
+  expect(moveUpButton).not.toBeNull();
+  expect(moveDownButton).not.toBeNull();
+
+  await act(async () => {
+    if (moveUpButton) {
+      dispatchMouseClick(moveUpButton);
+    }
+  });
+
+  expect(onMoveSelectedBlockRange).toHaveBeenNthCalledWith(1, ["second"], "up", "second");
+
+  await act(async () => {
+    bulletButtons[1].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  });
+
+  const reopenedMoveDownButton = container.querySelector('button[aria-label="Move block down"]') as HTMLButtonElement | null;
+
+  await act(async () => {
+    if (reopenedMoveDownButton) {
+      dispatchMouseClick(reopenedMoveDownButton);
+    }
+  });
+
+  expect(onMoveSelectedBlockRange).toHaveBeenNthCalledWith(2, ["second"], "down", "second");
+  expect(onDelete).not.toHaveBeenCalled();
+
+  await act(async () => {
+    root?.unmount();
+  });
+  container.remove();
+});
+
+it("preserves an existing shift selection when moving from the block context menu", async () => {
+  vi.clearAllMocks();
+  moveNoteBlockMock.mockReset();
+
+  const ref = React.createRef<TreeHarnessHandle>();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      React.createElement(TreeHarness, {
+        ref,
+        blocks: [
+          createBlock("first", null, "0|hzzzzz:", "First"),
+          createBlock("second", null, "0|i00007:", "Second"),
+          createBlock("third", null, "0|i0000f:", "Third"),
+          createBlock("fourth", null, "0|i0000n:", "Fourth"),
+        ],
+        initialFocusTarget: { blockId: "second", placement: "start" },
+      }),
+    );
+  });
+
+  const [, secondEditor] = await waitForEditors(container);
+
+  await act(async () => {
+    dispatchEditorKey(secondEditor, "ArrowDown", { shiftKey: true });
+    await Promise.resolve();
+  });
+
+  const bulletButtons = Array.from(container.querySelectorAll('button[aria-label="Toggle raw markdown view"]')) as HTMLButtonElement[];
+
+  await act(async () => {
+    bulletButtons[2].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  });
+
+  const moveDownButton = container.querySelector('button[aria-label="Move block down"]') as HTMLButtonElement | null;
+
+  await act(async () => {
+    if (moveDownButton) {
+      dispatchMouseClick(moveDownButton);
+    }
+    await Promise.resolve();
+  });
+
+  expect(moveNoteBlockMock).toHaveBeenCalledTimes(2);
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ blockId: "second" }));
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ blockId: "third" }));
+  expect(ref.current?.snapshot().structuredBlocks.map((block) => block.id)).toEqual(["first", "fourth", "second", "third"]);
 
   await act(async () => {
     root?.unmount();

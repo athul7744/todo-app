@@ -15,6 +15,7 @@ import {
   type JsonValue,
   type NoteBlockInsert,
 } from "@/lib/notes/notes";
+import { getVisibleNoteBlockIds } from "@/lib/notes/notes-tree";
 import { flushUpdate } from "@/lib/shared/debounced-update";
 import { useNoteBlockActions } from "@/components/notes/page/useNoteBlockActions";
 
@@ -48,6 +49,7 @@ type HarnessHandle = {
   createEmptySibling: (blockId: string, parentBlockId?: string | null) => Promise<void>;
   createSiblingBlocks: (blockId: string, parentBlockId: string | null | undefined, nextContent: NoteBlockInsert, nextSiblingContents: NoteBlockInsert[]) => Promise<void>;
   mergeWithPrevious: (blockId: string, previousBlockId: string, nextContent: JsonValue, options?: { hasChildren?: boolean }) => Promise<void>;
+  moveSelectedBlocks: (blockIds: string[], direction: "up" | "down", focusBlockId: string) => void;
   updateBlockContent: (blockId: string, nextContent: JsonValue) => void;
   snapshot: () => {
     structuredBlocks: NoteBlockRow[];
@@ -80,6 +82,7 @@ const HookHost = forwardRef<HarnessHandle, { blocks: NoteBlockRow[] }>(({ blocks
     createSiblingBlocks: actions.handleCreateSiblingBlocks,
     deleteBlock: actions.handleDeleteBlock,
     mergeWithPrevious: actions.handleMergeWithPreviousBlock,
+    moveSelectedBlocks: actions.handleMoveSelectedBlockRange,
     updateBlockContent: actions.handleUpdateBlockContent,
     snapshot: () => ({
       structuredBlocks: actions.structuredBlocks,
@@ -370,6 +373,50 @@ it("keeps typed content visible on a newly created optimistic block before persi
   const updatedCreatedBlock = snapshot?.structuredBlocks.find((block) => block.id === createdBlock?.id);
   expect(updatedCreatedBlock).toBeTruthy();
   expect(extractNoteText(updatedCreatedBlock?.content as JsonValue)).toBe("Typed now");
+
+  await act(async () => {
+    root?.unmount();
+  });
+});
+
+it("moves a shift-selected root range down while keeping descendants attached to their parent", async () => {
+  vi.clearAllMocks();
+
+  const ref = React.createRef<HarnessHandle>();
+  const blocks = [
+    createBlock("root-a", null, "0|hzzzzz:", "Root A"),
+    createBlock("child-a", "root-a", "0|i00001:", "Child A"),
+    createBlock("root-b", null, "0|i00007:", "Root B"),
+    createBlock("root-c", null, "0|i0000f:", "Root C"),
+  ];
+
+  const container = document.createElement("div");
+  let root: Root | null = null;
+
+  await act(async () => {
+    root = createRoot(container);
+    root.render(React.createElement(HookHost, { ref, blocks }));
+  });
+
+  await act(async () => {
+    ref.current?.moveSelectedBlocks(["root-a", "child-a", "root-b"], "down", "root-b");
+  });
+
+  const snapshot = ref.current?.snapshot();
+  expect(snapshot?.focusTarget).toEqual({ blockId: "root-b", placement: "start" });
+  expect(getVisibleNoteBlockIds(snapshot?.structuredBlocks ?? [])).toEqual(["root-c", "root-a", "child-a", "root-b"]);
+  expect(snapshot?.structuredBlocks.find((block) => block.id === "child-a")?.parent_block_id).toBe("root-a");
+  expect(moveNoteBlockMock).toHaveBeenCalledTimes(2);
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    blockId: "root-a",
+    pageId: "page-1",
+    parentBlockId: null,
+  }));
+  expect(moveNoteBlockMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    blockId: "root-b",
+    pageId: "page-1",
+    parentBlockId: null,
+  }));
 
   await act(async () => {
     root?.unmount();

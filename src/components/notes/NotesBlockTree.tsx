@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
+import { BlockContextMenu } from "@/components/notes/BlockContextMenu";
 import { NoteBlockEditor } from "@/components/notes/NoteBlockEditor";
+import { getBlockContextMenuOptions, type BlockContextMenuActionId } from "@/components/notes/block-context-menu-options";
 import type { NoteBlockRow } from "@/hooks/use-notes";
 import {
   buildBlockClipboardBlocks,
@@ -13,6 +15,7 @@ import {
   serializeBlockClipboardMarkdown,
 } from "@/lib/notes/block-line-selection";
 import { extractNoteText } from "@/lib/notes/notes-content";
+import type { BlockRangeMoveDirection } from "@/lib/notes/block-editor-structure";
 import { buildNoteBlockTree, createVisibleNoteBlockNeighbors, type NoteTreeNode } from "@/lib/notes/notes-tree";
 import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
 
@@ -34,6 +37,7 @@ function BlockNodeView({
   nextBlockIdById,
   onFocusApplied,
   onFocusBlock,
+  onEditorFocus,
   notePageTitles,
   onOpenPageReference,
   onCreateSibling,
@@ -42,6 +46,7 @@ function BlockNodeView({
   onCommitContent,
   onIndent,
   onOutdent,
+  onMoveSelectedBlockRange,
   onDelete,
   onDeleteRange,
   onUpdateContent,
@@ -63,6 +68,7 @@ function BlockNodeView({
   nextBlockIdById: ReadonlyMap<string, string | null>;
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
+  onEditorFocus: (blockId: string, placement: "start" | "end") => void;
   notePageTitles: string[];
   onOpenPageReference?: (title: string) => void;
   onCreateSibling: (
@@ -81,6 +87,7 @@ function BlockNodeView({
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
+  onMoveSelectedBlockRange: (blockIds: string[], direction: BlockRangeMoveDirection, focusBlockId: string) => void;
   onDelete: (blockId: string) => void;
   onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
@@ -93,12 +100,99 @@ function BlockNodeView({
 }) {
   const previousBlockId = previousBlockIdById.get(node.block.id) ?? null;
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
+  const blockType = node.block.type ?? "text";
+  const moveTargetBlockIds = selectedBlockIds.has(node.block.id)
+    ? [...selectedBlockIds]
+    : [node.block.id];
+  const blockContextMenuOptions = getBlockContextMenuOptions({
+    blockType,
+    canMoveUp: previousBlockId !== null,
+    canMoveDown: nextBlockId !== null,
+  });
+  const bulletRef = useRef<HTMLDivElement | null>(null);
+  const longPressTimeoutRef = useRef<number | null>(null);
+  const suppressPrimaryActionRef = useRef(false);
+  const [isBlockMenuOpen, setIsBlockMenuOpen] = useState(false);
+
+  const clearLongPressTimeout = () => {
+    if (longPressTimeoutRef.current !== null) {
+      window.clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const openBlockMenu = () => {
+    clearLongPressTimeout();
+    suppressPrimaryActionRef.current = true;
+    setIsBlockMenuOpen(true);
+  };
+
+  const handleBlockMenuAction = (actionId: BlockContextMenuActionId) => {
+    setIsBlockMenuOpen(false);
+
+    switch (actionId) {
+      case "move-up":
+        if (previousBlockId === null) {
+          return;
+        }
+
+        onMoveSelectedBlockRange(moveTargetBlockIds, "up", node.block.id);
+        return;
+      case "move-down":
+        if (nextBlockId === null) {
+          return;
+        }
+
+        onMoveSelectedBlockRange(moveTargetBlockIds, "down", node.block.id);
+        return;
+      case "delete":
+        onDelete(node.block.id);
+        return;
+      default:
+        return;
+    }
+  };
+
+  useEffect(() => {
+    if (!isBlockMenuOpen) {
+      suppressPrimaryActionRef.current = false;
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (bulletRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsBlockMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsBlockMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isBlockMenuOpen]);
+
+  useEffect(() => clearLongPressTimeout, []);
 
   return (
     <div className="space-y-0">
       <article
         className="group relative"
         onMouseDownCapture={(event) => {
+          if (event.target instanceof HTMLElement && event.target.closest('[data-block-context-menu="true"]')) {
+            return;
+          }
+
           if (!event.shiftKey && selectedBlockIds.size > 0) {
             onClearSelection();
           }
@@ -106,19 +200,54 @@ function BlockNodeView({
         style={{ marginLeft: depth === 0 ? 0 : depth * 18 }}
       >
         <div className="flex items-center gap-px px-0 py-0">
-          <div className="relative flex min-h-6 w-3.5 shrink-0 items-center justify-start self-stretch">
+          <div ref={bulletRef} className="relative flex min-h-6 w-3.5 shrink-0 items-center justify-start self-stretch">
             <button
               type="button"
-              onMouseDown={(event) => {
+              onPointerDown={(event) => {
+                if (event.pointerType === "mouse" || event.button !== 0) {
+                  return;
+                }
+
+                clearLongPressTimeout();
+                longPressTimeoutRef.current = window.setTimeout(() => {
+                  openBlockMenu();
+                }, 450);
+              }}
+              onPointerUp={clearLongPressTimeout}
+              onPointerCancel={clearLongPressTimeout}
+              onPointerLeave={clearLongPressTimeout}
+              onContextMenu={(event) => {
                 event.preventDefault();
+                event.stopPropagation();
+                openBlockMenu();
+              }}
+              onMouseDown={(event) => {
+                if (event.button !== 0) {
+                  return;
+                }
+
+                event.preventDefault();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+
+                if (suppressPrimaryActionRef.current) {
+                  suppressPrimaryActionRef.current = false;
+                  return;
+                }
+
+                setIsBlockMenuOpen(false);
                 onToggleMarkdownMode(node.block.id);
               }}
               className={`relative z-10 flex h-3.5 w-3.5 items-center justify-center rounded-sm outline-none transition-opacity ${depth > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
               aria-label="Toggle raw markdown view"
               title="Toggle raw markdown view"
+              aria-haspopup="menu"
+              aria-expanded={isBlockMenuOpen}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
             </button>
+            {isBlockMenuOpen ? <BlockContextMenu options={blockContextMenuOptions} onAction={handleBlockMenuAction} /> : null}
             {depth > 0 ? <span className="absolute bottom-0 left-1/2 top-1/2 w-px -translate-x-1/2 bg-border/60" /> : null}
           </div>
           <div className={`min-w-0 flex-1 rounded-sm transition-smooth ${selectedBlockIds.has(node.block.id) ? "bg-accent/45" : ""}`}>
@@ -130,6 +259,9 @@ function BlockNodeView({
               shouldFocus={focusedBlockId === node.block.id}
               focusPlacement={focusPlacement}
               onFocusApplied={onFocusApplied}
+              onFocus={() => {
+                onEditorFocus(node.block.id, "start");
+              }}
               onChange={(nextContent) => {
                 onUpdateContent(node.block.id, nextContent as JsonValue);
               }}
@@ -152,6 +284,8 @@ function BlockNodeView({
                 if (!parentBlockId) return;
                 onOutdent(node.block.id, parentParentBlockId);
               }}
+              onMoveSelectionUp={moveTargetBlockIds ? () => onMoveSelectedBlockRange(moveTargetBlockIds, "up", node.block.id) : undefined}
+              onMoveSelectionDown={moveTargetBlockIds ? () => onMoveSelectedBlockRange(moveTargetBlockIds, "down", node.block.id) : undefined}
               onDeleteEmpty={() => onDelete(node.block.id)}
             />
           </div>
@@ -174,6 +308,7 @@ function BlockNodeView({
               nextBlockIdById={nextBlockIdById}
               onFocusApplied={onFocusApplied}
               onFocusBlock={onFocusBlock}
+              onEditorFocus={onEditorFocus}
               notePageTitles={notePageTitles}
               onOpenPageReference={onOpenPageReference}
               onCreateSibling={onCreateSibling}
@@ -182,6 +317,7 @@ function BlockNodeView({
               onMergeWithPrevious={onMergeWithPrevious}
               onIndent={onIndent}
               onOutdent={onOutdent}
+              onMoveSelectedBlockRange={onMoveSelectedBlockRange}
               onDelete={onDelete}
               onDeleteRange={onDeleteRange}
               onUpdateContent={onUpdateContent}
@@ -215,6 +351,7 @@ export function NotesBlockTree({
   onCommitContent,
   onIndent,
   onOutdent,
+  onMoveSelectedBlockRange,
   onDelete,
   onDeleteRange,
   onUpdateContent,
@@ -244,6 +381,7 @@ export function NotesBlockTree({
   onCommitContent: (blockId: string, nextContent: JsonValue) => void;
   onIndent: (blockId: string, nextParentBlockId: string) => void;
   onOutdent: (blockId: string, nextParentBlockId?: string | null) => void;
+  onMoveSelectedBlockRange: (blockIds: string[], direction: BlockRangeMoveDirection, focusBlockId: string) => void;
   onDelete: (blockId: string) => void;
   onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
@@ -330,6 +468,10 @@ export function NotesBlockTree({
     onFocusBlock(blockId, placement);
   };
 
+  const handleEditorFocus = (blockId: string, placement: "start" | "end") => {
+    onFocusBlock(blockId, placement);
+  };
+
   if (tree.length === 0) {
     return (
       <div
@@ -369,6 +511,7 @@ export function NotesBlockTree({
           nextBlockIdById={nextBlockIdById}
           onFocusApplied={onFocusApplied}
           onFocusBlock={handleFocusBlock}
+          onEditorFocus={handleEditorFocus}
           notePageTitles={notePageTitles}
           onOpenPageReference={onOpenPageReference}
           onCreateSibling={onCreateSibling}
@@ -377,6 +520,7 @@ export function NotesBlockTree({
           onCommitContent={onCommitContent}
           onIndent={onIndent}
           onOutdent={onOutdent}
+          onMoveSelectedBlockRange={onMoveSelectedBlockRange}
           onDelete={onDelete}
           onDeleteRange={onDeleteRange}
           onUpdateContent={onUpdateContent}

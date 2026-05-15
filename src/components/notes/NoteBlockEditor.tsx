@@ -46,6 +46,7 @@ import {
   type SlashCommand,
 } from "@/components/notes/NoteBlockEditorSlash";
 import {
+  getBlockArrowMoveAction,
   getBlockBackspaceAction,
   getBlockEnterAction,
   getBlockTabAction,
@@ -573,6 +574,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   shouldFocus = false,
   focusPlacement = "end",
   onFocusApplied,
+  onFocus,
   onChange,
   onCommit,
   onCreateSibling,
@@ -583,6 +585,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onNavigateDown,
   onSelectUp,
   onSelectDown,
+  onMoveSelectionUp,
+  onMoveSelectionDown,
   onIndent,
   onOutdent,
   onDeleteEmpty,
@@ -594,6 +598,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   shouldFocus?: boolean;
   focusPlacement?: number | "start" | "end";
   onFocusApplied?: () => void;
+  onFocus?: () => void;
   onChange: (content: JSONContent) => void;
   onCommit?: (content: JSONContent) => void;
   onCreateSibling: (
@@ -612,12 +617,15 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   onNavigateDown?: () => void;
   onSelectUp?: () => void;
   onSelectDown?: () => void;
+  onMoveSelectionUp?: () => void;
+  onMoveSelectionDown?: () => void;
   onIndent: () => void;
   onOutdent: () => void;
   onDeleteEmpty: () => void;
 }) {
   const initialContentRef = useRef(parseDocument(content));
   const onChangeRef = useRef(onChange);
+  const onFocusRef = useRef(onFocus);
   const onCommitRef = useRef(onCommit);
   const onCreateSiblingRef = useRef(onCreateSibling);
   const onCreateSiblingsRef = useRef(onCreateSiblings);
@@ -627,6 +635,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const onNavigateDownRef = useRef(onNavigateDown);
   const onSelectUpRef = useRef(onSelectUp);
   const onSelectDownRef = useRef(onSelectDown);
+  const onMoveSelectionUpRef = useRef(onMoveSelectionUp);
+  const onMoveSelectionDownRef = useRef(onMoveSelectionDown);
   const onIndentRef = useRef(onIndent);
   const onOutdentRef = useRef(onOutdent);
   const onDeleteEmptyRef = useRef(onDeleteEmpty);
@@ -787,6 +797,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
   useEffect(() => {
     onChangeRef.current = onChange;
+    onFocusRef.current = onFocus;
     onCommitRef.current = onCommit;
     onCreateSiblingRef.current = onCreateSibling;
     onCreateSiblingsRef.current = onCreateSiblings;
@@ -796,10 +807,12 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     onNavigateDownRef.current = onNavigateDown;
     onSelectUpRef.current = onSelectUp;
     onSelectDownRef.current = onSelectDown;
+    onMoveSelectionUpRef.current = onMoveSelectionUp;
+    onMoveSelectionDownRef.current = onMoveSelectionDown;
     onIndentRef.current = onIndent;
     onOutdentRef.current = onOutdent;
     onDeleteEmptyRef.current = onDeleteEmpty;
-  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onIndent, onMergeWithPrevious, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent, onSelectDown, onSelectUp]);
+  }, [onChange, onCommit, onCreateSibling, onCreateSiblings, onDeleteEmpty, onFocus, onIndent, onMergeWithPrevious, onMoveSelectionDown, onMoveSelectionUp, onNavigateDown, onNavigateUp, onOpenPageReference, onOutdent, onSelectDown, onSelectUp]);
 
   useEffect(() => {
     slashQueryRef.current = slashQuery;
@@ -890,6 +903,10 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           "min-h-6 rounded-none border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground outline-none focus:outline-none cursor-text",
       },
       handleDOMEvents: {
+        focus() {
+          onFocusRef.current?.();
+          return false;
+        },
         click(view, event) {
           const target = event.target;
           if (!(target instanceof HTMLElement) || !target.closest(".note-ref-token-page")) {
@@ -1060,6 +1077,38 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           }
 
           onSelectDownRef.current();
+          return true;
+        }
+
+        const arrowMoveAction = getBlockArrowMoveAction({
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+          key: event.key,
+          canMoveSelectionUp: Boolean(onMoveSelectionUpRef.current),
+          canMoveSelectionDown: Boolean(onMoveSelectionDownRef.current),
+        });
+
+        if (arrowMoveAction !== "none") {
+          event.preventDefault();
+          suppressBlurCommitRef.current = true;
+
+          if (isEditingMarkdownSourceRef.current) {
+            const nextContent = renderCurrentMarkdownSource();
+            if (nextContent) {
+              onCommitRef.current?.(nextContent);
+            }
+          } else {
+            emitEditorContentIfChanged();
+          }
+
+          if (arrowMoveAction === "move-selection-up") {
+            onMoveSelectionUpRef.current?.();
+          } else {
+            onMoveSelectionDownRef.current?.();
+          }
+
           return true;
         }
 

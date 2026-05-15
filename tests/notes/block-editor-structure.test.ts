@@ -1,6 +1,7 @@
 /// <reference types="vitest/globals" />
 
 import {
+  getBlockRangeMovePlan,
   getDeleteChildMoves,
   getDeleteFocusTarget,
   getIndentPosition,
@@ -126,5 +127,74 @@ describe("block-editor structure", () => {
 
     expect(nextPosition.parentBlockId).toBeNull();
     expect(nextPosition.sortRank).not.toBe("0|hzzzzz:");
+  });
+
+  it("moves contiguous selected root blocks up within the same parent scope", () => {
+    const blocks = [
+      { id: "root-a", parent_block_id: null, sort_rank: "0|hzzzzz:" },
+      { id: "root-b", parent_block_id: null, sort_rank: "0|i00007:" },
+      { id: "root-c", parent_block_id: null, sort_rank: "0|i0000f:" },
+      { id: "root-d", parent_block_id: null, sort_rank: "0|i0000n:" },
+    ];
+
+    expect(getBlockRangeMovePlan(blocks, ["root-c", "root-d"], "up")).toEqual([
+      { blockId: "root-c", parentBlockId: null, sortRank: expect.any(String) },
+      { blockId: "root-d", parentBlockId: null, sortRank: expect.any(String) },
+    ]);
+  });
+
+  it("moves selected roots down while preserving descendant membership under the moved root", () => {
+    const blocks = [
+      { id: "root-a", parent_block_id: null, sort_rank: "0|hzzzzz:" },
+      { id: "child-a", parent_block_id: "root-a", sort_rank: "0|i00001:" },
+      { id: "root-b", parent_block_id: null, sort_rank: "0|i00007:" },
+      { id: "root-c", parent_block_id: null, sort_rank: "0|i0000f:" },
+    ];
+
+    expect(getBlockRangeMovePlan(blocks, ["root-a", "child-a", "root-b"], "down")).toEqual([
+      { blockId: "root-a", parentBlockId: null, sortRank: expect.any(String) },
+      { blockId: "root-b", parentBlockId: null, sortRank: expect.any(String) },
+    ]);
+  });
+
+  it("moves selected roots independently across parent scopes instead of dropping child selections", () => {
+    const blocks = [
+      { id: "root-a", parent_block_id: null, sort_rank: "0|hzzzzz:" },
+      { id: "child-a", parent_block_id: "root-a", sort_rank: "0|i00007:" },
+      { id: "child-b", parent_block_id: "root-a", sort_rank: "0|i0000c:" },
+      { id: "root-b", parent_block_id: null, sort_rank: "0|i0000f:" },
+      { id: "root-c", parent_block_id: null, sort_rank: "0|i0000n:" },
+    ];
+
+    expect(getBlockRangeMovePlan(blocks, ["child-a", "root-b"], "down")).toEqual([
+      { blockId: "child-a", parentBlockId: "root-a", sortRank: expect.any(String) },
+      { blockId: "root-b", parentBlockId: null, sortRank: expect.any(String) },
+    ]);
+  });
+
+  it("moves a single block up into the visible children of the block above", () => {
+    const blocks = [
+      { id: "root-a", parent_block_id: null, sort_rank: "0|hzzzzz:" },
+      { id: "child-a", parent_block_id: "root-a", sort_rank: "0|i00007:" },
+      { id: "child-b", parent_block_id: "root-a", sort_rank: "0|i0000c:" },
+      { id: "root-b", parent_block_id: null, sort_rank: "0|i0000f:" },
+    ];
+
+    expect(getBlockRangeMovePlan(blocks, ["root-b"], "up")).toEqual([
+      { blockId: "root-b", parentBlockId: "root-a", sortRank: expect.any(String) },
+    ]);
+  });
+
+  it("moves a single block down into the visible children of the block below", () => {
+    const blocks = [
+      { id: "root-a", parent_block_id: null, sort_rank: "0|hzzzzz:" },
+      { id: "root-b", parent_block_id: null, sort_rank: "0|i00007:" },
+      { id: "root-c", parent_block_id: null, sort_rank: "0|i0000f:" },
+      { id: "child-c", parent_block_id: "root-c", sort_rank: "0|i0000n:" },
+    ];
+
+    expect(getBlockRangeMovePlan(blocks, ["root-b"], "down")).toEqual([
+      { blockId: "root-b", parentBlockId: "root-c", sortRank: expect.any(String) },
+    ]);
   });
 });

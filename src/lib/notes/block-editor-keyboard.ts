@@ -10,6 +10,7 @@ export type BlockEnterAction =
 export type BlockTabAction = "none" | "indent" | "outdent" | "insert-tab";
 
 export type BlockBackspaceAction = "none" | "reset-empty-special-block" | "delete-empty-block" | "merge-with-previous";
+export type BlockArrowMoveAction = "none" | "move-selection-up" | "move-selection-down";
 
 type EnterActionInput = {
   shiftKey: boolean;
@@ -54,6 +55,16 @@ type ArrowNavigationInput = {
   selectionEmpty: boolean;
   atTextBoundary: boolean;
   hasAdjacentBlock: boolean;
+};
+
+type ArrowMoveInput = {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+  key: string;
+  canMoveSelectionUp: boolean;
+  canMoveSelectionDown: boolean;
 };
 
 export function getBlockEnterAction(input: EnterActionInput): BlockEnterAction {
@@ -110,6 +121,22 @@ export function getBlockTabAction(input: TabActionInput): BlockTabAction {
 
 export function shouldNavigateBetweenBlocks(input: ArrowNavigationInput) {
   return input.selectionEmpty && input.atTextBoundary && input.hasAdjacentBlock;
+}
+
+export function getBlockArrowMoveAction(input: ArrowMoveInput): BlockArrowMoveAction {
+  if (!input.altKey || input.ctrlKey || input.metaKey || input.shiftKey) {
+    return "none";
+  }
+
+  if (input.key === "ArrowUp" && input.canMoveSelectionUp) {
+    return "move-selection-up";
+  }
+
+  if (input.key === "ArrowDown" && input.canMoveSelectionDown) {
+    return "move-selection-down";
+  }
+
+  return "none";
 }
 
 export function getBlockBackspaceAction(input: BackspaceActionInput): BlockBackspaceAction {

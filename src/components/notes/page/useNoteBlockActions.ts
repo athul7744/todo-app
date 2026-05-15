@@ -21,9 +21,11 @@ import {
   getDeleteChildMoves,
   getDeleteFocusTarget,
   getIndentPosition,
+  getBlockRangeMovePlan,
   getMergeChildMoves,
   getMergePlan,
   getOutdentPosition,
+  type BlockRangeMoveDirection,
 } from "@/lib/notes/block-editor-structure";
 import { flushUpdate } from "@/lib/shared/debounced-update";
 import { getRankAfterItem, getRankAtParentEnd, getRankBeforeItem } from "@/lib/shared/ranked-order";
@@ -662,6 +664,34 @@ export function useNoteBlockActions({
     });
   };
 
+  const handleMoveSelectedBlockRange = (
+    blockIds: string[],
+    direction: BlockRangeMoveDirection,
+    focusBlockId: string,
+  ) => {
+    const moves = getBlockRangeMovePlan(structuredBlocks, blockIds, direction);
+
+    if (moves.length === 0) {
+      return;
+    }
+
+    flushSync(() => {
+      setFocusTarget({ blockId: focusBlockId, placement: "start" });
+      moves.forEach((move) => {
+        applyOptimisticBlockMove(move.blockId, move.parentBlockId, move.sortRank);
+      });
+    });
+
+    moves.forEach((move) => {
+      moveNoteBlock({
+        blockId: move.blockId,
+        pageId: selectedPageIdForWrite,
+        parentBlockId: move.parentBlockId,
+        sortRank: move.sortRank,
+      });
+    });
+  };
+
   const handleDeleteBlock = async (blockId: string) => {
     if (!selectedPageId) return;
 
@@ -840,6 +870,7 @@ export function useNoteBlockActions({
     handleDeleteBlockRange,
     handleIndentBlock,
     handleMergeWithPreviousBlock,
+    handleMoveSelectedBlockRange,
     handleOutdentBlock,
     handleUpdateBlockContent,
     orderedVisibleBlockIds,

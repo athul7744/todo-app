@@ -1,6 +1,7 @@
 /// <reference types="vitest/globals" />
 
 import {
+  getBlockArrowMoveAction,
   getBlockBackspaceAction,
   getBlockEnterAction,
   getBlockTabAction,
@@ -228,6 +229,38 @@ describe("block-editor keyboard spec", () => {
       isTable: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
+    })).toBe("none");
+  });
+
+  it("routes Alt+Arrow to block-range move actions only without other modifiers", () => {
+    expect(getBlockArrowMoveAction({
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      key: "ArrowUp",
+      canMoveSelectionUp: true,
+      canMoveSelectionDown: false,
+    })).toBe("move-selection-up");
+
+    expect(getBlockArrowMoveAction({
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      key: "ArrowDown",
+      canMoveSelectionUp: false,
+      canMoveSelectionDown: true,
+    })).toBe("move-selection-down");
+
+    expect(getBlockArrowMoveAction({
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: true,
+      key: "ArrowDown",
+      canMoveSelectionUp: false,
+      canMoveSelectionDown: true,
     })).toBe("none");
   });
 });
