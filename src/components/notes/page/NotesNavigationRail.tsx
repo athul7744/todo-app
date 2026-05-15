@@ -33,7 +33,7 @@ export function NotesNavigationRailHeader({
   }
 
   return (
-    <div className="hidden w-full items-center justify-between gap-3 sm:flex">
+    <div className="hidden h-9 w-full items-center justify-between gap-3 sm:flex">
       <p className="text-sm font-semibold text-foreground">Pages</p>
       <div className="flex items-center gap-1.5">
         <Button

@@ -2,7 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronUp, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Ellipsis, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star, Tag as TagIcon, Trash2 } from "lucide-react";
 
 import { AppHeader } from "@/components/AppHeader";
 import { MobileBottomFabs } from "@/components/MobileBottomFabs";
@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SEARCH_POPUP_CLOSE_ANIMATION_MS } from "@/components/ui/search-popup";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAllNotePages, useLinkedNoteReferences, useNoteCounts, useNotePageWithBlocks, usePageAttachments, usePageTagMentions, useRecentNotePages } from "@/hooks/use-notes";
 import { createStarterPage, flushPendingNoteEdgeReconciles, hasPendingNoteEdgeReconciles, normalizeNotePageTitle } from "@/lib/notes/notes";
 import { getApp } from "@/lib/shared/apps";
@@ -610,6 +610,8 @@ export default function NotesPage() {
 
   const showDesktopUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay && !isLoading && !showSelectedPageLoading && selectedPage);
   const showMobileUpdatedTimestamp = Boolean(editorUpdatedTimestamp && !showEditorOverlay);
+  const desktopChromeIconButtonClass = "size-8 rounded-full text-muted-foreground transition-[color,background-color,box-shadow] duration-200 hover:bg-accent/60 hover:text-foreground hover:shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] md:size-9";
+  const desktopChromeTextButtonClass = "inline-flex h-8 w-fit items-center justify-self-start px-0 text-[11px] text-muted-foreground/80 transition-colors duration-200 hover:text-foreground";
   const desktopGridColumns = showDesktopPagesRail && showDesktopDetailsRail
     ? "sm:grid-cols-[280px_minmax(0,1fr)_320px]"
     : showDesktopPagesRail
@@ -834,7 +836,7 @@ export default function NotesPage() {
                       key={editorUpdatedTimestamp?.absolute}
                       className="inline-flex max-w-full items-center justify-center truncate text-[11px] text-muted-foreground/75 animate-fade-slide-in-soft transition-colors hover:text-foreground"
                     >
-                      {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
+                      {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Edited ${editorUpdatedTimestamp?.relative}`}
                     </button>
                   ) : <span className="block h-4" aria-hidden="true" />}
                   <Button
@@ -842,7 +844,7 @@ export default function NotesPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setShowEditorAppHeader((current) => !current)}
-                    className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                    className="size-8 shrink-0 rounded-full text-muted-foreground transition-[color,background-color,box-shadow] duration-200 hover:bg-accent/60 hover:text-foreground hover:shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)]"
                     aria-label={showEditorAppHeader ? "Hide app header" : "Show app header"}
                   >
                     {showEditorAppHeader ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -866,7 +868,7 @@ export default function NotesPage() {
 
               <section className={`grid gap-4 sm:h-full sm:min-h-0 sm:grid-rows-[auto_minmax(0,1fr)] sm:gap-y-2 ${desktopGridColumns}`}>
                 {showDesktopPagesRail ? (
-                  <div className="hidden h-8 items-center sm:flex">
+                  <div className="hidden h-9 items-center sm:flex">
                     <NotesNavigationRailHeader
                       showDesktopPagesRail={showDesktopPagesRail}
                       areAllSectionsOpen={areAllPageRailSectionsOpen}
@@ -875,12 +877,12 @@ export default function NotesPage() {
                     />
                   </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center sm:flex">
+                  <div className="hidden h-9 items-center justify-center sm:flex">
                     {desktopPagesRestoreButton}
                   </div>
                 )}
 
-                <div className="hidden h-8 items-center sm:flex">
+                <div className="hidden h-9 items-center sm:flex">
                   <div className="mx-auto grid w-full max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1 md:gap-x-2">
                     <Button
                       variant="ghost"
@@ -888,7 +890,7 @@ export default function NotesPage() {
                         transitionToOverview();
                         router.push("/notes");
                       }}
-                      className="-ml-2 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground md:size-9"
+                      className={`-ml-2 -mr-1 flex shrink-0 items-center justify-center ${desktopChromeIconButtonClass}`}
                       aria-label="Back to notes list"
                     >
                       <ArrowLeft className="h-6 w-6 md:h-7 md:w-7" />
@@ -898,30 +900,68 @@ export default function NotesPage() {
                         type="button"
                         onClick={revealAbsoluteUpdatedTime}
                         key={editorUpdatedTimestamp?.absolute}
-                        className="inline-flex items-center text-[11px] text-muted-foreground/75 animate-fade-slide-in-soft transition-colors hover:text-foreground"
+                        className={`${desktopChromeTextButtonClass} animate-fade-slide-in-soft`}
                       >
-                        {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Updated ${editorUpdatedTimestamp?.relative}`}
+                        {showAbsoluteUpdatedTime ? editorUpdatedTimestamp?.absolute : `Edited ${editorUpdatedTimestamp?.relative}`}
                       </button>
                     ) : <span className="block h-4 w-32" aria-hidden="true" />}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowEditorAppHeader((current) => !current)}
-                      className="mt-1 flex size-8 shrink-0 items-center justify-center justify-self-end rounded-full text-muted-foreground hover:text-foreground md:size-9"
-                      aria-label={showEditorAppHeader ? "Hide app header" : "Show app header"}
-                    >
-                      {showEditorAppHeader ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex items-center justify-self-end gap-1.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowEditorAppHeader((current) => !current)}
+                        className={desktopChromeIconButtonClass}
+                        aria-label={showEditorAppHeader ? "Hide app header" : "Show app header"}
+                      >
+                        {showEditorAppHeader ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleToggleFavorite}
+                        className={`${desktopChromeIconButtonClass} ${selectedPageProperties.favorite === true ? "text-amber-500 hover:text-amber-500" : ""}`}
+                        aria-label="Toggle favorite"
+                      >
+                        <Star className={`h-4 w-4 ${selectedPageProperties.favorite === true ? "fill-current" : ""}`} />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className={`inline-flex items-center justify-center ${desktopChromeIconButtonClass}`} aria-label="Page actions">
+                          <Ellipsis className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              void handleCopyDocument();
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy document
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => {
+                              setIsMobileDetailsDrawerOpen(false);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete page
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </div>
 
                 {showDesktopDetailsRail ? (
-                  <div className="hidden h-8 items-center sm:flex">
+                  <div className="hidden h-9 items-center sm:flex">
                     {desktopDetailsRailHeader}
                   </div>
                 ) : (
-                  <div className="hidden h-8 items-center justify-center sm:flex">
+                  <div className="hidden h-9 items-center justify-center sm:flex">
                     {desktopDetailsRestoreButton}
                   </div>
                 )}

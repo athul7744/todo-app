@@ -62,6 +62,7 @@ export function NotesEditorHeader({
   onOpenDeleteDialog: () => void;
 }) {
   const { data: allTags = [] } = useQuery<Tag>("SELECT * FROM tags ORDER BY name ASC");
+  const mobileHeaderChromeButtonClass = "inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-[color,background-color,box-shadow] duration-200 hover:bg-accent/60 hover:text-foreground hover:shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)]";
   const visibleTags = useMemo(
     () => selectedTagIdsDraft
       .map((tagId) => allTags.find((tag) => tag.id === tagId) ?? null)
@@ -104,17 +105,17 @@ export function NotesEditorHeader({
           className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
           placeholder="Untitled"
         />
-        <div className="col-start-2 mt-1 flex items-center justify-self-end sm:col-start-3">
+        <div className="col-start-2 mt-1 flex items-center justify-self-end gap-1.5 sm:col-start-3 sm:hidden">
           <Button
             variant="ghost"
-            className={`flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 ${editorContent.favorite ? "text-amber-500" : "text-muted-foreground"}`}
+            className={`${mobileHeaderChromeButtonClass} shrink-0 ${editorContent.favorite ? "text-amber-500 hover:text-amber-500" : ""}`}
             onClick={onToggleFavorite}
             aria-label="Toggle favorite"
           >
-            <Star className={`h-5 w-5 ${editorContent.favorite ? "fill-current" : ""}`} />
+            <Star className={`h-4 w-4 ${editorContent.favorite ? "fill-current" : ""}`} />
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:size-9">
+            <DropdownMenuTrigger className={`${mobileHeaderChromeButtonClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}>
               <Ellipsis className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
