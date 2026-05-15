@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@powersync/react";
-import { ArrowLeft, Files, Link2, Star } from "lucide-react";
+import { ArrowLeft, Copy, Ellipsis, Files, Link2, Star, Trash2 } from "lucide-react";
 
 import { TagPillStrip } from "@/components/tags/TagPillStrip";
 import { TagSelector } from "@/components/tags/TagSelector";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tag } from "@/lib/powersync/AppSchema";
@@ -39,6 +40,8 @@ export function NotesEditorHeader({
   onEmojiPickerOpenChange,
   onSelectEmoji,
   onSelectedTagIdsChange,
+  onCopyDocument,
+  onOpenDeleteDialog,
 }: {
   editorContent: EditorHeaderContent;
   showEditorOverlay: boolean;
@@ -55,6 +58,8 @@ export function NotesEditorHeader({
   onEmojiPickerOpenChange: (open: boolean) => void;
   onSelectEmoji: (emoji: string | null) => void;
   onSelectedTagIdsChange: (tagIds: string[]) => void;
+  onCopyDocument: () => void | Promise<void>;
+  onOpenDeleteDialog: () => void;
 }) {
   const { data: allTags = [] } = useQuery<Tag>("SELECT * FROM tags ORDER BY name ASC");
   const visibleTags = useMemo(
@@ -99,14 +104,36 @@ export function NotesEditorHeader({
           className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
           placeholder="Untitled"
         />
-        <Button
-          variant="ghost"
-          className={`col-start-2 mt-1 flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 sm:col-start-3 ${editorContent.favorite ? "text-amber-500" : "text-muted-foreground"}`}
-          onClick={onToggleFavorite}
-          aria-label="Toggle favorite"
-        >
-          <Star className={`h-5 w-5 ${editorContent.favorite ? "fill-current" : ""}`} />
-        </Button>
+        <div className="col-start-2 mt-1 flex items-center justify-self-end sm:col-start-3">
+          <Button
+            variant="ghost"
+            className={`flex size-8 shrink-0 items-center justify-center rounded-full md:size-9 ${editorContent.favorite ? "text-amber-500" : "text-muted-foreground"}`}
+            onClick={onToggleFavorite}
+            aria-label="Toggle favorite"
+          >
+            <Star className={`h-5 w-5 ${editorContent.favorite ? "fill-current" : ""}`} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:size-9">
+              <Ellipsis className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem
+                onClick={() => {
+                  void onCopyDocument();
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                Copy document
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onOpenDeleteDialog}>
+                <Trash2 className="h-4 w-4" />
+                Delete page
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className={`col-span-2 flex items-center gap-2 overflow-x-auto overscroll-x-contain overscroll-y-none pl-3 text-xs text-muted-foreground [touch-action:pan-x] sm:col-span-1 sm:col-start-2 sm:pl-0 ${shouldAnimateEditorContent ? "animate-stagger" : ""}`}>

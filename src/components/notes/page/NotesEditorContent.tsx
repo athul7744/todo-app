@@ -29,6 +29,8 @@ export function NotesEditorContent({
   onEmojiPickerOpenChange,
   onSelectEmoji,
   onSelectedTagIdsChange,
+  onCopyDocument,
+  onOpenDeleteDialog,
   onCreateFirstBlock,
   onFocusApplied,
   onFocusBlock,
@@ -63,6 +65,8 @@ export function NotesEditorContent({
   onEmojiPickerOpenChange: (open: boolean) => void;
   onSelectEmoji: (emoji: string | null) => void;
   onSelectedTagIdsChange: (tagIds: string[]) => void;
+  onCopyDocument: () => void | Promise<void>;
+  onOpenDeleteDialog: () => void;
   onCreateFirstBlock: () => void | Promise<void>;
   onFocusApplied: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
@@ -125,6 +129,8 @@ export function NotesEditorContent({
             onEmojiPickerOpenChange={onEmojiPickerOpenChange}
             onSelectEmoji={onSelectEmoji}
             onSelectedTagIdsChange={onSelectedTagIdsChange}
+            onCopyDocument={onCopyDocument}
+            onOpenDeleteDialog={onOpenDeleteDialog}
           />
 
           <div className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>

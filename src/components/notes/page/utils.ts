@@ -27,6 +27,7 @@ export function formatTimestampLabel(value: string | null | undefined) {
 
   return {
     relative: formatRelativeTime(date),
+    dateOnly: date.toLocaleDateString([], { dateStyle: "medium" }),
     absolute: date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
   };
 }

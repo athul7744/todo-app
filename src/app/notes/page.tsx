@@ -85,14 +85,11 @@ export default function NotesPage() {
   const [showDesktopDetailsRail, setShowDesktopDetailsRail] = useState(false);
   const [tagDirectoryOpen, setTagDirectoryOpen] = useState<Record<string, boolean>>({});
   const [detailsSectionOpen, setDetailsSectionOpen] = useState({
-    outline: false,
-    summary: false,
-    tags: false,
-    references: false,
-    mentions: false,
-    attachments: false,
-    timestamps: true,
-    actions: true,
+    outline: true,
+    summary: true,
+    references: true,
+    mentions: true,
+    attachments: true,
   });
   const isMobileViewport = useMediaQuery("(max-width: 639px)");
   const edgeSwipeStartRef = useRef<{ x: number; y: number; edge: "left" | "right" } | null>(null);
@@ -424,26 +421,20 @@ export default function NotesPage() {
 
   useEffect(() => {
     const nextState = {
-      outline: pageOutline.length > 0,
-      summary: Boolean(selectedPageSummary?.trim()),
-      tags: selectedPageTags.length > 0,
-      references: linkedReferences.length > 0,
-      mentions: pageTagMentions.length > 0,
-      attachments: selectedPageAttachments.length > 0,
-      timestamps: true,
-      actions: true,
+      outline: true,
+      summary: true,
+      references: true,
+      mentions: true,
+      attachments: true,
     };
 
     setDetailsSectionOpen((current) => {
       if (
         current.outline === nextState.outline &&
         current.summary === nextState.summary &&
-        current.tags === nextState.tags &&
         current.references === nextState.references &&
         current.mentions === nextState.mentions &&
-        current.attachments === nextState.attachments &&
-        current.timestamps === nextState.timestamps &&
-        current.actions === nextState.actions
+        current.attachments === nextState.attachments
       ) {
         return current;
       }
@@ -582,21 +573,6 @@ export default function NotesPage() {
     });
   };
 
-  const areAllDetailsSectionsOpen = Object.values(detailsSectionOpen).every(Boolean);
-
-  const toggleAllDetailsSections = () => {
-    setDetailsSectionOpen({
-      outline: !areAllDetailsSectionsOpen,
-      summary: !areAllDetailsSectionsOpen,
-      tags: !areAllDetailsSectionsOpen,
-      references: !areAllDetailsSectionsOpen,
-      mentions: !areAllDetailsSectionsOpen,
-      attachments: !areAllDetailsSectionsOpen,
-      timestamps: !areAllDetailsSectionsOpen,
-      actions: !areAllDetailsSectionsOpen,
-    });
-  };
-
   const {
     commitPageTitleDraft,
     handleCopyDocument,
@@ -671,27 +647,16 @@ export default function NotesPage() {
   const desktopDetailsRailHeader = showDesktopDetailsRail ? (
     <div className="hidden w-full items-center justify-between gap-3 sm:flex">
       <p className="text-sm font-semibold text-foreground">Details</p>
-      <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={toggleAllDetailsSections}
-          className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          {areAllDetailsSectionsOpen ? "Collapse all" : "Expand all"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => setShowDesktopDetailsRail(false)}
-          className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-          aria-label="Hide details panel"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => setShowDesktopDetailsRail(false)}
+        className="size-8 rounded-full text-muted-foreground hover:text-foreground"
+        aria-label="Hide details panel"
+      >
+        <PanelRightClose className="h-4 w-4" />
+      </Button>
     </div>
   ) : null;
 
@@ -719,28 +684,18 @@ export default function NotesPage() {
       detailsSectionOpen={detailsSectionOpen}
       pageOutline={pageOutline}
       summaryDraft={summaryDraft}
-      selectedPageTags={selectedPageTags}
       selectedTagIdsDraft={selectedTagIdsDraft}
       linkedReferences={linkedReferences}
       pageTagMentions={pageTagMentions}
       selectedPageAttachments={selectedPageAttachments}
-      selectedBlocks={selectedBlocks}
       createdTimestamp={createdTimestamp}
       isLoadingLinkedReferences={isLoadingLinkedReferences}
       isLoadingTagMentions={isLoadingTagMentions}
       isLoadingAttachments={isLoadingAttachments}
-      areAllDetailsSectionsOpen={areAllDetailsSectionsOpen}
-      onToggleAllDetailsSections={toggleAllDetailsSections}
       onToggleDetailsSection={toggleDetailsSection}
       onSetSummaryDraft={setSummaryDraft}
-      onSelectedTagIdsChange={setSelectedTagIdsDraft}
       onPersistSelectedPageProperties={persistSelectedPageProperties}
       onSetFocusTarget={setFocusTarget}
-      onOpenDeleteDialog={() => {
-        setIsMobileDetailsDrawerOpen(false);
-        setIsDeleteDialogOpen(true);
-      }}
-      onHandleCopyDocument={handleCopyDocument}
     />
   );
 
@@ -900,7 +855,7 @@ export default function NotesPage() {
                     triggerIcon={Files}
                     triggerLabel="Details"
                     title="Details"
-                    description="Summary, tags, files, timestamps, and actions for the current page."
+                    description="Outline, references, summary, and attachments for the current page."
                     open={isMobileDetailsDrawerOpen}
                     onOpenChange={setIsMobileDetailsDrawerOpen}
                   >
@@ -1003,6 +958,11 @@ export default function NotesPage() {
                     onSelectedTagIdsChange={(nextTagIds) => {
                       setSelectedTagIdsDraft(nextTagIds);
                       persistSelectedPageProperties(summaryDraft, nextTagIds);
+                    }}
+                    onCopyDocument={handleCopyDocument}
+                    onOpenDeleteDialog={() => {
+                      setIsMobileDetailsDrawerOpen(false);
+                      setIsDeleteDialogOpen(true);
                     }}
                     onCreateFirstBlock={handleCreateRootBlock}
                     onFocusApplied={handleFocusApplied}

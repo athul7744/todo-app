@@ -90,8 +90,8 @@ export function NotesNavigationRail({
   onSelectPage: (pageId: string) => void;
 }) {
   return (
-    <div className="animate-fade-slide-in space-y-4 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-4 sm:space-y-0">
-      <div className="space-y-4 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
+    <div className="animate-fade-slide-in space-y-3 py-1 sm:flex sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:flex-col sm:gap-3 sm:space-y-0">
+      <div className="space-y-3 pr-1 pb-4 transition-smooth sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
         <div className="flex items-center justify-between gap-3 sm:hidden">
           <p className="text-sm font-semibold text-foreground">Pages</p>
           <Button
@@ -99,7 +99,7 @@ export function NotesNavigationRail({
             variant="ghost"
             size="sm"
             onClick={onToggleAllSections}
-            className="h-8 rounded-full px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+            className="h-8 rounded-full bg-muted/70 px-3 text-[11px] font-medium text-muted-foreground transition-smooth hover:bg-accent hover:text-foreground"
           >
             {areAllSectionsOpen ? "Collapse all" : "Expand all"}
           </Button>
@@ -112,7 +112,7 @@ export function NotesNavigationRail({
         ) : normalizedPages.length === 0 ? (
           <div className="px-2 py-4 text-[13px] text-muted-foreground">No pages yet. Create one to start writing.</div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <DetailsSection
               title="Favorites"
               icon={Star}
@@ -183,15 +183,15 @@ export function NotesNavigationRail({
                           onClick={() => onToggleTagDirectoryGroup(entry.key)}
                           aria-expanded={isOpen}
                           aria-controls={`tag-directory-${entry.key}`}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors hover:text-foreground"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-1 py-1.5 text-left transition-smooth hover:bg-accent/45 hover:text-foreground"
                         >
-                          <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground">
+                          <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-muted-foreground transition-smooth hover:bg-accent">
                               <span className={cn("h-2.5 w-2.5 rounded-full", getTagDotClass(entry.color || "slate"))} />
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate text-[13px] font-medium text-foreground">#{entry.label}</span>
-                              <span className="block text-[11px] leading-5 text-muted-foreground">{entry.count} page{entry.count === 1 ? "" : "s"}</span>
+                              <span className="block text-[10.5px] leading-5 text-muted-foreground">{entry.count} page{entry.count === 1 ? "" : "s"}</span>
                             </span>
                           </span>
                           <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : "rotate-0"}`} />
@@ -199,10 +199,10 @@ export function NotesNavigationRail({
 
                         <div
                           id={`tag-directory-${entry.key}`}
-                          className={`grid overflow-hidden transition-all duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                          className={`grid overflow-hidden transition-all duration-180 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
                         >
                           <div className="min-h-0" inert={!isOpen}>
-                            <div className={`space-y-1 pl-8 transition-all duration-200 ease-out ${isOpen ? "translate-y-0" : "-translate-y-1"}`} aria-hidden={!isOpen}>
+                            <div className={`space-y-1 pl-4 transition-all duration-180 ease-out ${isOpen ? "translate-y-0 opacity-100" : "-translate-y-0.5 opacity-0"}`} aria-hidden={!isOpen}>
                               {entry.pages.map((page) => (
                                 <NavigationPageLink
                                   key={page.id}
@@ -210,7 +210,7 @@ export function NotesNavigationRail({
                                   selectedPageId={selectedPageId}
                                   onSelectPage={onSelectPage}
                                   showTags={false}
-                                  className="px-3 py-1.5"
+                                  className="px-1 py-1.5"
                                 />
                               ))}
                             </div>
