@@ -1,10 +1,12 @@
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, IndentDecrease, IndentIncrease, Trash2 } from "lucide-react";
 
 import type { BlockContextMenuActionId, BlockContextMenuOption } from "@/components/notes/block-context-menu-options";
 
 const ACTION_ICON_BY_ID = {
   "move-up": ArrowUp,
   "move-down": ArrowDown,
+  indent: IndentIncrease,
+  outdent: IndentDecrease,
   delete: Trash2,
 } satisfies Record<BlockContextMenuActionId, typeof ArrowUp>;
 

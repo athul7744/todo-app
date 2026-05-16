@@ -187,6 +187,8 @@ function BlockNodeView({
     blockType,
     canMoveUp: previousBlockId !== null,
     canMoveDown: nextBlockId !== null,
+    canIndent: !!previousSiblingId,
+    canOutdent: !!parentBlockId,
   });
   const bulletRef = useRef<HTMLDivElement | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
@@ -223,6 +225,16 @@ function BlockNodeView({
         }
 
         onMoveSelectedBlockRange(moveTargetBlockIds, "down", node.block.id);
+        return;
+      case "indent":
+        if (previousSiblingId) {
+          onIndent(node.block.id, previousSiblingId);
+        }
+        return;
+      case "outdent":
+        if (parentBlockId) {
+          onOutdent(node.block.id, parentParentBlockId);
+        }
         return;
       case "delete":
         onDelete(node.block.id);

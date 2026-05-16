@@ -1,4 +1,4 @@
-export type BlockContextMenuActionId = "move-up" | "move-down" | "delete";
+export type BlockContextMenuActionId = "move-up" | "move-down" | "indent" | "outdent" | "delete";
 
 export type BlockContextMenuOption = {
   id: BlockContextMenuActionId;
@@ -11,11 +11,13 @@ type BlockContextMenuOptionsInput = {
   blockType: string;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  canIndent?: boolean;
+  canOutdent?: boolean;
 };
 
 const BLOCK_CONTEXT_ACTION_IDS_BY_TYPE: Record<string, BlockContextMenuActionId[]> = {
-  default: ["move-up", "move-down", "delete"],
-  text: ["move-up", "move-down", "delete"],
+  default: ["move-up", "move-down", "indent", "outdent", "delete"],
+  text: ["move-up", "move-down", "indent", "outdent", "delete"],
 };
 
 export function getBlockContextMenuActionIds(blockType: string): BlockContextMenuActionId[] {
@@ -24,26 +26,46 @@ export function getBlockContextMenuActionIds(blockType: string): BlockContextMen
 
 export function getBlockContextMenuOptions({
   blockType,
-  canMoveUp = true,
-  canMoveDown = true,
+  canMoveUp = false,
+  canMoveDown = false,
+  canIndent = false,
+  canOutdent = false,
 }: BlockContextMenuOptionsInput): BlockContextMenuOption[] {
   const options: BlockContextMenuOption[] = [];
 
   getBlockContextMenuActionIds(blockType).forEach((actionId) => {
     switch (actionId) {
       case "move-up":
-        options.push({
-          id: actionId,
-          label: "Move block up",
-          disabled: !canMoveUp,
-        });
+        if (canMoveUp) {
+          options.push({
+            id: actionId,
+            label: "Move block up",
+          });
+        }
         return;
       case "move-down":
-        options.push({
-          id: actionId,
-          label: "Move block down",
-          disabled: !canMoveDown,
-        });
+        if (canMoveDown) {
+          options.push({
+            id: actionId,
+            label: "Move block down",
+          });
+        }
+        return;
+      case "indent":
+        if (canIndent) {
+          options.push({
+            id: actionId,
+            label: "Indent block",
+          });
+        }
+        return;
+      case "outdent":
+        if (canOutdent) {
+          options.push({
+            id: actionId,
+            label: "Outdent block",
+          });
+        }
         return;
       case "delete":
         options.push({
