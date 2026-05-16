@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Extension, InputRule, markInputRule, markPasteRule, type Editor, type JSONContent } from "@tiptap/core";
-import { Link2 } from "lucide-react";
+import { Link2, Minus, Plus, Rows3, Trash2 } from "lucide-react";
 import Blockquote from "@tiptap/extension-blockquote";
 import Bold from "@tiptap/extension-bold";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
@@ -32,10 +32,12 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import Text from "@tiptap/extension-text";
 import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
+import { CellSelection, findCellPos } from "prosemirror-tables";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
 import {
   createScaffoldDocument,
   emptyDocument,
@@ -71,6 +73,38 @@ const markdownTaskListRegex = /(^|\n)\s*[-*+]\s\[[ xX]\]\s/;
 const notePageReferenceRegex = /\[\[[^\]]+\]\]/g;
 const noteInlineTagRegex = /(^|[\s(])#([a-z0-9][a-z0-9_/-]*)/gi;
 const lowlight = createLowlight(common);
+
+type TableToolbarState = {
+  visible: boolean;
+  canAddColumn: boolean;
+  canDeleteColumn: boolean;
+  canAddRow: boolean;
+  canDeleteRow: boolean;
+  canDeleteTable: boolean;
+};
+
+type TableToolbarPosition = {
+  top: number;
+  right: number;
+};
+
+const hiddenTableToolbarState: TableToolbarState = {
+  visible: false,
+  canAddColumn: false,
+  canDeleteColumn: false,
+  canAddRow: false,
+  canDeleteRow: false,
+  canDeleteTable: false,
+};
+
+const visibleTableToolbarState: TableToolbarState = {
+  visible: true,
+  canAddColumn: true,
+  canDeleteColumn: true,
+  canAddRow: true,
+  canDeleteRow: true,
+  canDeleteTable: true,
+};
 
 const turndownService = new TurndownService({
   bulletListMarker: "-",
@@ -127,6 +161,98 @@ function normalizeExportedMarkdownTokens(markdown: string) {
     .replace(/\\\[\\\[/g, "[[")
     .replace(/\\\]\\\]/g, "]]")
     .replace(/(^|[\s(])\\#([a-z0-9][a-z0-9_/-]*)/gi, "$1#$2");
+}
+
+function getTableToolbarState(editor: Editor | null): TableToolbarState {
+  if (!editor || !editor.isActive("table")) {
+    return hiddenTableToolbarState;
+  }
+
+  const canDelete = editor.can().deleteColumn();
+  const canDeleteRow = editor.can().deleteRow();
+
+  if (!editor.isFocused || !canDelete || !canDeleteRow) {
+    return {
+      visible: editor.isFocused,
+      canAddColumn: true,
+      canDeleteColumn: canDelete,
+      canAddRow: true,
+      canDeleteRow: canDeleteRow,
+      canDeleteTable: true,
+    };
+  }
+
+  return visibleTableToolbarState;
+}
+
+function getTableToolbarPosition(editor: Editor | null, container: HTMLElement | null): TableToolbarPosition | null {
+  if (!editor || !container || !editor.isActive("table")) {
+    return null;
+  }
+
+  let selectionNode: Node | null = editor.view.nodeDOM(editor.state.selection.from);
+
+  if (selectionNode?.nodeType === Node.TEXT_NODE) {
+    selectionNode = selectionNode.parentElement;
+  }
+
+  if (!(selectionNode instanceof HTMLElement)) {
+    return null;
+  }
+
+  const rowElement = selectionNode.closest("tr");
+  if (!(rowElement instanceof HTMLElement)) {
+    return null;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const rowRect = rowElement.getBoundingClientRect();
+
+  return {
+    top: rowRect.top - containerRect.top + rowRect.height / 2,
+    right: Math.max(containerRect.right - rowRect.right + 8, 8),
+  };
+}
+
+function getFocusedTableCellPos(editor: Editor | null): number | null {
+  if (!editor || !editor.isActive("table")) {
+    return null;
+  }
+
+  const { doc, selection } = editor.state;
+
+  if (selection instanceof CellSelection) {
+    return selection.$headCell.pos;
+  }
+
+  try {
+    return findCellPos(doc, selection.head)?.pos ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function runTableActionAtFocusedCell(
+  editor: Editor,
+  focusedCellPos: number | null,
+  action: () => boolean
+) {
+  const cellPos = focusedCellPos ?? getFocusedTableCellPos(editor);
+
+  if (cellPos !== null) {
+    // Place a text cursor inside the target cell so prosemirror-tables
+    // commands (which use selectionCell → findCell) operate on the
+    // correct column/row.  No CellSelection needed for single-cell ops.
+    const $cell = editor.state.doc.resolve(cellPos);
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.near($cell))
+    );
+    editor.view.focus();
+  } else {
+    editor.commands.focus();
+  }
+
+  return action();
 }
 
 function getMarkdownClipboardText(event: ClipboardEvent) {
@@ -650,6 +776,15 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
   const [pageReferenceQuery, setPageReferenceQuery] = useState<PageReferenceQuery | null>(null);
   const [selectedPageReferenceIndex, setSelectedPageReferenceIndex] = useState(0);
+  const [tableToolbarState, setTableToolbarState] = useState<TableToolbarState>(hiddenTableToolbarState);
+  const [tableToolbarPosition, setTableToolbarPosition] = useState<TableToolbarPosition | null>(null);
+  const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
+  const isTableMenuOpenRef = useRef(false);
+  isTableMenuOpenRef.current = isTableMenuOpen;
+  const editorShellRef = useRef<HTMLDivElement | null>(null);
+  const tableMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const tableMenuPanelRef = useRef<HTMLDivElement | null>(null);
+  const tableFocusedCellPosRef = useRef<number | null>(null);
   const slashQueryRef = useRef<string | null>(null);
   const filteredSlashCommandsRef = useRef<SlashCommand[]>([]);
   const slashItemRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -887,7 +1022,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       TaskItem.configure({
         nested: true,
       }),
-      Table.configure({
+      Table.extend({
+        renderHTML({ HTMLAttributes }) {
+          return ["table", HTMLAttributes, ["tbody", 0]];
+        },
+      }).configure({
         resizable: false,
       }),
       TableRow,
@@ -1487,6 +1626,81 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
     };
   }, [editor, focusPlacement, onFocusApplied, shouldFocus]);
 
+  useEffect(() => {
+    if (!editor) {
+      setTableToolbarState(hiddenTableToolbarState);
+      setTableToolbarPosition(null);
+      setIsTableMenuOpen(false);
+      return;
+    }
+
+    const updateTableToolbarState = () => {
+      if (editor.isFocused && editor.isActive("table")) {
+        tableFocusedCellPosRef.current = getFocusedTableCellPos(editor);
+      }
+
+      setTableToolbarState(getTableToolbarState(editor));
+
+      // Don't move the toolbar while the menu is open — keeps it pinned
+      // to the row where it was triggered.
+      if (isTableMenuOpenRef.current) {
+        return;
+      }
+
+      const nextToolbarPosition = getTableToolbarPosition(editor, editorShellRef.current);
+      if (nextToolbarPosition) {
+        setTableToolbarPosition(nextToolbarPosition);
+      }
+    };
+
+    updateTableToolbarState();
+    editor.on("transaction", updateTableToolbarState);
+    editor.on("focus", updateTableToolbarState);
+    editor.on("blur", updateTableToolbarState);
+
+    return () => {
+      editor.off("transaction", updateTableToolbarState);
+      editor.off("focus", updateTableToolbarState);
+      editor.off("blur", updateTableToolbarState);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!isTableMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (tableMenuTriggerRef.current?.contains(target) || tableMenuPanelRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsTableMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsTableMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isTableMenuOpen]);
+
   if (!editor) {
     return (
       <div aria-hidden="true" className="min-h-6 px-0 py-0 text-sm leading-5 text-transparent">
@@ -1497,7 +1711,8 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
   return (
     <div
-      className="relative cursor-text"
+      ref={editorShellRef}
+      className="group/note-editor relative cursor-text"
       onMouseDown={(event) => {
         if (!editor) return;
         if (event.target instanceof HTMLElement && event.target.closest(".ProseMirror")) return;
@@ -1505,6 +1720,116 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
         editor.chain().focus("end").run();
       }}
     >
+      {tableToolbarPosition !== null && (tableToolbarState.visible || isTableMenuOpen) ? (
+        <div
+          className={`absolute z-10 -translate-y-1/2 transition-opacity duration-150 ${isTableMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0 group-focus-within/note-editor:pointer-events-auto group-focus-within/note-editor:opacity-100 md:group-hover/note-editor:pointer-events-auto md:group-hover/note-editor:opacity-100"}`}
+          style={{
+            top: `${tableToolbarPosition.top}px`,
+            right: `${tableToolbarPosition.right}px`,
+          }}
+        >
+          <div className="relative">
+            <button
+              ref={tableMenuTriggerRef}
+              type="button"
+              title="Table options"
+              aria-label="Table options"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-border/50 bg-card/95 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onMouseDown={(event) => {
+                tableFocusedCellPosRef.current = getFocusedTableCellPos(editor);
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsTableMenuOpen((open) => !open);
+              }}
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+            </button>
+            {isTableMenuOpen ? (
+              <div
+                ref={tableMenuPanelRef}
+                data-slot="dropdown-menu-content"
+                className="absolute top-[calc(100%+0.375rem)] right-0 z-20 w-44 min-w-32 overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <button
+                  type="button"
+                  data-slot="dropdown-menu-item"
+                  disabled={!tableToolbarState.canAddColumn}
+                  className="group/dropdown-menu-item relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                  onClick={() => {
+                    runTableActionAtFocusedCell(editor, tableFocusedCellPosRef.current, () => editor.commands.addColumnAfter());
+                    setIsTableMenuOpen(false);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add column
+                </button>
+                <button
+                  type="button"
+                  data-slot="dropdown-menu-item"
+                  disabled={!tableToolbarState.canDeleteColumn}
+                  className="group/dropdown-menu-item relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                  onClick={() => {
+                    runTableActionAtFocusedCell(editor, tableFocusedCellPosRef.current, () => editor.commands.deleteColumn());
+                    setIsTableMenuOpen(false);
+                  }}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                  Delete column
+                </button>
+                <div className="my-1 h-px bg-border/70" />
+                <button
+                  type="button"
+                  data-slot="dropdown-menu-item"
+                  disabled={!tableToolbarState.canAddRow}
+                  className="group/dropdown-menu-item relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                  onClick={() => {
+                    runTableActionAtFocusedCell(editor, tableFocusedCellPosRef.current, () => editor.commands.addRowAfter());
+                    setIsTableMenuOpen(false);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add row
+                </button>
+                <button
+                  type="button"
+                  data-slot="dropdown-menu-item"
+                  disabled={!tableToolbarState.canDeleteRow}
+                  className="group/dropdown-menu-item relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                  onClick={() => {
+                    runTableActionAtFocusedCell(editor, tableFocusedCellPosRef.current, () => editor.commands.deleteRow());
+                    setIsTableMenuOpen(false);
+                  }}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                  Delete row
+                </button>
+                <div className="my-1 h-px bg-border/70" />
+                <button
+                  type="button"
+                  data-slot="dropdown-menu-item"
+                  disabled={!tableToolbarState.canDeleteTable}
+                  className="group/dropdown-menu-item relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-destructive outline-hidden select-none focus:bg-destructive/10 focus:text-destructive data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                  onClick={() => {
+                    runTableActionAtFocusedCell(editor, tableFocusedCellPosRef.current, () => editor.commands.deleteTable());
+                    setIsTableMenuOpen(false);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete table
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <EditorContent editor={editor} />
       {pageReferenceQuery !== null ? (
         <div className="mt-2 max-w-md rounded-xl border border-border/60 bg-popover/95 p-1.5 shadow-lg backdrop-blur-sm">

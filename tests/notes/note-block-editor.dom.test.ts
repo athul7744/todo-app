@@ -59,6 +59,33 @@ function createParagraphDocument(paragraphs: string[]): JSONContent {
   };
 }
 
+function createTableDocument(): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "table",
+        content: [
+          {
+            type: "tableRow",
+            content: [
+              { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }] },
+              { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "B" }] }] },
+            ],
+          },
+          {
+            type: "tableRow",
+            content: [
+              { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "1" }] }] },
+              { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "2" }] }] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function getParagraphStartSelection(paragraphs: string[], index: number) {
   const offset = paragraphs
     .slice(0, index)
@@ -95,6 +122,22 @@ async function waitForHighlightToken(container: HTMLElement) {
   }
 
   throw new Error("Highlighted code token failed to render");
+}
+
+async function waitForElement(container: HTMLElement, selector: string) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const element = container.querySelector(selector) as HTMLElement | null;
+    if (element) {
+      return element;
+    }
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      await Promise.resolve();
+    });
+  }
+
+  throw new Error(`Element not found for selector: ${selector}`);
 }
 
 async function mountNoteBlockEditor(options?: {
@@ -199,6 +242,36 @@ async function selectAllEditorText(target: HTMLElement) {
   await act(async () => {
     await Promise.resolve();
   });
+}
+
+async function placeCursorInTableCell(container: HTMLElement, cellIndex = 0) {
+  const editorElement = await waitForEditorElement(container);
+  const cells = Array.from(container.querySelectorAll("th p, td p")) as HTMLElement[];
+  const targetCell = cells[cellIndex] ?? null;
+
+  if (!targetCell) {
+    throw new Error(`Table cell not found at index ${cellIndex}`);
+  }
+
+  editorElement.focus();
+
+  const selection = window.getSelection();
+  if (!selection) {
+    throw new Error("Selection API unavailable");
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(targetCell);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  return targetCell;
 }
 
 it("splits a parent block in place when Enter is pressed mid-line", async () => {
@@ -351,3 +424,114 @@ it("renders highlighted markup for code blocks", async () => {
 
   await mounted.unmount();
 });
+
+it("shows table controls and adds a column from the table toolbar", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument(createTableDocument()),
+    shouldFocus: false,
+  });
+
+  await placeCursorInTableCell(mounted.container, 0);
+
+  const tableOptionsButton = await waitForElement(mounted.container, 'button[title="Table options"]');
+
+  await act(async () => {
+    tableOptionsButton.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    await Promise.resolve();
+  });
+
+  await waitForElement(document.body, '[data-slot="dropdown-menu-item"]');
+
+  await act(async () => {
+    const addColumnItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
+      .find((element) => element.textContent?.includes("Add column")) as HTMLElement | undefined;
+    expect(addColumnItem).toBeDefined();
+    addColumnItem?.click();
+    await Promise.resolve();
+  });
+
+  const latestContent = mounted.onChange.mock.calls.at(-1)?.[0] as JSONContent | undefined;
+  const tableNode = latestContent?.content?.[0];
+  const firstRow = Array.isArray(tableNode?.content) ? tableNode.content[0] : null;
+  expect(Array.isArray(firstRow?.content) ? firstRow.content.length : 0).toBe(3);
+
+  await mounted.unmount();
+});
+
+it("deletes the focused column from the table toolbar", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument(createTableDocument()),
+    shouldFocus: false,
+  });
+
+  await placeCursorInTableCell(mounted.container, 1);
+
+  const tableOptionsButton = await waitForElement(mounted.container, 'button[title="Table options"]');
+
+  await act(async () => {
+    tableOptionsButton.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    await Promise.resolve();
+  });
+
+  await waitForElement(document.body, '[data-slot="dropdown-menu-item"]');
+
+  await act(async () => {
+    const deleteColumnItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
+      .find((element) => element.textContent?.includes("Delete column")) as HTMLElement | undefined;
+    expect(deleteColumnItem).toBeDefined();
+    deleteColumnItem?.click();
+    await Promise.resolve();
+  });
+
+  const latestContent = mounted.onChange.mock.calls.at(-1)?.[0] as JSONContent | undefined;
+  const tableNode = latestContent?.content?.[0];
+  const firstRow = Array.isArray(tableNode?.content) ? tableNode.content[0] : null;
+  const firstRowCells = Array.isArray(firstRow?.content) ? firstRow.content : [];
+  expect(firstRowCells.length).toBe(1);
+  expect(firstRowCells[0]?.content?.[0]?.content?.[0]).toEqual({ type: "text", text: "A" });
+
+  await mounted.unmount();
+});
+
+it("keeps the focused column target after the editor blurs while the table menu is open", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument(createTableDocument()),
+    shouldFocus: false,
+  });
+
+  await placeCursorInTableCell(mounted.container, 1);
+
+  const tableOptionsButton = await waitForElement(mounted.container, 'button[title="Table options"]');
+
+  await act(async () => {
+    tableOptionsButton.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
+    tableOptionsButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    mounted.editorElement.dispatchEvent(new FocusEvent("blur", { bubbles: false }));
+    await Promise.resolve();
+  });
+
+  await waitForElement(document.body, '[data-slot="dropdown-menu-item"]');
+
+  await act(async () => {
+    const deleteColumnItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]'))
+      .find((element) => element.textContent?.includes("Delete column")) as HTMLElement | undefined;
+    expect(deleteColumnItem).toBeDefined();
+    deleteColumnItem?.click();
+    await Promise.resolve();
+  });
+
+  const latestContent = mounted.onChange.mock.calls.at(-1)?.[0] as JSONContent | undefined;
+  const tableNode = latestContent?.content?.[0];
+  const firstRow = Array.isArray(tableNode?.content) ? tableNode.content[0] : null;
+  const firstRowCells = Array.isArray(firstRow?.content) ? firstRow.content : [];
+  expect(firstRowCells.length).toBe(1);
+  expect(firstRowCells[0]?.content?.[0]?.content?.[0]).toEqual({ type: "text", text: "A" });
+
+  await mounted.unmount();
+});
+
