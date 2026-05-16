@@ -111,12 +111,12 @@ export function OverviewPageCard({
       />
       {accentClasses ? <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b", accentClasses.glow)} /> : null}
       <div className="relative z-10 flex min-h-[11.5rem] flex-col gap-2.5 pointer-events-none sm:min-h-[12.5rem] sm:gap-3">
-        <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10">
             <PageIcon emoji={page.emoji} className="h-4 w-4 text-sm leading-none sm:h-4.5 sm:w-4.5 sm:text-base" />
           </span>
 
-          {showTags ? <TagPillStrip tags={page.tags} className="flex-1" /> : <div className="flex-1" />}
+          <div className="flex-1" />
 
           <Button
             type="button"
@@ -150,6 +150,7 @@ export function OverviewPageCard({
         </div>
 
         <div className="mt-auto space-y-2 pt-1">
+          {showTags ? <TagPillStrip tags={page.tags} className="max-w-full" /> : null}
           {showUpdated && updatedLabel ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 sm:text-[11px]">
               Updated {updatedLabel}

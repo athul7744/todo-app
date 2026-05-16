@@ -798,7 +798,7 @@ export default function NotesPage() {
         />
       ) : null}
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] py-4 pb-[var(--mobile-bottom-fab-clearance)] sm:overflow-hidden sm:pb-4 md:py-8 md:pb-8">
+      <main className={`flex-1 overflow-y-auto overflow-x-hidden px-[var(--app-gutter-x)] pb-[var(--mobile-bottom-fab-clearance)] sm:overflow-hidden sm:pb-4 ${isDisplayingOverview ? "pt-0 md:pt-0 md:pb-8" : "py-4 md:py-8 md:pb-8"}`}>
         <div className="mx-auto max-w-[1600px] space-y-4 sm:flex sm:h-full sm:min-h-0 sm:flex-col sm:space-y-0">
           {isDisplayingOverview ? (
             <NotesOverview
