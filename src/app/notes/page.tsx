@@ -44,8 +44,6 @@ import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
 
 const notesApp = getApp("notes");
 const NOTES_DESKTOP_PANEL_PREFERENCE_KEY = "notes.desktop-panels";
-const MOBILE_SWIPE_START_FRACTION = 1 / 3;
-const MOBILE_SWIPE_START_BAND_PX = 56;
 const MOBILE_EDGE_SWIPE_TRIGGER_PX = 56;
 const MOBILE_EDGE_SWIPE_MAX_VERTICAL_DRIFT_PX = 48;
 
@@ -713,17 +711,27 @@ export default function NotesPage() {
       return;
     }
 
+    // Ignore swipes starting on horizontally scrollable containers (e.g. title/tag row)
+    let el = event.target as HTMLElement | null;
+    while (el && el !== event.currentTarget) {
+      const touchAction = getComputedStyle(el).touchAction;
+      if (touchAction === "pan-x" || el.scrollWidth > el.clientWidth + 1) {
+        edgeSwipeStartRef.current = null;
+        return;
+      }
+      el = el.parentElement;
+    }
+
     const { clientX, clientY } = touch;
     const viewportWidth = window.innerWidth;
-    const leftSwipeZoneCenter = viewportWidth * MOBILE_SWIPE_START_FRACTION;
-    const rightSwipeZoneCenter = viewportWidth * (1 - MOBILE_SWIPE_START_FRACTION);
+    const edgeZone = viewportWidth / 3;
 
-    if (Math.abs(clientX - leftSwipeZoneCenter) <= MOBILE_SWIPE_START_BAND_PX) {
+    if (clientX <= edgeZone) {
       edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "left" };
       return;
     }
 
-    if (Math.abs(clientX - rightSwipeZoneCenter) <= MOBILE_SWIPE_START_BAND_PX) {
+    if (clientX >= viewportWidth - edgeZone) {
       edgeSwipeStartRef.current = { x: clientX, y: clientY, edge: "right" };
       return;
     }
