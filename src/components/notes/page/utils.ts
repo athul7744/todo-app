@@ -71,7 +71,7 @@ export function extractOutlineEntries(blockId: string, rawContent: string | null
 
     return headings.map((heading) => ({
       blockId,
-      level: Math.min(Math.max(heading.level, 1), 3),
+      level: Math.min(Math.max(heading.level, 1), 5),
       text: heading.text,
     }));
   } catch {

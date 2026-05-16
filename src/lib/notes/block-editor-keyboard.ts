@@ -9,7 +9,7 @@ export type BlockEnterAction =
 
 export type BlockTabAction = "none" | "indent" | "outdent" | "insert-tab";
 
-export type BlockBackspaceAction = "none" | "reset-empty-special-block" | "delete-empty-block" | "merge-with-previous";
+export type BlockBackspaceAction = "none" | "reset-empty-block" | "delete-empty-block" | "merge-with-previous";
 export type BlockArrowMoveAction = "none" | "move-selection-up" | "move-selection-down";
 
 type EnterActionInput = {
@@ -42,6 +42,9 @@ type BackspaceActionInput = {
   isTaskItem: boolean;
   isCodeBlock: boolean;
   isTable: boolean;
+  isHeading: boolean;
+  isBlockquote: boolean;
+  isHorizontalRuleOnly: boolean;
   isAtBlockStart: boolean;
   canMergeWithPrevious: boolean;
 };
@@ -145,8 +148,8 @@ export function getBlockBackspaceAction(input: BackspaceActionInput): BlockBacks
   }
 
   if (input.isEmptyBlock) {
-    if (input.isTaskItem || input.isCodeBlock) {
-      return "reset-empty-special-block";
+    if (input.isTaskItem || input.isCodeBlock || input.isTable || input.isHeading || input.isBlockquote || input.isHorizontalRuleOnly) {
+      return "reset-empty-block";
     }
 
     return "delete-empty-block";

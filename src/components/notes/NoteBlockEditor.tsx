@@ -877,7 +877,7 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       }),
       Blockquote,
       Heading.configure({
-        levels: [1, 2, 3],
+        levels: [1, 2, 3, 4, 5],
       }),
       NotesArrowReplacement,
       NotesHorizontalRule,
@@ -1371,23 +1371,26 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
           isTaskItem: Boolean(editor?.isActive("taskItem")),
           isCodeBlock: Boolean(editor?.isActive("codeBlock")),
           isTable: Boolean(editor?.isActive("table")),
+          isHeading: Boolean(editor?.isActive("heading")),
+          isBlockquote: Boolean(editor?.isActive("blockquote")),
+          isHorizontalRuleOnly: Boolean(editor && isHorizontalRuleOnlyDocument(editor.getJSON())),
           isAtBlockStart: Boolean(editor && isAtStartOfBlockContent(editor)),
           canMergeWithPrevious: Boolean(onMergeWithPreviousRef.current),
         });
 
-        if (event.key === "Backspace" && (backspaceAction === "reset-empty-special-block" || backspaceAction === "delete-empty-block")) {
+        if (event.key === "Backspace" && (backspaceAction === "reset-empty-block" || backspaceAction === "delete-empty-block")) {
           event.preventDefault();
 
-          if (backspaceAction === "reset-empty-special-block") {
-            const nextContent = emptyDocument();
-            pendingLocalContentRef.current = JSON.stringify(nextContent);
-            editor?.commands.setContent(nextContent, { emitUpdate: true });
-            onCommitRef.current?.(nextContent);
+          if (backspaceAction === "delete-empty-block") {
+            flushEditorContent();
+            onDeleteEmptyRef.current();
             return true;
           }
 
-          flushEditorContent();
-          onDeleteEmptyRef.current();
+          const nextContent = emptyDocument();
+          pendingLocalContentRef.current = JSON.stringify(nextContent);
+          editor?.commands.setContent(nextContent, { emitUpdate: true });
+          onCommitRef.current?.(nextContent);
           return true;
         }
 

@@ -14,12 +14,57 @@ import {
   serializeBlockClipboardData,
   serializeBlockClipboardMarkdown,
 } from "@/lib/notes/block-line-selection";
-import { extractNoteText } from "@/lib/notes/notes-content";
+import { extractNoteText, normalizeNoteDocument } from "@/lib/notes/notes-content";
 import type { BlockRangeMoveDirection } from "@/lib/notes/block-editor-structure";
 import { buildNoteBlockTree, createVisibleNoteBlockNeighbors, type NoteTreeNode } from "@/lib/notes/notes-tree";
 import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
 
 type BlockTreeNode = NoteTreeNode<NoteBlockRow>;
+
+type BlockSpacingMeta = {
+  kind: "heading" | "hr" | "other";
+  headingLevel?: 1 | 2 | 3 | 4 | 5;
+};
+
+function getBlockSpacingMeta(raw: string | null | undefined): BlockSpacingMeta {
+  const document = normalizeNoteDocument(raw);
+  const firstNode = Array.isArray(document.content) ? document.content[0] : null;
+
+  if (!firstNode || typeof firstNode !== "object" || !("type" in firstNode)) {
+    return { kind: "other" };
+  }
+
+  if (firstNode.type === "horizontalRule") {
+    return { kind: "hr" };
+  }
+
+  if (firstNode.type === "heading") {
+    const level = typeof firstNode.attrs === "object" && firstNode.attrs && "level" in firstNode.attrs
+      ? firstNode.attrs.level
+      : null;
+
+    if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5) {
+      return { kind: "heading", headingLevel: level };
+    }
+  }
+
+  return { kind: "other" };
+}
+
+function getHeadingOffsetPx(level: 1 | 2 | 3 | 4 | 5) {
+  switch (level) {
+    case 1:
+      return -1;
+    case 2:
+      return -2;
+    case 3:
+      return -4;
+    case 4:
+      return -5;
+    case 5:
+      return -6;
+  }
+}
 
 export function extractBlockText(raw: string | null | undefined) {
   return extractNoteText(raw);
@@ -35,6 +80,7 @@ function BlockNodeView({
   focusPlacement,
   previousBlockIdById,
   nextBlockIdById,
+  blockSpacingMetaById,
   onFocusApplied,
   onFocusBlock,
   onEditorFocus,
@@ -66,6 +112,7 @@ function BlockNodeView({
   focusPlacement?: number | "start" | "end";
   previousBlockIdById: ReadonlyMap<string, string | null>;
   nextBlockIdById: ReadonlyMap<string, string | null>;
+  blockSpacingMetaById: ReadonlyMap<string, BlockSpacingMeta>;
   onFocusApplied?: () => void;
   onFocusBlock: (blockId: string, placement: "start" | "end") => void;
   onEditorFocus: (blockId: string, placement: "start" | "end") => void;
@@ -100,6 +147,8 @@ function BlockNodeView({
 }) {
   const previousBlockId = previousBlockIdById.get(node.block.id) ?? null;
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
+  const blockSpacingMeta = blockSpacingMetaById.get(node.block.id) ?? { kind: "other" };
+  const previousBlockSpacingMeta = previousBlockId ? (blockSpacingMetaById.get(previousBlockId) ?? { kind: "other" }) : { kind: "other" };
   const blockType = node.block.type ?? "text";
   const moveTargetBlockIds = selectedBlockIds.has(node.block.id)
     ? [...selectedBlockIds]
@@ -184,6 +233,10 @@ function BlockNodeView({
 
   useEffect(() => clearLongPressTimeout, []);
 
+  const rowMarginTop = previousBlockSpacingMeta.kind === "hr" && blockSpacingMeta.kind === "heading" && blockSpacingMeta.headingLevel
+    ? getHeadingOffsetPx(blockSpacingMeta.headingLevel)
+    : 0;
+
   return (
     <div className="space-y-0">
       <article
@@ -197,7 +250,7 @@ function BlockNodeView({
             onClearSelection();
           }
         }}
-        style={{ marginLeft: depth === 0 ? 0 : depth * 18 }}
+        style={{ marginLeft: depth === 0 ? 0 : depth * 18, marginTop: rowMarginTop }}
       >
         <div className="flex items-center gap-px px-0 py-0">
           <div ref={bulletRef} className="relative flex min-h-6 w-3.5 shrink-0 items-center justify-start self-stretch">
@@ -306,6 +359,7 @@ function BlockNodeView({
               focusPlacement={focusPlacement}
               previousBlockIdById={previousBlockIdById}
               nextBlockIdById={nextBlockIdById}
+              blockSpacingMetaById={blockSpacingMetaById}
               onFocusApplied={onFocusApplied}
               onFocusBlock={onFocusBlock}
               onEditorFocus={onEditorFocus}
@@ -390,6 +444,10 @@ export function NotesBlockTree({
   const [blockRangeSelection, setBlockRangeSelection] = useState<{ anchorBlockId: string; focusBlockId: string } | null>(null);
   const tree = buildNoteBlockTree(blocks);
   const { orderedBlockIds, previousBlockIdById, nextBlockIdById } = createVisibleNoteBlockNeighbors(blocks);
+  const blockSpacingMetaById = useMemo(
+    () => new Map(blocks.map((block) => [block.id, getBlockSpacingMeta(block.content)])),
+    [blocks]
+  );
   const lastRootBlock = tree[tree.length - 1]?.block ?? null;
   const selectedBlockIds = useMemo(() => {
     if (!blockRangeSelection) {
@@ -509,6 +567,7 @@ export function NotesBlockTree({
           focusPlacement={focusPlacement}
           previousBlockIdById={previousBlockIdById}
           nextBlockIdById={nextBlockIdById}
+          blockSpacingMetaById={blockSpacingMetaById}
           onFocusApplied={onFocusApplied}
           onFocusBlock={handleFocusBlock}
           onEditorFocus={handleEditorFocus}

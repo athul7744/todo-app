@@ -1,5 +1,5 @@
 import type { Editor, JSONContent } from "@tiptap/core";
-import { Code2, Heading1, Heading2, Heading3, ImageIcon, Link2, ListTodo, Quote, Table2, TextCursorInput, type LucideIcon } from "lucide-react";
+import { Code2, Heading1, Heading2, Heading3, Heading4, Heading5, ImageIcon, Link2, ListTodo, Quote, Table2, TextCursorInput, type LucideIcon } from "lucide-react";
 
 export type SlashCommandSection = "basic" | "structure" | "media";
 
@@ -46,7 +46,7 @@ export function emptyTaskListDocument(): JSONContent {
   };
 }
 
-function emptyHeadingDocument(level: 1 | 2 | 3): JSONContent {
+function emptyHeadingDocument(level: 1 | 2 | 3 | 4 | 5): JSONContent {
   return {
     type: "doc",
     content: [{ type: "heading", attrs: { level }, content: [] }],
@@ -154,6 +154,26 @@ export const slashCommands: SlashCommand[] = [
     icon: Heading3,
     keywords: ["heading", "subheading", "h3"],
     createContent: () => emptyHeadingDocument(3),
+  },
+  {
+    id: "heading-4",
+    section: "basic",
+    title: "Heading 4",
+    description: "Small section heading.",
+    shortcut: "/h4",
+    icon: Heading4,
+    keywords: ["heading", "minor heading", "h4"],
+    createContent: () => emptyHeadingDocument(4),
+  },
+  {
+    id: "heading-5",
+    section: "basic",
+    title: "Heading 5",
+    description: "Subtle section heading.",
+    shortcut: "/h5",
+    icon: Heading5,
+    keywords: ["heading", "small heading", "h5"],
+    createContent: () => emptyHeadingDocument(5),
   },
   {
     id: "quote",

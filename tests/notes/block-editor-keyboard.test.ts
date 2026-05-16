@@ -130,7 +130,7 @@ describe("block-editor keyboard spec", () => {
     expect(shouldNavigateBetweenBlocks({ selectionEmpty: true, atTextBoundary: true, hasAdjacentBlock: false })).toBe(false);
   });
 
-  it("normalizes empty task/code blocks on Backspace and deletes other empty blocks", () => {
+  it("normalizes styled empty blocks on Backspace and deletes empty paragraphs", () => {
     expect(getBlockBackspaceAction({
       shiftKey: false,
       altKey: false,
@@ -141,9 +141,12 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: true,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
-    })).toBe("reset-empty-special-block");
+    })).toBe("reset-empty-block");
 
     expect(getBlockBackspaceAction({
       shiftKey: false,
@@ -155,6 +158,26 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: false,
       isCodeBlock: false,
       isTable: false,
+      isHeading: true,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
+      isAtBlockStart: true,
+      canMergeWithPrevious: true,
+    })).toBe("reset-empty-block");
+
+    expect(getBlockBackspaceAction({
+      shiftKey: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      selectionEmpty: true,
+      isEmptyBlock: true,
+      isTaskItem: false,
+      isCodeBlock: false,
+      isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
     })).toBe("delete-empty-block");
@@ -171,6 +194,9 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: false,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
     })).toBe("merge-with-previous");
@@ -185,6 +211,9 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: true,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
     })).toBe("none");
@@ -199,6 +228,9 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: false,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: false,
       canMergeWithPrevious: true,
     })).toBe("none");
@@ -213,6 +245,9 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: false,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: false,
     })).toBe("none");
@@ -227,6 +262,9 @@ describe("block-editor keyboard spec", () => {
       isTaskItem: false,
       isCodeBlock: false,
       isTable: false,
+      isHeading: false,
+      isBlockquote: false,
+      isHorizontalRuleOnly: false,
       isAtBlockStart: true,
       canMergeWithPrevious: true,
     })).toBe("none");
