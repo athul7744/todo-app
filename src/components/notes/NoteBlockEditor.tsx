@@ -5,7 +5,7 @@ import { Extension, InputRule, markInputRule, markPasteRule, type Editor, type J
 import { Link2 } from "lucide-react";
 import Blockquote from "@tiptap/extension-blockquote";
 import Bold from "@tiptap/extension-bold";
-import CodeBlock from "@tiptap/extension-code-block";
+import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import Code from "@tiptap/extension-code";
 import Document from "@tiptap/extension-document";
 import Dropcursor from "@tiptap/extension-dropcursor";
@@ -30,6 +30,7 @@ import { DOMParser as ProseMirrorDOMParser, DOMSerializer } from "@tiptap/pm/mod
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
 import Text from "@tiptap/extension-text";
+import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
@@ -69,6 +70,7 @@ const markdownTableSeparatorRegex = /(^|\n)\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\
 const markdownTaskListRegex = /(^|\n)\s*[-*+]\s\[[ xX]\]\s/;
 const notePageReferenceRegex = /\[\[[^\]]+\]\]/g;
 const noteInlineTagRegex = /(^|[\s(])#([a-z0-9][a-z0-9_/-]*)/gi;
+const lowlight = createLowlight(common);
 
 const turndownService = new TurndownService({
   bulletListMarker: "-",
@@ -243,7 +245,6 @@ const MarkdownLink = Link.extend({
   autolink: true,
   linkOnPaste: true,
   openOnClick: false,
-  protocols: ["http", "https", "mailto"],
   HTMLAttributes: {
     rel: "noopener noreferrer nofollow",
     target: "_blank",
@@ -871,7 +872,9 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
       Italic,
       Strike,
       Code,
-      CodeBlock,
+      CodeBlockLowlight.configure({
+        lowlight,
+      }),
       Blockquote,
       Heading.configure({
         levels: [1, 2, 3],

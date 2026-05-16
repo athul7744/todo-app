@@ -82,6 +82,21 @@ async function waitForEditorElement(container: HTMLElement) {
   throw new Error("Editor failed to initialize");
 }
 
+async function waitForHighlightToken(container: HTMLElement) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const highlightToken = container.querySelector("pre .hljs-keyword") as HTMLElement | null;
+    if (highlightToken) {
+      return highlightToken;
+    }
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  throw new Error("Highlighted code token failed to render");
+}
+
 async function mountNoteBlockEditor(options?: {
   content?: string;
   hasChildren?: boolean;
@@ -314,6 +329,25 @@ it("uses shift-arrow to extend whole-line selection instead of plain navigation"
 
   expect(mounted.onSelectDown).toHaveBeenCalledTimes(1);
   expect(mounted.onNavigateDown).not.toHaveBeenCalled();
+
+  await mounted.unmount();
+});
+
+it("renders highlighted markup for code blocks", async () => {
+  const mounted = await mountNoteBlockEditor({
+    content: serializeNoteDocument({
+      type: "doc",
+      content: [{
+        type: "codeBlock",
+        attrs: { language: "typescript" },
+        content: [{ type: "text", text: "const value = 1;" }],
+      }],
+    }),
+  });
+
+  const highlightToken = await waitForHighlightToken(mounted.container);
+  expect(mounted.container.querySelector("pre code")?.textContent).toContain("const value = 1;");
+  expect(highlightToken.textContent).toBe("const");
 
   await mounted.unmount();
 });

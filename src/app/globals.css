@@ -363,6 +363,67 @@
   font-size: 0.82rem;
 }
 
+.ProseMirror pre code.hljs {
+  display: block;
+  color: color-mix(in oklab, var(--color-foreground) 92%, var(--color-background));
+}
+
+.ProseMirror pre .hljs-comment,
+.ProseMirror pre .hljs-quote {
+  color: color-mix(in oklab, var(--color-foreground) 46%, var(--color-background));
+  font-style: italic;
+}
+
+.ProseMirror pre .hljs-keyword,
+.ProseMirror pre .hljs-selector-tag,
+.ProseMirror pre .hljs-subst {
+  color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-title,
+.ProseMirror pre .hljs-title.class_,
+.ProseMirror pre .hljs-title.function_,
+.ProseMirror pre .hljs-section,
+.ProseMirror pre .hljs-selector-id {
+  color: color-mix(in oklab, #60a5fa 78%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-string,
+.ProseMirror pre .hljs-attr,
+.ProseMirror pre .hljs-selector-attr,
+.ProseMirror pre .hljs-selector-class,
+.ProseMirror pre .hljs-template-variable {
+  color: color-mix(in oklab, #34d399 78%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-number,
+.ProseMirror pre .hljs-literal,
+.ProseMirror pre .hljs-variable,
+.ProseMirror pre .hljs-symbol,
+.ProseMirror pre .hljs-bullet {
+  color: color-mix(in oklab, #f59e0b 80%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-built_in,
+.ProseMirror pre .hljs-type,
+.ProseMirror pre .hljs-doctag {
+  color: color-mix(in oklab, #f472b6 76%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-meta,
+.ProseMirror pre .hljs-meta .hljs-keyword,
+.ProseMirror pre .hljs-tag {
+  color: color-mix(in oklab, #a78bfa 76%, var(--color-foreground));
+}
+
+.ProseMirror pre .hljs-emphasis {
+  font-style: italic;
+}
+
+.ProseMirror pre .hljs-strong {
+  font-weight: 700;
+}
+
 .ProseMirror a {
   color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
   text-decoration: underline;
