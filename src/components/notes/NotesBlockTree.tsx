@@ -83,8 +83,12 @@ function getHeadingAccentColor(level: 1 | 2 | 3 | 4 | 5) {
   }
 }
 
+function getHeadingDividerOpacity(level: 1 | 2 | 3 | 4 | 5) {
+  return level === 1 ? 0.18 : level === 2 ? 0.20 : level === 3 ? 0.22 : level === 4 ? 0.24 : 0.28;
+}
+
 function getHeadingDividerColor(level: 1 | 2 | 3 | 4 | 5) {
-  return `color-mix(in oklab, ${getHeadingAccentColor(level)} 24%, transparent)`;
+  return getHeadingAccentColor(level);
 }
 
 function blockEndsWithDividerLine(meta: BlockSpacingMeta) {
@@ -263,7 +267,7 @@ function BlockNodeView({
     ? getHeadingOffsetPx(blockSpacingMeta.headingLevel)
     : 0;
   const editorSurfaceStyle = blockSpacingMeta.kind === "hr" && nextBlockSpacingMeta.kind === "heading" && nextBlockSpacingMeta.headingLevel
-    ? ({ "--note-hr-accent": getHeadingDividerColor(nextBlockSpacingMeta.headingLevel) } as CSSProperties)
+    ? ({ "--note-hr-accent": getHeadingDividerColor(nextBlockSpacingMeta.headingLevel), "--note-hr-opacity": getHeadingDividerOpacity(nextBlockSpacingMeta.headingLevel) } as CSSProperties)
     : undefined;
 
   return (
