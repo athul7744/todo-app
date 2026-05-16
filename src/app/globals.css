@@ -519,16 +519,32 @@
 
 .ProseMirror table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
+  margin: 0.5rem 0;
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  border-radius: 0.5rem;
+  overflow: hidden;
 }
 
 .ProseMirror th,
 .ProseMirror td {
-  border: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  border-right: 1px solid color-mix(in oklab, var(--color-foreground) 12%, transparent);
   padding: 0.45rem 0.6rem;
   vertical-align: top;
   text-align: left;
+}
+
+.ProseMirror th:last-child,
+.ProseMirror td:last-child {
+  border-right: none;
+}
+
+.ProseMirror tr:last-child td,
+.ProseMirror tr:last-child th {
+  border-bottom: none;
 }
 
 .ProseMirror th {
