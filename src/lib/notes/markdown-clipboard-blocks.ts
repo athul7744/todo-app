@@ -86,7 +86,8 @@ export function shouldPreserveMarkdownStructure(text: string) {
     || /(^|\n)\s*\d+\.\s/.test(text)
     || /(^|\n)(?:\t| {2,})[-*+]\s/.test(text)
     || /(^|\n)\s*>\s/.test(text)
-    || /(^|\n)\s*#{1,6}\s/.test(text);
+    || /(^|\n)\s*#{1,6}\s/.test(text)
+    || /(^|\n)\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*($|\n)/.test(text);
 }
 
 export function parseClipboardMarkdown(
