@@ -26,6 +26,8 @@ type BlockSpacingMeta = {
   headingLevel?: 1 | 2 | 3 | 4 | 5;
 };
 
+const defaultBlockSpacingMeta: BlockSpacingMeta = { kind: "other" };
+
 function getBlockSpacingMeta(raw: string | null | undefined): BlockSpacingMeta {
   const document = normalizeNoteDocument(raw);
   const firstNode = Array.isArray(document.content) ? document.content[0] : null;
@@ -64,6 +66,10 @@ function getHeadingOffsetPx(level: 1 | 2 | 3 | 4 | 5) {
     case 5:
       return -6;
   }
+}
+
+function blockEndsWithDividerLine(meta: BlockSpacingMeta) {
+  return meta.kind === "hr" || meta.kind === "heading";
 }
 
 export function extractBlockText(raw: string | null | undefined) {
@@ -147,8 +153,8 @@ function BlockNodeView({
 }) {
   const previousBlockId = previousBlockIdById.get(node.block.id) ?? null;
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
-  const blockSpacingMeta = blockSpacingMetaById.get(node.block.id) ?? { kind: "other" };
-  const previousBlockSpacingMeta = previousBlockId ? (blockSpacingMetaById.get(previousBlockId) ?? { kind: "other" }) : { kind: "other" };
+  const blockSpacingMeta = blockSpacingMetaById.get(node.block.id) ?? defaultBlockSpacingMeta;
+  const previousBlockSpacingMeta = previousBlockId ? (blockSpacingMetaById.get(previousBlockId) ?? defaultBlockSpacingMeta) : defaultBlockSpacingMeta;
   const blockType = node.block.type ?? "text";
   const moveTargetBlockIds = selectedBlockIds.has(node.block.id)
     ? [...selectedBlockIds]
@@ -233,7 +239,7 @@ function BlockNodeView({
 
   useEffect(() => clearLongPressTimeout, []);
 
-  const rowMarginTop = previousBlockSpacingMeta.kind === "hr" && blockSpacingMeta.kind === "heading" && blockSpacingMeta.headingLevel
+  const rowMarginTop = blockEndsWithDividerLine(previousBlockSpacingMeta) && blockSpacingMeta.kind === "heading" && blockSpacingMeta.headingLevel
     ? getHeadingOffsetPx(blockSpacingMeta.headingLevel)
     : 0;
 
