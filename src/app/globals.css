@@ -291,14 +291,26 @@
   margin: 0;
 }
 
+.ProseMirror {
+  --note-body-ink: color-mix(in oklab, #cdd6f4 24%, var(--color-foreground) 76%);
+  color: var(--note-body-ink);
+}
+
+.ProseMirror p {
+  color: var(--note-body-ink);
+  line-height: 1.6;
+}
+
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3,
 .ProseMirror h4,
 .ProseMirror h5 {
   --note-heading-bottom-space: 12px;
-  --note-heading-divider-color: color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  --note-heading-accent: var(--color-foreground);
+  --note-heading-divider-color: color-mix(in oklab, var(--note-heading-accent) 24%, transparent);
   --note-heading-divider-gap: 10px;
+  color: var(--note-heading-accent);
   margin-bottom: var(--note-heading-bottom-space);
 }
 
@@ -319,6 +331,7 @@
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.02em;
+  --note-heading-accent: color-mix(in oklab, #f5e0dc 48%, var(--color-foreground));
   --note-heading-divider-gap: 11px;
 }
 
@@ -327,6 +340,7 @@
   line-height: 1.3;
   font-weight: 700;
   letter-spacing: -0.015em;
+  --note-heading-accent: color-mix(in oklab, #cba6f7 38%, var(--color-foreground));
   --note-heading-divider-gap: 10px;
 }
 
@@ -334,6 +348,7 @@
   font-size: 1.125rem;
   line-height: 1.35;
   font-weight: 600;
+  --note-heading-accent: color-mix(in oklab, #89b4fa 26%, var(--color-foreground));
   --note-heading-divider-gap: 8px;
 }
 
@@ -341,6 +356,7 @@
   font-size: 1rem;
   line-height: 1.4;
   font-weight: 600;
+  --note-heading-accent: color-mix(in oklab, #94e2d5 14%, var(--color-foreground));
   --note-heading-divider-gap: 7px;
 }
 
@@ -348,7 +364,7 @@
   font-size: 0.92rem;
   line-height: 1.45;
   font-weight: 600;
-  color: color-mix(in oklab, var(--color-foreground) 88%, var(--color-muted-foreground));
+  --note-heading-accent: color-mix(in oklab, #bac2de 20%, var(--color-muted-foreground));
   --note-heading-divider-gap: 6px;
 }
 
@@ -373,7 +389,7 @@
   right: 0;
   left: 0;
   height: 1px;
-  background: color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  background: var(--note-hr-accent, color-mix(in oklab, var(--color-foreground) 16%, transparent));
 }
 
 .ProseMirror hr + p:has(> .ProseMirror-trailingBreak:only-child) {

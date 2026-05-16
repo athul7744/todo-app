@@ -102,7 +102,8 @@ export function NotesEditorHeader({
             }
           }}
           readOnly={showEditorOverlay}
-          className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight text-foreground shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
+          className="col-start-1 h-auto rounded-none border-0 bg-transparent px-0 py-0 pl-3 text-4xl font-semibold tracking-tight shadow-none placeholder:text-muted-foreground/55 focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent md:text-5xl sm:col-start-2 sm:pl-0"
+          style={{ color: "color-mix(in oklab, #cba6f7 66%, var(--color-foreground))" }}
           placeholder="Untitled"
         />
         <div className="col-start-2 mt-1 flex items-center justify-self-end gap-1.5 sm:col-start-3 sm:hidden">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { BlockContextMenu } from "@/components/notes/BlockContextMenu";
@@ -66,6 +66,25 @@ function getHeadingOffsetPx(level: 1 | 2 | 3 | 4 | 5) {
     case 5:
       return -6;
   }
+}
+
+function getHeadingAccentColor(level: 1 | 2 | 3 | 4 | 5) {
+  switch (level) {
+    case 1:
+      return "color-mix(in oklab, #f5e0dc 48%, var(--color-foreground))";
+    case 2:
+      return "color-mix(in oklab, #cba6f7 38%, var(--color-foreground))";
+    case 3:
+      return "color-mix(in oklab, #89b4fa 26%, var(--color-foreground))";
+    case 4:
+      return "color-mix(in oklab, #94e2d5 14%, var(--color-foreground))";
+    case 5:
+      return "color-mix(in oklab, #bac2de 20%, var(--color-muted-foreground))";
+  }
+}
+
+function getHeadingDividerColor(level: 1 | 2 | 3 | 4 | 5) {
+  return `color-mix(in oklab, ${getHeadingAccentColor(level)} 24%, transparent)`;
 }
 
 function blockEndsWithDividerLine(meta: BlockSpacingMeta) {
@@ -155,6 +174,7 @@ function BlockNodeView({
   const nextBlockId = nextBlockIdById.get(node.block.id) ?? null;
   const blockSpacingMeta = blockSpacingMetaById.get(node.block.id) ?? defaultBlockSpacingMeta;
   const previousBlockSpacingMeta = previousBlockId ? (blockSpacingMetaById.get(previousBlockId) ?? defaultBlockSpacingMeta) : defaultBlockSpacingMeta;
+  const nextBlockSpacingMeta = nextBlockId ? (blockSpacingMetaById.get(nextBlockId) ?? defaultBlockSpacingMeta) : defaultBlockSpacingMeta;
   const blockType = node.block.type ?? "text";
   const moveTargetBlockIds = selectedBlockIds.has(node.block.id)
     ? [...selectedBlockIds]
@@ -242,6 +262,9 @@ function BlockNodeView({
   const rowMarginTop = blockEndsWithDividerLine(previousBlockSpacingMeta) && blockSpacingMeta.kind === "heading" && blockSpacingMeta.headingLevel
     ? getHeadingOffsetPx(blockSpacingMeta.headingLevel)
     : 0;
+  const editorSurfaceStyle = blockSpacingMeta.kind === "hr" && nextBlockSpacingMeta.kind === "heading" && nextBlockSpacingMeta.headingLevel
+    ? ({ "--note-hr-accent": getHeadingDividerColor(nextBlockSpacingMeta.headingLevel) } as CSSProperties)
+    : undefined;
 
   return (
     <div className="space-y-0">
@@ -309,7 +332,7 @@ function BlockNodeView({
             {isBlockMenuOpen ? <BlockContextMenu options={blockContextMenuOptions} onAction={handleBlockMenuAction} /> : null}
             {depth > 0 ? <span className="absolute bottom-0 left-1/2 top-1/2 w-px -translate-x-1/2 bg-border/60" /> : null}
           </div>
-          <div className={`min-w-0 flex-1 rounded-sm transition-smooth ${selectedBlockIds.has(node.block.id) ? "bg-accent/45" : ""}`}>
+          <div className={`min-w-0 flex-1 rounded-sm transition-smooth ${selectedBlockIds.has(node.block.id) ? "bg-accent/45" : ""}`} style={editorSurfaceStyle}>
             <NoteBlockEditor
               content={node.block.content}
               notePageTitles={notePageTitles}
