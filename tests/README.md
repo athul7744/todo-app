@@ -35,6 +35,21 @@ This folder holds the project's Vitest suites and lightweight test helpers.
 - `tests/notes/useNoteBlockActions.dom.test.ts`
   Runs jsdom-backed integration coverage for `useNoteBlockActions`, including merge-into-previous behavior with child reparenting and delete focus behavior for the first visible block.
 
+- `tests/notes/block-context-menu-options.test.ts`
+  Covers context menu action generation for block types, including default actions and fallback behavior.
+
+- `tests/notes/block-line-selection.test.ts`
+  Covers block selection ranges, clipboard serialization with preserved nesting, and markdown fallback for multi-block clipboard operations.
+
+- `tests/notes/note-block-editor.dom.test.ts`
+  Runs jsdom-backed integration coverage for NoteBlockEditor DOM interactions including block splitting, navigation, backspace handling, selection, code blocks, and table operations.
+
+- `tests/notes/notes-block-tree.dom.test.ts`
+  Runs jsdom-backed integration coverage for NotesBlockTree component including paste routing, block deletion with optimistic updates, Alt+arrow moving, selection handling, and context menu block operations.
+
+- `tests/notes/useNotesSurfaceState.dom.test.ts`
+  Runs jsdom-backed integration coverage for useNotesSurfaceState hook behavior covering editor content caching during page transitions and selected-page loading.
+
 ## Usage
 
 - `npm test` — one-shot node-based Vitest run.

@@ -133,6 +133,8 @@ Important convention:
 - `src/components/notes/NoteBlockEditor.tsx`
 - `src/components/notes/NoteBlockEditorSlash.ts`
 - `src/components/notes/NotesBlockTree.tsx`
+- `src/components/notes/BlockContextMenu.tsx`
+- `src/components/notes/block-context-menu-options.ts`
 - `src/components/notes/MobileRailDrawer.tsx`
 - `src/components/notes/page/*`
 
@@ -190,13 +192,19 @@ Key modules:
   - Includes the notes editor header metadata row, which reuses the shared tag selector and tag pill strip.
 
 - `src/components/notes/NoteBlockEditor.tsx`
-  - Per-block Tiptap editor with markdown-style transforms, block key handling, and local/external content reconciliation.
+  - Per-block Tiptap editor with markdown-style transforms, block key handling, local/external content reconciliation, and a table contextual toolbar for focused-cell column and row actions.
 
 - `src/components/notes/NoteBlockEditorSlash.ts`
   - Slash command definitions plus query, filtering, and grouping helpers used by the block editor.
 
 - `src/components/notes/NotesBlockTree.tsx`
-  - Nested visible block tree, block navigation wiring, and sibling creation plumbing.
+  - Nested visible block tree, block navigation wiring, sibling creation plumbing, block move controls (Alt+arrow), selection handling, and per-heading-level accent color and divider styling.
+
+- `src/components/notes/BlockContextMenu.tsx`
+  - Block-level right-click context menu with actions for type conversion, move, delete, and duplication.
+
+- `src/components/notes/block-context-menu-options.ts`
+  - Context menu option generation logic, providing block-type-aware action lists.
 
 - `src/components/notes/MobileRailDrawer.tsx`
   - Shared mobile drawer shell for the notes rails.
