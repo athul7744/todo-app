@@ -110,7 +110,7 @@ export function NotesDetailsRail({
             <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">CREATED</p>
             <p className="text-[12px] font-semibold text-foreground">{createdTimestamp?.relative ?? "Unknown"}</p>
           </div>
-          <p className="shrink-0 self-center text-right text-[11px] font-medium leading-none text-muted-foreground">{createdTimestamp?.dateOnly ?? "Created date unavailable"}</p>
+                <p className="shrink-0 self-center text-right text-[11px] font-medium leading-none text-muted-foreground">{createdTimestamp?.absolute ?? "Created date unavailable"}</p>
         </div>
       </section>
 
