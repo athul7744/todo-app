@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, Ellipsis, Files, NotebookTabs, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Star, Tag as TagIcon, Trash2 } from "lucide-react";
 
@@ -37,7 +37,7 @@ import { useNotePageActions } from "@/components/notes/page/useNotePageActions";
 import { NotesPageSearchPopup } from "@/components/notes/page/NotesPageSearchPopup";
 import { useNotesPageDerivedState } from "@/components/notes/page/useNotesPageDerivedState";
 import { useNotesSurfaceState } from "@/components/notes/page/useNotesSurfaceState";
-import { formatTimestampLabel } from "@/components/notes/page/utils";
+import { buildOutlineEntries, formatTimestampLabel } from "@/components/notes/page/utils";
 import { ManageTagsDialog } from "@/components/tasks/ManageTagsDialog";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTimeTick } from "@/hooks/use-relative-time-tick";
@@ -417,30 +417,6 @@ export default function NotesPage() {
     });
   }, [selectedPageTags, tagDirectory]);
 
-  useEffect(() => {
-    const nextState = {
-      outline: true,
-      summary: true,
-      references: true,
-      mentions: true,
-      attachments: true,
-    };
-
-    setDetailsSectionOpen((current) => {
-      if (
-        current.outline === nextState.outline &&
-        current.summary === nextState.summary &&
-        current.references === nextState.references &&
-        current.mentions === nextState.mentions &&
-        current.attachments === nextState.attachments
-      ) {
-        return current;
-      }
-
-      return nextState;
-    });
-  }, [linkedReferences.length, pageOutline.length, pageTagMentions.length, selectedPage?.id, selectedPageAttachments.length, selectedPageSummary, selectedPageTags.length]);
-
   const isLoading = isLoadingCounts || isLoadingRecentPages;
 
   const {
@@ -473,6 +449,34 @@ export default function NotesPage() {
     displayBlocks,
     updatedTimestamp: stableUpdatedTimestamp,
   });
+  const renderedPageOutline = useMemo(
+    () => buildOutlineEntries(editorContentToRender?.blocks ?? []),
+    [editorContentToRender?.blocks]
+  );
+
+  useEffect(() => {
+    const nextState = {
+      outline: true,
+      summary: true,
+      references: true,
+      mentions: true,
+      attachments: true,
+    };
+
+    setDetailsSectionOpen((current) => {
+      if (
+        current.outline === nextState.outline &&
+        current.summary === nextState.summary &&
+        current.references === nextState.references &&
+        current.mentions === nextState.mentions &&
+        current.attachments === nextState.attachments
+      ) {
+        return current;
+      }
+
+      return nextState;
+    });
+  }, [linkedReferences.length, pageTagMentions.length, renderedPageOutline.length, selectedPage?.id, selectedPageAttachments.length, selectedPageSummary, selectedPageTags.length]);
 
   const openPageById = (pageId: string) => {
     transitionToEditor(pageId);
@@ -682,7 +686,7 @@ export default function NotesPage() {
     <NotesDetailsRail
       selectedPage={selectedPage}
       detailsSectionOpen={detailsSectionOpen}
-      pageOutline={pageOutline}
+      pageOutline={renderedPageOutline}
       summaryDraft={summaryDraft}
       selectedTagIdsDraft={selectedTagIdsDraft}
       linkedReferences={linkedReferences}

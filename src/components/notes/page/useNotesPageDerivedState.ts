@@ -9,7 +9,7 @@ import { normalizeNotePageTitle } from "@/lib/notes/notes";
 import type { Tag } from "@/lib/powersync/AppSchema";
 
 import { type NormalizedNotePage, type OutlineEntry, type TagDirectoryEntry } from "./types";
-import { extractOutlineEntries, formatTimestampLabel, normalizePageEmoji, parseProperties, parseStoredTagIds, resolveNoteTags } from "./utils";
+import { buildOutlineEntries, formatTimestampLabel, normalizePageEmoji, parseProperties, parseStoredTagIds, resolveNoteTags } from "./utils";
 
 type UseNotesPageDerivedStateParams = {
   allPages: NotePageRow[];
@@ -189,7 +189,7 @@ export function useNotesPageDerivedState({
   );
 
   const pageOutline = useMemo<OutlineEntry[]>(
-    () => displayBlocks.flatMap((block) => extractOutlineEntries(block.id, block.content)),
+    () => buildOutlineEntries(displayBlocks),
     [displayBlocks]
   );
 

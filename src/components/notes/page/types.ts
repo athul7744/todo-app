@@ -32,6 +32,7 @@ export type OptimisticBlockStructure = Pick<NoteBlockRow, "parent_block_id" | "s
 
 export type OutlineEntry = {
   blockId: string;
+  indentLevel: number;
   level: number;
   text: string;
 };

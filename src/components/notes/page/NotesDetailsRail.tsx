@@ -131,7 +131,7 @@ export function NotesDetailsRail({
                 type="button"
                 onClick={() => onSetFocusTarget({ blockId: entry.blockId, placement: "start" })}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-muted-foreground transition-smooth hover:bg-accent hover:text-foreground"
-                style={{ paddingLeft: `${8 + (entry.level - 1) * 10}px` }}
+                style={{ paddingLeft: `${8 + entry.indentLevel * 10}px` }}
               >
                 <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">H{entry.level}</span>
                 <span className="truncate">{entry.text}</span>

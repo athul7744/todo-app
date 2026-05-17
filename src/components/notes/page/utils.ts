@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { NoteBlockRow } from "@/hooks/use-notes";
 import type { Tag } from "@/lib/powersync/AppSchema";
-import { parseSerializedRecord } from "@/lib/notes/notes-content";
+import { normalizeNoteDocument, parseSerializedRecord } from "@/lib/notes/notes-content";
 import type { JsonValue } from "@/lib/notes/notes";
 import { formatRelativeTime } from "@/lib/shared/utils";
 import { TAG_COLORS } from "@/lib/tasks/colors";
@@ -65,18 +66,63 @@ export function extractOutlineEntries(blockId: string, rawContent: string | null
   if (!rawContent) return [];
 
   try {
-    const parsed = JSON.parse(rawContent) as RichContentNode;
+    const parsed = normalizeNoteDocument(rawContent) as RichContentNode;
     const headings: Array<{ level: number; text: string }> = [];
     collectOutlineHeadings(parsed, headings);
 
     return headings.map((heading) => ({
       blockId,
+      indentLevel: 0,
       level: Math.min(Math.max(heading.level, 1), 5),
       text: heading.text,
     }));
   } catch {
     return [];
   }
+}
+
+function getOutlineIndentLevels(blocks: Pick<NoteBlockRow, "id" | "parent_block_id">[]) {
+  const parentById = new Map(blocks.map((block) => [block.id, block.parent_block_id ?? null]));
+  const depthById = new Map<string, number>();
+
+  const resolveDepth = (blockId: string, visiting = new Set<string>()): number => {
+    const cachedDepth = depthById.get(blockId);
+    if (cachedDepth !== undefined) {
+      return cachedDepth;
+    }
+
+    if (visiting.has(blockId)) {
+      depthById.set(blockId, 0);
+      return 0;
+    }
+
+    const parentBlockId = parentById.get(blockId);
+    if (!parentBlockId || !parentById.has(parentBlockId)) {
+      depthById.set(blockId, 0);
+      return 0;
+    }
+
+    visiting.add(blockId);
+    const depth = resolveDepth(parentBlockId, visiting) + 1;
+    visiting.delete(blockId);
+    depthById.set(blockId, depth);
+    return depth;
+  };
+
+  blocks.forEach((block) => {
+    resolveDepth(block.id);
+  });
+
+  return depthById;
+}
+
+export function buildOutlineEntries(blocks: Pick<NoteBlockRow, "id" | "content" | "parent_block_id">[]): OutlineEntry[] {
+  const indentLevels = getOutlineIndentLevels(blocks);
+
+  return blocks.flatMap((block) => extractOutlineEntries(block.id, block.content).map((entry) => ({
+    ...entry,
+    indentLevel: indentLevels.get(block.id) ?? 0,
+  })));
 }
 
 export function attachmentLabel(filePath: string | null | undefined) {
