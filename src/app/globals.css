@@ -397,9 +397,10 @@
 }
 
 .ProseMirror hr + p:has(> .ProseMirror-trailingBreak:only-child) {
-  height: 0;
+  font-size: 0;
+  line-height: 0;
+  min-height: 0.75rem;
   margin: 0;
-  overflow: hidden;
 }
 
 .ProseMirror code {
