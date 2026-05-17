@@ -110,7 +110,7 @@ export function OverviewPageCard({
         aria-label={`Open ${page.title || "Untitled page"}`}
       />
       {accentClasses ? <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b", accentClasses.glow)} /> : null}
-      <div className="relative z-10 flex min-h-[11.5rem] flex-col gap-2.5 pointer-events-none sm:min-h-[12.5rem] sm:gap-3">
+      <div className="relative z-10 flex h-[11.5rem] flex-col gap-2.5 pointer-events-none sm:h-[12.5rem] sm:gap-3">
         <div className="flex items-center justify-between gap-2.5 sm:gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black text-white sm:h-10 sm:w-10">
             <PageIcon emoji={page.emoji} className="h-4 w-4 text-sm leading-none sm:h-4.5 sm:w-4.5 sm:text-base" />
@@ -133,17 +133,17 @@ export function OverviewPageCard({
           </Button>
         </div>
 
-        <div className="block min-w-0 space-y-1.5">
-          <p className="text-[0.98rem] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] sm:text-[1.05rem] sm:leading-6">
+        <div className="block min-w-0 space-y-1.5 overflow-hidden">
+          <p className="line-clamp-2 text-[0.98rem] font-semibold leading-5 text-foreground sm:text-[1.05rem] sm:leading-6">
             {page.title || "Untitled page"}
           </p>
 
           {page.summary ? (
-            <p className="line-clamp-4 text-[12.5px] leading-5 text-muted-foreground sm:text-sm sm:leading-5.5">
+            <p className="line-clamp-2 text-[12.5px] leading-5 text-muted-foreground sm:text-sm sm:leading-5.5">
               {page.summary}
             </p>
           ) : (
-            <p className="line-clamp-3 text-[12.5px] leading-5 text-muted-foreground/70 sm:text-sm sm:leading-5.5">
+            <p className="line-clamp-2 text-[12.5px] leading-5 text-muted-foreground/70 sm:text-sm sm:leading-5.5">
               Open this page to start writing notes.
             </p>
           )}
