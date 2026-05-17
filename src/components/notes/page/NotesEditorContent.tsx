@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { NotesBlockTree } from "@/components/notes/NotesBlockTree";
 import { NotesEditorMainSkeleton } from "@/components/notes/NotesPageSkeleton";
 import type { JsonValue, NoteBlockInsert } from "@/lib/notes/notes";
@@ -93,7 +95,45 @@ export function NotesEditorContent({
   onDeleteRange: (blockIds: string[]) => void | Promise<void>;
   onUpdateContent: (blockId: string, nextContent: JsonValue) => void;
 }) {
-  if (showSelectedPageLoading && !editorContent) {
+  const [blocksSettled, setBlocksSettled] = useState(false);
+  const blockTreeRef = useRef<HTMLDivElement | null>(null);
+  const blockCount = editorContent?.blocks.length ?? 0;
+
+  useEffect(() => {
+    if (blocksSettled || blockCount === 0) return;
+
+    const container = blockTreeRef.current;
+    if (!container) return;
+
+    // Check if Tiptap editors have already rendered
+    if (container.querySelector(".ProseMirror")) {
+      setBlocksSettled(true);
+      return;
+    }
+
+    // Wait for the first .ProseMirror element to appear
+    const observer = new MutationObserver(() => {
+      if (container.querySelector(".ProseMirror")) {
+        observer.disconnect();
+        setBlocksSettled(true);
+      }
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, [blockCount, blocksSettled]);
+
+  const blockTreeRefCallback = useCallback((node: HTMLDivElement | null) => {
+    blockTreeRef.current = node;
+    if (node === null) {
+      setBlocksSettled(false);
+    }
+  }, []);
+
+  const showBlocksSettling = blockCount > 0 && !blocksSettled;
+
+  if (showSelectedPageLoading && (!editorContent || blockCount === 0)) {
     return (
       <div className="mx-auto max-w-3xl">
         <NotesEditorMainSkeleton />
@@ -111,7 +151,7 @@ export function NotesEditorContent({
 
   return (
     <div className="relative mx-auto max-w-3xl">
-      <div className={showEditorOverlay ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
+      <div className={showEditorOverlay || showBlocksSettling ? "pointer-events-none opacity-0 transition-opacity duration-100" : "transition-opacity duration-150"}>
         <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-1 gap-y-4 md:gap-x-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
           <NotesEditorHeader
             editorContent={editorContent}
@@ -133,7 +173,7 @@ export function NotesEditorContent({
             onOpenDeleteDialog={onOpenDeleteDialog}
           />
 
-          <div className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
+          <div ref={blockTreeRefCallback} className={`col-span-2 sm:col-start-2 sm:col-span-2 ${shouldAnimateEditorContent ? "animate-fade-slide-in" : ""}`}>
             <NotesBlockTree
               blocks={editorContent.blocks}
               onCreateFirstBlock={onCreateFirstBlock}
@@ -158,7 +198,7 @@ export function NotesEditorContent({
           </div>
         </div>
       </div>
-      {showEditorOverlay ? (
+      {showEditorOverlay || showBlocksSettling ? (
         <div className="pointer-events-none absolute inset-0 bg-background">
           <NotesEditorMainSkeleton />
         </div>
