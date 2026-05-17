@@ -125,6 +125,10 @@ function isParagraphNode(value: unknown): value is Record<string, unknown> {
   return isRecord(value) && value.type === "paragraph";
 }
 
+function isTextContentNode(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && (value.type === "paragraph" || value.type === "heading");
+}
+
 function getNoteNodeSize(value: unknown): number {
   if (!isRecord(value) || typeof value.type !== "string") {
     return 0;
@@ -221,7 +225,7 @@ export function mergeNoteDocuments(left: unknown, right: unknown) {
   const leftLastNode = leftContent.at(-1);
   const rightFirstNode = rightContent[0];
 
-  const mergedContent = isParagraphNode(leftLastNode) && isParagraphNode(rightFirstNode)
+  const mergedContent = isTextContentNode(leftLastNode) && isTextContentNode(rightFirstNode)
     ? [
         ...leftContent.slice(0, -1),
         {

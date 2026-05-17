@@ -1537,8 +1537,11 @@ export const NoteBlockEditor = memo(function NoteBlockEditor({
 
         if (event.key === "Backspace" && backspaceAction === "merge-with-previous" && editor && mergeWithPrevious) {
           event.preventDefault();
-          const nextContent = flushEditorContent() ?? editor?.getJSON();
-          if (nextContent) {
+          const rawContent = flushEditorContent() ?? editor?.getJSON();
+          if (rawContent) {
+            const nextContent = (editor.isActive("heading") || editor.isActive("blockquote"))
+              ? createNormalTextSiblingContent(rawContent)
+              : rawContent;
             suppressBlurCommitRef.current = true;
             void mergeWithPrevious(nextContent, { hasChildren });
             return true;

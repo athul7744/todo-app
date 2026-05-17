@@ -190,4 +190,63 @@ describe("notes-content", () => {
       ],
     });
   });
+
+  it("merges a paragraph inline into a heading, preserving heading type and attrs", () => {
+    expect(
+      mergeNoteDocuments(
+        {
+          type: "doc",
+          content: [
+            {
+              type: "heading",
+              attrs: { level: 2 },
+              content: [{ type: "text", text: "Title" }],
+            },
+          ],
+        },
+        createNoteDocumentFromText("Next")
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [
+            { type: "text", text: "Title" },
+            { type: "text", text: "Next" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("merges a heading inline into a paragraph, preserving paragraph type", () => {
+    expect(
+      mergeNoteDocuments(
+        createNoteDocumentFromText("Before"),
+        {
+          type: "doc",
+          content: [
+            {
+              type: "heading",
+              attrs: { level: 3 },
+              content: [{ type: "text", text: "Title" }],
+            },
+          ],
+        }
+      )
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Before" },
+            { type: "text", text: "Title" },
+          ],
+        },
+      ],
+    });
+  });
 });
